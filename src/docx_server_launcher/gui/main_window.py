@@ -2,7 +2,8 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QSpinBox, QPushButton,
-    QGroupBox, QPlainTextEdit, QFileDialog, QMessageBox
+    QGroupBox, QPlainTextEdit, QFileDialog, QMessageBox,
+    QCheckBox
 )
 from PyQt6.QtCore import Qt, QSettings
 from docx_server_launcher.core.server_manager import ServerManager
