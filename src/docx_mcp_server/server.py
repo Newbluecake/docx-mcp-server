@@ -997,7 +997,26 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
 
 
 def main():
-    mcp.run()
+    import argparse
+    parser = argparse.ArgumentParser(description="DOCX MCP Server")
+    parser.add_argument("--transport", default="stdio", choices=["stdio", "sse"], help="Transport protocol")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (SSE only)")
+    parser.add_argument("--port", type=int, default=8000, help="Port to listen on (SSE only)")
+
+    # Parse known args to avoid conflict if FastMCP parses its own (though we call run explicitly)
+    args, unknown = parser.parse_known_args()
+
+    if args.transport == "sse":
+        print(f"Starting SSE server on {args.host}:{args.port}...", flush=True)
+        # mcp.run() might parse sys.argv again, so we need to be careful.
+        # However, FastMCP usually allows passing arguments directly to run() to override CLI.
+        # But wait, FastMCP's run() doesn't always take 'host'. It takes 'transport'.
+        # If transport is 'sse', it might take 'host' and 'port'.
+        # Let's inspect FastMCP source code or assume standard behavior.
+        # Standard FastMCP: mcp.run(transport='sse', host='0.0.0.0', port=8000)
+        mcp.run(transport="sse", host=args.host, port=args.port)
+    else:
+        mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()

@@ -109,11 +109,15 @@ class MainWindow(QMainWindow):
         if last_cwd:
             self.cwd_input.setText(str(last_cwd))
 
+        last_host = self.settings.value("host", "127.0.0.1")
+        self.host_input.setText(str(last_host))
+
         last_port = self.settings.value("port", 8000)
         self.port_input.setValue(int(last_port))
 
     def save_settings(self):
         self.settings.setValue("cwd", self.cwd_input.text())
+        self.settings.setValue("host", self.host_input.text())
         self.settings.setValue("port", self.port_input.value())
 
     def browse_cwd(self):
