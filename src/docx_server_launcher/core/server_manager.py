@@ -1,5 +1,7 @@
 import sys
 import os
+import shutil
+from pathlib import Path
 from PyQt6.QtCore import QObject, QProcess, pyqtSignal
 
 class ServerManager(QObject):
@@ -33,15 +35,20 @@ class ServerManager(QObject):
             self.log_received.emit("Server is already running.")
             return
 
-        program = sys.executable
-        # Assuming we can run it as a module.
-        # FastMCP typically supports SSE via specific args or environment variables depending on implementation.
-        # Since the underlying library behavior can vary, we'll try the standard approach for FastMCP/mcp.
-        # Often: python -m docx_mcp_server.server
-        # But we need to force SSE. FastMCP run() usually defaults to stdio.
-        # There isn't a standardized CLI across all FastMCP usages unless we check the library code.
-        # However, for the purpose of this launcher, we will assume passing custom args is possible if the server supports it.
-        # IF the server code in server.py just calls `mcp.run()`, we rely on `mcp` (FastMCP) to handle `--transport sse --port X`.
+        # Determine Python interpreter path
+        if getattr(sys, 'frozen', False):
+            # Packaged environment: find system Python
+            python_exe = shutil.which('python') or shutil.which('python3')
+            if not python_exe:
+                self.server_error.emit(
+                    "Cannot find Python interpreter in PATH.\n"
+                    "Please install Python 3.10+ and add it to PATH."
+                )
+                return
+            program = python_exe
+        else:
+            # Development environment: use current Python interpreter
+            program = sys.executable
 
         args = [
             "-m", "docx_mcp_server.server",
