@@ -1008,13 +1008,12 @@ def main():
 
     if args.transport == "sse":
         print(f"Starting SSE server on {args.host}:{args.port}...", flush=True)
-        # mcp.run() might parse sys.argv again, so we need to be careful.
-        # However, FastMCP usually allows passing arguments directly to run() to override CLI.
-        # But wait, FastMCP's run() doesn't always take 'host'. It takes 'transport'.
-        # If transport is 'sse', it might take 'host' and 'port'.
-        # Let's inspect FastMCP source code or assume standard behavior.
-        # Standard FastMCP: mcp.run(transport='sse', host='0.0.0.0', port=8000)
-        mcp.run(transport="sse", host=args.host, port=args.port)
+
+        # FastMCP.run() doesn't accept host/port args, we must update settings directly
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+
+        mcp.run(transport="sse")
     else:
         mcp.run(transport="stdio")
 
