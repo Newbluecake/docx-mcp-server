@@ -1,5 +1,6 @@
 import uuid
 import time
+import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from docx import Document
@@ -56,10 +57,15 @@ class SessionManager:
         session_id = str(uuid.uuid4())
 
         if file_path:
-            try:
-                doc = Document(file_path)
-            except Exception:
-                # If file doesn't exist or is invalid, create new but keep path
+            if os.path.exists(file_path):
+                try:
+                    doc = Document(file_path)
+                except Exception as e:
+                    # If file exists but fails to load (e.g. locked, corrupt), raise error
+                    # so user knows why instead of silently returning empty doc
+                    raise RuntimeError(f"Failed to load existing file '{file_path}': {str(e)}")
+            else:
+                # File doesn't exist, create new empty doc (intended for new file creation)
                 doc = Document()
         else:
             doc = Document()
