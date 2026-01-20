@@ -43,9 +43,21 @@ class MainWindow(QMainWindow):
 
         # Host and Port
         net_layout = QHBoxLayout()
-        net_layout.addWidget(QLabel("Host:"))
-        self.host_input = QLineEdit("127.0.0.1")
-        net_layout.addWidget(self.host_input)
+
+        # Checkbox for LAN access (controls host)
+        self.lan_checkbox = QCheckBox("Allow LAN Access")
+        self.lan_checkbox.setToolTip("If checked, the server will listen on 0.0.0.0 (accessible from other devices).\nIf unchecked, it listens on 127.0.0.1 (local only).")
+        self.lan_checkbox.stateChanged.connect(self.on_lan_toggled)
+        net_layout.addWidget(self.lan_checkbox)
+
+        # Hidden host input for internal logic (optional, or we can just use variable)
+        # We can keep self.host_value in state instead of a widget if we want simplicity
+        # But previous code used self.host_input.text(). Let's keep a hidden input or just logic?
+        # Let's use a hidden input or readonly label for debug?
+        # Actually, user wants "checkbox form".
+        # Let's remove host_input widget from UI but keep property logic simpler.
+
+        net_layout.addStretch()
 
         net_layout.addWidget(QLabel("Port:"))
         self.port_input = QSpinBox()
@@ -109,25 +121,25 @@ class MainWindow(QMainWindow):
         if last_cwd:
             self.cwd_input.setText(str(last_cwd))
 
-        last_host = self.settings.value("host", "127.0.0.1")
-        self.host_input.setText(str(last_host))
+        last_host = str(self.settings.value("host", "127.0.0.1"))
+        self.lan_checkbox.setChecked(last_host == "0.0.0.0")
 
         last_port = self.settings.value("port", 8000)
         self.port_input.setValue(int(last_port))
 
     def save_settings(self):
         self.settings.setValue("cwd", self.cwd_input.text())
-        self.settings.setValue("host", self.host_input.text())
+        host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
+        self.settings.setValue("host", host)
         self.settings.setValue("port", self.port_input.value())
 
-    def browse_cwd(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "Select Working Directory", self.cwd_input.text())
-        if dir_path:
-            self.cwd_input.setText(dir_path)
+    def on_lan_toggled(self, state):
+        # We don't need to do much immediately, value is read on save/start
+        pass
 
     def toggle_server(self):
         if self.start_btn.text() == "Start Server":
-            host = self.host_input.text()
+            host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
             port = self.port_input.value()
             cwd = self.cwd_input.text()
 
@@ -149,7 +161,7 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet("color: green; font-weight: bold;")
         self.cwd_input.setEnabled(False)
         self.cwd_browse_btn.setEnabled(False)
-        self.host_input.setEnabled(False)
+        self.lan_checkbox.setEnabled(False)
         self.port_input.setEnabled(False)
 
     def on_server_stopped(self):
@@ -159,18 +171,8 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
         self.cwd_input.setEnabled(True)
         self.cwd_browse_btn.setEnabled(True)
-        self.host_input.setEnabled(True)
+        self.lan_checkbox.setEnabled(True)
         self.port_input.setEnabled(True)
-
-    def on_server_error(self, error_msg):
-        self.append_log(f"ERROR: {error_msg}")
-        self.on_server_stopped()
-
-    def append_log(self, text):
-        self.log_area.appendPlainText(text.strip())
-        self.log_area.verticalScrollBar().setValue(
-            self.log_area.verticalScrollBar().maximum()
-        )
 
     def inject_config(self):
         default_path = self.config_injector.get_default_config_path()
@@ -184,7 +186,14 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        host = self.host_input.text()
+        host = "127.0.0.1"  # Always inject localhost for local Claude config, even if listening on 0.0.0.0?
+        # Actually, if we listen on 0.0.0.0, we can still use 127.0.0.1 locally.
+        # But if the user wants to inject config to a REMOTE computer's Claude Desktop, they wouldn't use this button here.
+        # This button is for "Inject to LOCAL Claude Desktop".
+        # So using 127.0.0.1 is safer and always correct for local access.
+        # HOWEVER, if they unchecked LAN, it IS 127.0.0.1.
+        # If they CHECKED LAN, it is 0.0.0.0, but we should still access via 127.0.0.1 or localhost.
+
         port = self.port_input.value()
         server_url = f"http://{host}:{port}/sse"
 
