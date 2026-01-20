@@ -1,15 +1,16 @@
 ---
 feature: gui-cwd-switch
 stage: 2
-generated_at: 2026-01-21T09:50:00Z
-version: 1
+generated_at: 2026-01-21T10:15:00Z
+version: 2 (revised)
 ---
 
 # 技术设计文档: GUI 工作目录切换与服务重启
 
 > **功能标识**: gui-cwd-switch
 > **复杂度**: standard
-> **生成时间**: 2026-01-21T09:50:00Z
+> **生成时间**: 2026-01-21T10:15:00Z
+> **修订说明**: v2 版本修复了信号泄漏、缺少导入和状态判断脆弱性问题
 
 ## 1. 架构设计
 
@@ -48,11 +49,7 @@ version: 1
 │  Existing Methods:                              │
 │  - start_server(host, port, cwd)               │
 │  - stop_server()                               │
-│                                                 │
-│  Signals:                                       │
-│  - server_started                              │
-│  - server_stopped                              │
-│  - server_error(str)                           │
+│  - process (QProcess)                          │
 └─────────────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────────────┐
@@ -74,7 +71,8 @@ version: 1
 | 去重策略 | 移到列表首位 | 保持最近使用顺序 |
 | 重启触发时机 | 仅当服务运行中 | 避免不必要的操作 |
 | 错误回滚机制 | 保存原 cwd，失败时恢复 | 确保用户体验流畅 |
-| UI 反馈形式 | 禁用按钮 + 状态文字 | 符合现有 UI 风格 |
+| 状态判断 | QProcess.state() | 比 UI 文本判断更可靠 |
+| 信号管理 | try-finally 断开 | 防止内存泄漏和重复触发 |
 
 ## 2. 模块设计
 
@@ -87,6 +85,7 @@ version: 1
 **类定义**:
 
 ```python
+import os  # [Fix: Added import]
 from pathlib import Path
 from typing import List, Tuple
 from PyQt6.QtCore import QSettings
@@ -241,6 +240,8 @@ def switch_cwd(self, new_path: str):
     Args:
         new_path: 新的工作目录路径
     """
+    from PyQt6.QtCore import QProcess
+
     # 防止并发切换
     if self._is_switching_cwd:
         QMessageBox.warning(self, "Warning", "工作目录切换正在进行中，请稍候...")
@@ -263,8 +264,8 @@ def switch_cwd(self, new_path: str):
     # 保存原目录（用于回滚）
     original_cwd = current_path
 
-    # 检查服务状态
-    is_server_running = (self.start_btn.text() == "Stop Server")
+    # [Fix: Use QProcess state instead of UI text]
+    is_server_running = (self.server_manager.process.state() != QProcess.ProcessState.NotRunning)
 
     self._is_switching_cwd = True
 
@@ -312,11 +313,8 @@ def switch_cwd(self, new_path: str):
         self.cwd_input.setText(original_cwd)
         self.settings.setValue("cwd", original_cwd)
 
-        QMessageBox.critical(
-            self,
-            "Error",
-            f"切换失败: {str(e)}\n已回滚到原目录"
-        )
+        # [Fix: Improved error message]
+        error_detail = f"切换失败: {str(e)}\n已回滚到原目录"
 
         # 尝试恢复服务（如果之前在运行）
         if is_server_running:
@@ -324,15 +322,17 @@ def switch_cwd(self, new_path: str):
                 host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
                 port = self.port_input.value()
                 self.server_manager.start_server(host, port, original_cwd)
-            except:
-                pass  # 静默失败，用户已知道错误
+            except Exception as recovery_error:
+                error_detail += f"\n\n注意：服务恢复失败: {str(recovery_error)}"
+
+        QMessageBox.critical(self, "Error", error_detail)
 
     finally:
         self._is_switching_cwd = False
         self._enable_controls()
 ```
 
-#### 2.2.5 新增辅助方法
+#### 2.2.5 新增辅助方法（修复信号泄漏）
 
 ```python
 def _disable_controls(self):
@@ -346,7 +346,8 @@ def _disable_controls(self):
 
 def _enable_controls(self):
     """根据服务状态恢复按钮"""
-    is_running = (self.start_btn.text() == "Stop Server")
+    from PyQt6.QtCore import QProcess
+    is_running = (self.server_manager.process.state() != QProcess.ProcessState.NotRunning)
 
     self.start_btn.setEnabled(True)
     self.cwd_browse_btn.setEnabled(not is_running)
@@ -358,14 +359,13 @@ def _enable_controls(self):
 def _wait_for_server_stop(self, timeout: int) -> bool:
     """
     等待服务停止
-
-    Args:
-        timeout: 超时时间（毫秒）
-
-    Returns:
-        True if stopped, False if timeout
+    [Fix: Signal connection management]
     """
-    from PyQt6.QtCore import QEventLoop, QTimer
+    from PyQt6.QtCore import QEventLoop, QTimer, QProcess
+
+    # 如果已经停止，直接返回
+    if self.server_manager.process.state() == QProcess.ProcessState.NotRunning:
+        return True
 
     loop = QEventLoop()
     timer = QTimer()
@@ -377,23 +377,27 @@ def _wait_for_server_stop(self, timeout: int) -> bool:
         stopped[0] = True
         loop.quit()
 
+    # 连接信号
     self.server_manager.server_stopped.connect(on_stopped)
     timer.timeout.connect(loop.quit)
 
-    timer.start(timeout)
-    loop.exec()
+    try:
+        timer.start(timeout)
+        loop.exec()
+    finally:
+        # [Fix: Disconnect signals]
+        try:
+            self.server_manager.server_stopped.disconnect(on_stopped)
+            timer.timeout.disconnect(loop.quit)
+        except:
+            pass # 忽略已断开的异常
 
     return stopped[0]
 
 def _wait_for_server_start(self, timeout: int) -> bool:
     """
     等待服务启动
-
-    Args:
-        timeout: 超时时间（毫秒）
-
-    Returns:
-        True if started, False if timeout or error
+    [Fix: Signal connection management]
     """
     from PyQt6.QtCore import QEventLoop, QTimer
 
@@ -402,6 +406,7 @@ def _wait_for_server_start(self, timeout: int) -> bool:
     timer.setSingleShot(True)
 
     result = [False]
+    error_msg = [""]
 
     def on_started():
         result[0] = True
@@ -409,14 +414,28 @@ def _wait_for_server_start(self, timeout: int) -> bool:
 
     def on_error(msg):
         result[0] = False
+        error_msg[0] = msg
         loop.quit()
 
+    # 连接信号
     self.server_manager.server_started.connect(on_started)
     self.server_manager.server_error.connect(on_error)
     timer.timeout.connect(loop.quit)
 
-    timer.start(timeout)
-    loop.exec()
+    try:
+        timer.start(timeout)
+        loop.exec()
+    finally:
+        # [Fix: Disconnect signals]
+        try:
+            self.server_manager.server_started.disconnect(on_started)
+            self.server_manager.server_error.disconnect(on_error)
+            timer.timeout.disconnect(loop.quit)
+        except:
+            pass
+
+    if not result[0] and error_msg[0]:
+        raise Exception(error_msg[0])
 
     return result[0]
 ```
@@ -428,6 +447,7 @@ def show_cwd_history(self):
     """显示历史目录选择菜单"""
     from PyQt6.QtWidgets import QMenu
     from PyQt6.QtGui import QAction
+    from pathlib import Path
 
     history = self.cwd_manager.get_history()
 
@@ -438,7 +458,15 @@ def show_cwd_history(self):
     menu = QMenu(self)
 
     for path in history:
-        action = QAction(path, self)
+        # [Enhancement: Check if path exists]
+        exists = Path(path).exists()
+        label = path if exists else f"{path} (不存在)"
+
+        action = QAction(label, self)
+        action.setEnabled(exists)
+        action.setToolTip(path)
+
+        # 注意：lambda 需要捕获 path
         action.triggered.connect(lambda checked, p=path: self.switch_cwd(p))
         menu.addAction(action)
 
@@ -625,6 +653,7 @@ ServerManager.start_server(host, port, new_cwd)
 2. **权限检查**: 使用 os.access() 检查 R_OK | W_OK
 3. **并发保护**: _is_switching_cwd 标志防止重入
 4. **错误回滚**: 确保失败后不留下不一致状态
+5. **资源释放**: 确保 QEventLoop 和信号连接正确清理
 
 ## 10. 后续优化方向
 
@@ -635,9 +664,5 @@ ServerManager.start_server(host, port, new_cwd)
 
 ---
 
-**设计评审要点**:
-1. 是否复用了现有架构？✅（使用 QSettings, ServerManager）
-2. 是否有明确的错误处理？✅（验证 + 回滚机制）
-3. 是否遵循 Qt 最佳实践？✅（信号-槽、事件循环）
-4. 是否考虑了用户体验？✅（进度提示、按钮禁用）
-5. 是否可测试？✅（独立的 WorkingDirectoryManager 类）
+**最后更新**: 2026-01-21T10:15:00Z
+**下一步**: 进入 Execution 阶段，按任务组顺序实施
