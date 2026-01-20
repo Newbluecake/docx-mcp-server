@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "docx": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "docx_mcp_server"
+      ]
+    }
+  }
+}

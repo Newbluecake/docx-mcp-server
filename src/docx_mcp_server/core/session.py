@@ -15,9 +15,27 @@ class Session:
     # Registry to map string IDs to internal python-docx objects
     # structure: { "para_123": <docx.text.paragraph.Paragraph>, "run_456": ... }
     object_registry: Dict[str, Any] = field(default_factory=dict)
+    last_created_id: Optional[str] = None
+    last_accessed_id: Optional[str] = None
+    auto_save: bool = False
 
     def touch(self):
         self.last_accessed = time.time()
+
+    def update_context(self, element_id: str, action: str = "access"):
+        """Update context pointers based on action type."""
+        self.last_accessed_id = element_id
+        if action == "create":
+            self.last_created_id = element_id
+
+        # Trigger auto-save if enabled
+        if self.auto_save and self.file_path:
+            try:
+                self.document.save(self.file_path)
+            except Exception:
+                # We don't want to crash the session if save fails,
+                # but maybe we should log it? For now silently ignore or print.
+                pass
 
     def register_object(self, obj: Any, prefix: str = "obj") -> str:
         """Register a docx object and return its ID."""
@@ -33,19 +51,24 @@ class SessionManager:
         self.sessions: Dict[str, Session] = {}
         self.ttl_seconds = ttl_seconds
 
-    def create_session(self, file_path: Optional[str] = None) -> str:
+    def create_session(self, file_path: Optional[str] = None, auto_save: bool = False) -> str:
         """Create a new session, optionally loading a file."""
         session_id = str(uuid.uuid4())
 
         if file_path:
-            doc = Document(file_path)
+            try:
+                doc = Document(file_path)
+            except Exception:
+                # If file doesn't exist or is invalid, create new but keep path
+                doc = Document()
         else:
             doc = Document()
 
         session = Session(
             session_id=session_id,
             document=doc,
-            file_path=file_path
+            file_path=file_path,
+            auto_save=auto_save
         )
         self.sessions[session_id] = session
         return session_id

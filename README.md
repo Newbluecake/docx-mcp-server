@@ -76,6 +76,19 @@ mcp-server-docx
 - `docx_add_page_break(session_id)` - 插入分页符
   - 返回：成功消息
 
+- `docx_copy_paragraph(session_id, paragraph_id)` - 复制段落（包括所有格式和文本块）
+  - 参数：要复制的段落 ID
+  - 返回：新段落的 `paragraph_id`
+
+- `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 修改段落文本内容
+  - 参数：段落 ID、新文本内容
+  - 返回：成功消息
+  - 注意：会替换段落中的所有文本块
+
+- `docx_update_run_text(session_id, run_id, new_text)` - 修改文本块内容（保留格式）
+  - 参数：文本块 ID、新文本内容
+  - 返回：成功消息
+
 ### 格式化
 
 - `docx_set_font(session_id, run_id, size=None, bold=None, italic=None, color_hex=None)` - 设置字体属性
