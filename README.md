@@ -43,6 +43,18 @@ CLI 模式：
 mcp-server-docx
 ```
 
+### 构建可执行文件
+
+如果您想自己从源码构建 Windows 可执行文件：
+
+```powershell
+# 1. 确保已安装 Python 3.10+
+# 2. 运行构建脚本
+.\scripts\build_exe.ps1
+```
+
+构建产物将位于 `dist\DocxServerLauncher.exe`。
+
 ### 配置 Claude Desktop
 
 在 Claude Desktop 的 MCP 配置中添加：
