@@ -1,39 +1,27 @@
-# Build script for Windows (PowerShell)
+# Build script for Windows (PowerShell) using uv
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 Building Docx Server Launcher..." -ForegroundColor Cyan
+Write-Host "🚀 Building Docx Server Launcher using uv..." -ForegroundColor Cyan
 
-# 1. Check Python
-if (-not (Get-Command "python" -ErrorAction SilentlyContinue)) {
-    Write-Error "❌ Python is not installed or not in PATH."
+# 1. Check uv
+if (-not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
+    Write-Error "❌ uv is not installed. Please install it: powershell -c ""irm https://astral.sh/uv/install.ps1 | iex"""
     exit 1
 }
 
 # 2. Setup Virtual Environment
-if (-not (Test-Path "venv")) {
+if (-not (Test-Path ".venv")) {
     Write-Host "📦 Creating virtual environment..." -ForegroundColor Yellow
-    python -m venv venv
-}
-
-# Activate venv
-Write-Host "🔌 Activating virtual environment..."
-$venvScript = ".\venv\Scripts\Activate.ps1"
-if (Test-Path $venvScript) {
-    . $venvScript
-} else {
-    Write-Error "❌ Virtual environment script not found at $venvScript"
-    exit 1
+    uv venv
 }
 
 # 3. Install Dependencies
 Write-Host "⬇️ Installing dependencies..." -ForegroundColor Yellow
-python -m pip install --upgrade pip
-pip install ".[gui]"
-pip install pyinstaller
+uv pip install ".[gui]" pyinstaller
 
 # 4. Build EXE
 Write-Host "🔨 Running PyInstaller..." -ForegroundColor Yellow
-pyinstaller --clean --noconfirm docx-server-launcher.spec
+uv run pyinstaller --clean --noconfirm docx-server-launcher.spec
 
 if (Test-Path "dist\DocxServerLauncher.exe") {
     Write-Host "✅ Build complete!" -ForegroundColor Green

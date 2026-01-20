@@ -8,36 +8,29 @@ else
     IS_WINDOWS=false
 fi
 
-echo "🚀 Building Docx Server Launcher..."
+echo "🚀 Building Docx Server Launcher using uv..."
 
-# 1. Check Python
-if ! command -v python &> /dev/null; then
-    echo "❌ Error: Python is not installed."
+# 1. Check uv
+if ! command -v uv &> /dev/null; then
+    echo "❌ Error: uv is not installed. Please install it: curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
 # 2. Setup Virtual Environment
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo "📦 Creating virtual environment..."
-    python -m venv venv
-fi
-
-# Activate venv
-if [ "$IS_WINDOWS" = true ]; then
-    source venv/Scripts/activate
-else
-    source venv/bin/activate
+    uv venv
 fi
 
 # 3. Install Dependencies
 echo "⬇️ Installing dependencies..."
-pip install --upgrade pip
-pip install ".[gui]"
-pip install pyinstaller
+# uv automatically respects pyproject.toml
+uv pip install ".[gui]" pyinstaller
 
 # 4. Build EXE
 echo "🔨 Running PyInstaller..."
-pyinstaller --clean --noconfirm docx-server-launcher.spec
+# Use uv run to execute pyinstaller within the environment
+uv run pyinstaller --clean --noconfirm docx-server-launcher.spec
 
 echo "✅ Build complete!"
 if [ "$IS_WINDOWS" = true ]; then
