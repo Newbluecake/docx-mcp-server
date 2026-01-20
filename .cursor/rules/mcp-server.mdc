@@ -1,0 +1,192 @@
+# MCP Server 开发规范
+
+## MCP 协议基础
+
+### 通信协议
+- **Transport**: stdio (标准输入/输出)
+- **Protocol**: JSON-RPC 2.0
+- **stdout**: 仅用于 JSON-RPC 消息
+- **stderr**: 所有日志和调试信息
+
+### 工具定义
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("server-name")
+
+@mcp.tool()
+def tool_name(param: str) -> str:
+    """
+    工具描述（会显示给 Claude）。
+
+    Args:
+        param: 参数描述
+
+    Returns:
+        str: 返回值描述
+    """
+    return "result"
+```
+
+## Session 管理
+
+### 设计原则
+- **有状态**: 在内存中维护文档对象
+- **ID 映射**: 所有元素返回唯一 ID
+- **生命周期**: create → edit → save → close
+
+### Session 实现
+```python
+class Session:
+    def __init__(self):
+        self.document = Document()
+        self.objects = {}  # ID -> Object 映射
+        self.counter = 0
+
+    def register_object(self, obj, prefix: str) -> str:
+        """注册对象并返回 ID"""
+        self.counter += 1
+        obj_id = f"{prefix}_{self.counter}"
+        self.objects[obj_id] = obj
+        return obj_id
+
+    def get_object(self, obj_id: str):
+        """通过 ID 获取对象"""
+        return self.objects.get(obj_id)
+```
+
+## 原子化操作
+
+### 设计理念
+- **细粒度**: 每个操作只做一件事
+- **可组合**: 通过多次调用构建复杂文档
+- **返回 ID**: 操作结果返回元素 ID 供后续使用
+
+### 示例
+```python
+# 创建会话
+session_id = docx_create()
+
+# 添加段落（返回段落 ID）
+para_id = docx_add_paragraph(session_id, "Hello")
+
+# 添加 Run（返回 Run ID）
+run_id = docx_add_run(para_id, " World")
+
+# 设置样式
+docx_set_font(run_id, size=14, bold=True)
+
+# 保存
+docx_save(session_id, "output.docx")
+```
+
+## 错误处理
+
+### 异常类型
+```python
+# 会话不存在
+raise ValueError(f"Session {session_id} not found")
+
+# 元素不存在
+raise ValueError(f"Element {element_id} not found")
+
+# 操作失败
+raise RuntimeError(f"Operation failed: {error}")
+```
+
+### 错误传播
+- MCP 工具函数应抛出清晰的异常
+- 异常信息会自动传递给 Claude
+- 不要捕获并静默处理异常
+
+## 性能优化
+
+### 内存管理
+- Session 超时自动清理（默认 1 小时）
+- 大文档考虑分批处理
+- 避免在内存中保存完整文档历史
+
+### 并发支持
+- 每个 Session 独立隔离
+- 支持多个 Claude 实例同时使用
+- 使用线程安全的数据结构
+
+## 测试策略
+
+### 单元测试
+- Mock python-docx 对象
+- 测试 Session 管理逻辑
+- 测试 ID 映射机制
+
+### 集成测试
+- 使用真实 python-docx
+- 验证生成的文档可被 Word 打开
+- 测试复杂的操作序列
+
+### E2E 测试
+```python
+def test_complete_workflow():
+    # 创建会话
+    session_id = docx_create()
+
+    # 构建文档
+    docx_add_heading(session_id, "Report", level=1)
+    para_id = docx_add_paragraph(session_id, "Content")
+
+    # 保存并验证
+    docx_save(session_id, "test.docx")
+    assert os.path.exists("test.docx")
+```
+
+## 安全考虑
+
+### 文件路径验证
+```python
+import os
+
+def validate_path(file_path: str):
+    """验证文件路径安全性"""
+    # 禁止路径遍历
+    if ".." in file_path:
+        raise ValueError("Path traversal not allowed")
+
+    # 限制写入目录
+    allowed_dir = os.path.expanduser("~/Documents")
+    abs_path = os.path.abspath(file_path)
+    if not abs_path.startswith(allowed_dir):
+        raise ValueError("Path outside allowed directory")
+```
+
+### 资源限制
+- 限制单个文档大小（如 10MB）
+- 限制 Session 数量（如 100 个）
+- 限制单个 Session 的元素数量
+
+## 部署
+
+### 本地开发
+```bash
+# 安装依赖
+pip install -e .
+
+# 运行服务
+python -m docx_mcp_server
+```
+
+### Claude Desktop 配置
+```json
+{
+  "mcpServers": {
+    "docx": {
+      "command": "python",
+      "args": ["-m", "docx_mcp_server"]
+    }
+  }
+}
+```
+
+### 生产部署
+- 使用虚拟环境隔离依赖
+- 配置日志轮转
+- 监控内存使用
+- 定期清理过期 Session

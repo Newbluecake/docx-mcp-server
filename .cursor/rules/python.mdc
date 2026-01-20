@@ -1,0 +1,128 @@
+# Python 开发规范
+
+## 代码风格
+
+### Import 顺序
+```python
+# 1. 标准库
+import os
+import sys
+
+# 2. 第三方库
+from mcp.server import Server
+from docx import Document
+
+# 3. 本地模块
+from docx_mcp_server.core.session import SessionManager
+from docx_mcp_server.utils.logger import setup_logger
+```
+
+### 类型注解
+所有公共函数必须包含类型注解：
+```python
+def create_session() -> str:
+    """创建新会话"""
+    pass
+
+def get_session(session_id: str) -> Optional[Session]:
+    """获取会话"""
+    pass
+```
+
+### 文档字符串
+使用 Google Style：
+```python
+def add_paragraph(session_id: str, text: str, style: str = None) -> str:
+    """
+    添加段落到文档。
+
+    Args:
+        session_id: 会话 ID
+        text: 段落文本
+        style: 可选样式名称
+
+    Returns:
+        str: 段落元素 ID
+
+    Raises:
+        ValueError: 会话不存在时
+    """
+    pass
+```
+
+## 日志规范
+
+### MCP 协议要求
+- **stdout**: 仅用于 JSON-RPC 通信
+- **stderr**: 所有日志输出
+
+```python
+from docx_mcp_server.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+logger.info("Session created: %s", session_id)
+logger.error("Failed to save: %s", error)
+```
+
+### 日志级别
+- `DEBUG`: 详细调试信息
+- `INFO`: 关键操作（创建会话、保存文档）
+- `WARNING`: 可恢复的异常
+- `ERROR`: 操作失败
+
+## 错误处理
+
+### 自定义异常
+```python
+class SessionNotFoundError(Exception):
+    """会话不存在"""
+    pass
+
+class InvalidElementError(Exception):
+    """无效的元素 ID"""
+    pass
+```
+
+### 错误传播
+MCP 工具函数应抛出清晰的异常：
+```python
+@mcp.tool()
+def docx_save(session_id: str, file_path: str) -> str:
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    try:
+        session.document.save(file_path)
+        return f"Saved to {file_path}"
+    except Exception as e:
+        raise RuntimeError(f"Save failed: {e}")
+```
+
+## 测试规范
+
+### 目录结构
+```
+tests/
+├── unit/           # 单元测试（mock python-docx）
+├── e2e/            # 端到端测试（真实文档）
+└── fixtures/       # 测试数据
+```
+
+### 测试命名
+```python
+def test_create_session_returns_valid_id():
+    """测试创建会话返回有效 ID"""
+    pass
+
+def test_save_document_creates_file():
+    """测试保存文档创建文件"""
+    pass
+```
+
+## 禁止事项
+
+❌ 使用 `print()` 输出日志
+❌ 在 stdout 输出非 JSON-RPC 内容
+❌ 缺少类型注解的公共函数
+❌ 未处理的异常

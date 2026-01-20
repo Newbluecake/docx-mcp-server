@@ -1,0 +1,19 @@
+# 开发环境配置
+
+# 会话管理
+session:
+  ttl_seconds: 1800  # 30 分钟超时（开发环境较短，便于测试）
+  max_sessions: 10   # 最大并发会话数
+  cleanup_interval: 300  # 每 5 分钟清理一次过期会话
+
+# 日志配置
+logging:
+  level: DEBUG  # 开发环境使用详细日志
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/dev.log"
+  console: true
+
+# 性能限制
+limits:
+  max_objects_per_session: 1000  # 单会话最大对象数
+  max_document_size_mb: 50  # 最大文档大小

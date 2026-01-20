@@ -1,0 +1,19 @@
+# 生产环境配置
+
+# 会话管理
+session:
+  ttl_seconds: 3600  # 1 小时超时
+  max_sessions: 50   # 最大并发会话数
+  cleanup_interval: 600  # 每 10 分钟清理一次过期会话
+
+# 日志配置
+logging:
+  level: WARNING  # 生产环境只记录警告和错误
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/prod.log"
+  console: false
+
+# 性能限制
+limits:
+  max_objects_per_session: 5000  # 单会话最大对象数
+  max_document_size_mb: 100  # 最大文档大小
