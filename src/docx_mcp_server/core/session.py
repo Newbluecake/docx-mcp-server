@@ -65,7 +65,14 @@ class SessionManager:
                     # so user knows why instead of silently returning empty doc
                     raise RuntimeError(f"Failed to load existing file '{file_path}': {str(e)}")
             else:
-                # File doesn't exist, create new empty doc (intended for new file creation)
+                # File doesn't exist.
+                # Validate that the parent directory exists so we can save later.
+                # We use abspath to ensure we check the correct directory even for relative paths.
+                parent_dir = os.path.dirname(os.path.abspath(file_path))
+                if not os.path.exists(parent_dir):
+                    raise ValueError(f"Parent directory does not exist: {parent_dir}")
+
+                # Create new empty doc (intended for new file creation)
                 doc = Document()
         else:
             doc = Document()
