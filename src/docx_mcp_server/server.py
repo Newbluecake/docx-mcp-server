@@ -59,7 +59,10 @@ def docx_create(file_path: str = None, auto_save: bool = False) -> str:
     Create a new Word document session, optionally loading an existing file.
 
     Args:
-        file_path: Optional absolute path to an existing .docx file.
+        file_path: Optional path to an existing .docx file.
+                   IMPORTANT: Use relative paths (e.g., "./doc.docx") whenever possible to ensure
+                   compatibility if the server is running on a different OS (e.g., Windows vs Linux).
+                   Absolute paths must match the SERVER's operating system conventions.
         auto_save: Whether to automatically save changes after every modification. Requires file_path.
 
     Returns:

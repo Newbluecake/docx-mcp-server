@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from docx import Document
 from docx.document import Document as DocumentType
+from docx_mcp_server.core.validators import validate_path_safety
 
 @dataclass
 class Session:
@@ -57,6 +58,9 @@ class SessionManager:
         session_id = str(uuid.uuid4())
 
         if file_path:
+            # 1. Validate cross-OS path safety
+            validate_path_safety(file_path)
+
             if os.path.exists(file_path):
                 try:
                     doc = Document(file_path)
