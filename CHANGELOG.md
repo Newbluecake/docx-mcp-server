@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-01-21
+
+### ✨ Features
+
+- **LAN Access Support**: Enhanced GUI Launcher with a simplified "Allow LAN Access" checkbox.
+  - When checked, the server listens on `0.0.0.0` to allow external connections.
+  - When unchecked (default), it listens on `127.0.0.1` for security.
+- **Improved GUI**: Replaced complex Host/Port inputs with a more user-friendly interface.
+- **CLI Enhancements**: Updated `server.py` to support explicit SSE transport configuration via command-line arguments (`--transport`, `--host`, `--port`).
+
+### 🐛 Fixes
+
+- Fixed `NameError: name 'QCheckBox' is not defined` runtime error in the launcher.
+- Persisted network settings in GUI correctly across restarts.
+
 ## [0.1.2] - 2026-01-21
 
 ### 🐛 Fixes
