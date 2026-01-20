@@ -19,9 +19,10 @@ def test_list_files():
         with patch("os.path.exists", return_value=True):
             result = docx_list_files(".")
             files = json.loads(result)
-            assert "template.docx" in files
-            assert "ignore.txt" not in files
-            assert "~$temp.docx" not in files
+            # Expect relative paths now
+            assert "./template.docx" in files
+            assert "./ignore.txt" not in files
+            assert "./~$temp.docx" not in files
 
 def test_table_operations_flow():
     # 1. Create session

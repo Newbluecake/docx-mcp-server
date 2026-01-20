@@ -63,7 +63,11 @@ def list_docx_files(root_path: str = ".") -> List[str]:
     try:
         for entry in os.listdir(root_path):
             if entry.lower().endswith(".docx") and not entry.startswith("~$"):
-                files.append(entry)
+                # Always return relative paths with forward slashes for MCP consistency
+                # e.g. "./filename.docx"
+                # This explicitly tells the client "use this relative path"
+                rel_path = f"./{entry}"
+                files.append(rel_path)
     except Exception as e:
         raise ValueError(f"Failed to list files: {str(e)}")
 
