@@ -1,5 +1,8 @@
 import os
 import json
+import sys
+import time
+import platform
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.session import SessionManager
@@ -9,6 +12,9 @@ from docx_mcp_server.core.copier import clone_table
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+SERVER_START_TIME = time.time()
+VERSION = "0.1.3"
 
 # Initialize the MCP server
 mcp = FastMCP("docx-mcp-server")
@@ -23,6 +29,29 @@ ALIGNMENT_MAP = {
     "right": WD_ALIGN_PARAGRAPH.RIGHT,
     "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
 }
+
+@mcp.tool()
+def docx_server_status() -> str:
+    """
+    Get the current status and environment information of the server.
+    Useful for clients to understand the server's running environment (OS, paths).
+
+    Returns:
+        str: JSON string containing server status info.
+    """
+    info = {
+        "status": "running",
+        "version": VERSION,
+        "cwd": os.getcwd(),
+        "os_name": os.name,
+        "os_system": platform.system(),
+        "path_sep": os.sep,
+        "python_version": sys.version,
+        "start_time": SERVER_START_TIME,
+        "uptime_seconds": time.time() - SERVER_START_TIME,
+        "active_sessions": len(session_manager.sessions)
+    }
+    return json.dumps(info, indent=2)
 
 @mcp.tool()
 def docx_create(file_path: str = None, auto_save: bool = False) -> str:
