@@ -6,7 +6,7 @@ a = Analysis(
     ['src/docx_server_launcher/main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('src/docx_server_launcher/resources', 'resources')],
     hiddenimports=['docx_mcp_server', 'docx_mcp_server.server'],
     hookspath=[],
     hooksconfig={},
