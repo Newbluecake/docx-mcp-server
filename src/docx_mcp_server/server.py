@@ -574,6 +574,7 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
 def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     """
     Append a text run to a paragraph.
+    Supports both (text, paragraph_id) and legacy (paragraph_id, text) signatures.
 
     Args:
         session_id: The active session ID.
@@ -584,6 +585,15 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     Returns:
         str: The element_id of the new run.
     """
+    # Compatibility shim for legacy calls: docx_add_run(sid, para_id, text)
+    # If 'text' looks like a para_id and 'paragraph_id' is present (and doesn't look like a para_id)
+    if text and text.startswith("para_") and paragraph_id and not paragraph_id.startswith("para_"):
+        # Swap arguments
+        real_para_id = text
+        real_text = paragraph_id
+        text = real_text
+        paragraph_id = real_para_id
+
     session = session_manager.get_session(session_id)
     if not session:
         raise ValueError(f"Session {session_id} not found")
