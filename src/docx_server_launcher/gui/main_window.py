@@ -1,13 +1,15 @@
 import os
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QSpinBox, QPushButton,
     QGroupBox, QPlainTextEdit, QFileDialog, QMessageBox,
     QCheckBox
 )
-from PyQt6.QtCore import Qt, QSettings
+from PyQt6.QtCore import Qt, QSettings, QEventLoop, QTimer
 from docx_server_launcher.core.server_manager import ServerManager
 from docx_server_launcher.core.config_injector import ConfigInjector
+from docx_server_launcher.core.working_directory_manager import WorkingDirectoryManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,6 +20,9 @@ class MainWindow(QMainWindow):
         self.server_manager = ServerManager()
         self.config_injector = ConfigInjector()
         self.settings = QSettings("DocxMCP", "Launcher")
+
+        self.cwd_manager = WorkingDirectoryManager(self.settings)
+        self._is_switching_cwd = False
 
         self.init_ui()
         self.connect_signals()
@@ -40,6 +45,11 @@ class MainWindow(QMainWindow):
         cwd_layout.addWidget(self.cwd_input)
         self.cwd_browse_btn = QPushButton("Browse...")
         cwd_layout.addWidget(self.cwd_browse_btn)
+
+        self.cwd_history_btn = QPushButton("Recent ▼")
+        self.cwd_history_btn.setMaximumWidth(100)
+        cwd_layout.addWidget(self.cwd_history_btn)
+
         config_layout.addLayout(cwd_layout)
 
         # Host and Port
@@ -108,6 +118,7 @@ class MainWindow(QMainWindow):
     def connect_signals(self):
         # UI signals
         self.cwd_browse_btn.clicked.connect(self.browse_cwd)
+        self.cwd_history_btn.clicked.connect(self.show_cwd_history)
         self.start_btn.clicked.connect(self.toggle_server)
         self.inject_btn.clicked.connect(self.inject_config)
 
@@ -139,9 +150,211 @@ class MainWindow(QMainWindow):
         pass
 
     def browse_cwd(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "Select Working Directory", self.cwd_input.text())
+        """Open directory selection dialog"""
+        current_dir = self.cwd_input.text() or os.getcwd()
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Working Directory",
+            current_dir
+        )
+
         if dir_path:
-            self.cwd_input.setText(dir_path)
+            # Call new method to handle switching
+            self.switch_cwd(dir_path)
+
+    def switch_cwd(self, new_path: str):
+        """
+        Switch working directory and restart server if running
+
+        Args:
+            new_path: New working directory path
+        """
+        # Prevent concurrent switching
+        if self._is_switching_cwd:
+            QMessageBox.warning(self, "Warning", "Working directory switch in progress, please wait...")
+            return
+
+        # Validate directory
+        is_valid, error_msg = self.cwd_manager.validate_directory(new_path)
+        if not is_valid:
+            QMessageBox.critical(self, "Invalid Directory", error_msg)
+            return
+
+        # Normalize path
+        normalized_path = str(Path(new_path).resolve())
+        current_path = self.cwd_input.text() or os.getcwd()
+
+        # Check if same as current
+        if normalized_path == str(Path(current_path).resolve()):
+            return  # No change needed
+
+        # Save original cwd for rollback
+        original_cwd = current_path
+
+        # Check server status
+        is_server_running = (self.start_btn.text() == "Stop Server")
+
+        self._is_switching_cwd = True
+
+        try:
+            if is_server_running:
+                # Step 1: Stop server
+                self.status_label.setText("Status: Stopping server...")
+                self.status_label.setStyleSheet("color: orange; font-weight: bold;")
+                self._disable_controls()
+
+                # Stop server
+                self.server_manager.stop_server()
+
+                # Wait for stop (max 5 seconds)
+                if not self._wait_for_server_stop(timeout=5000):
+                    raise Exception("Server stop timeout")
+
+            # Step 2: Update UI and Config
+            self.cwd_input.setText(normalized_path)
+            self.settings.setValue("cwd", normalized_path)
+            self.cwd_manager.add_to_history(normalized_path)
+
+            if is_server_running:
+                # Step 3: Start server
+                self.status_label.setText("Status: Starting server...")
+                host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
+                port = self.port_input.value()
+
+                self.server_manager.start_server(host, port, normalized_path)
+
+                # Wait for start (max 10 seconds)
+                if not self._wait_for_server_start(timeout=10000):
+                    raise Exception("Server start failed")
+
+            # Success message
+            QMessageBox.information(
+                self,
+                "Success",
+                f"Working directory switched to:\n{normalized_path}" +
+                ("\nServer restarted" if is_server_running else "")
+            )
+
+        except Exception as e:
+            # Rollback
+            self.cwd_input.setText(original_cwd)
+            self.settings.setValue("cwd", original_cwd)
+
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Switch failed: {str(e)}\nRolled back to original directory"
+            )
+
+            # Try to restore server state if it was running
+            if is_server_running:
+                try:
+                    host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
+                    port = self.port_input.value()
+                    self.server_manager.start_server(host, port, original_cwd)
+                except:
+                    pass  # Silent fail on rollback recovery, user already knows error
+
+        finally:
+            self._is_switching_cwd = False
+            self._enable_controls()
+
+    def _disable_controls(self):
+        """Disable all control buttons"""
+        self.start_btn.setEnabled(False)
+        self.cwd_browse_btn.setEnabled(False)
+        self.cwd_history_btn.setEnabled(False)
+        self.cwd_input.setEnabled(False)
+        self.lan_checkbox.setEnabled(False)
+        self.port_input.setEnabled(False)
+
+    def _enable_controls(self):
+        """Enable buttons based on server state"""
+        is_running = (self.start_btn.text() == "Stop Server")
+
+        self.start_btn.setEnabled(True)
+        self.cwd_browse_btn.setEnabled(not is_running)
+        self.cwd_history_btn.setEnabled(not is_running)
+        self.cwd_input.setEnabled(not is_running)
+        self.lan_checkbox.setEnabled(not is_running)
+        self.port_input.setEnabled(not is_running)
+
+    def _wait_for_server_stop(self, timeout: int) -> bool:
+        """
+        Wait for server to stop
+
+        Args:
+            timeout: Timeout in milliseconds
+
+        Returns:
+            True if stopped, False if timeout
+        """
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+
+        stopped = [False]
+
+        def on_stopped():
+            stopped[0] = True
+            loop.quit()
+
+        # Connect temporary signals
+        self.server_manager.server_stopped.connect(on_stopped)
+        timer.timeout.connect(loop.quit)
+
+        timer.start(timeout)
+        loop.exec()
+
+        # Disconnect signals to avoid accumulation
+        try:
+            self.server_manager.server_stopped.disconnect(on_stopped)
+        except:
+            pass
+
+        return stopped[0]
+
+    def _wait_for_server_start(self, timeout: int) -> bool:
+        """
+        Wait for server to start
+
+        Args:
+            timeout: Timeout in milliseconds
+
+        Returns:
+            True if started, False if timeout or error
+        """
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+
+        result = [False]
+
+        def on_started():
+            result[0] = True
+            loop.quit()
+
+        def on_error(msg):
+            result[0] = False
+            loop.quit()
+
+        # Connect temporary signals
+        self.server_manager.server_started.connect(on_started)
+        self.server_manager.server_error.connect(on_error)
+        timer.timeout.connect(loop.quit)
+
+        timer.start(timeout)
+        loop.exec()
+
+        # Disconnect signals
+        try:
+            self.server_manager.server_started.disconnect(on_started)
+            self.server_manager.server_error.disconnect(on_error)
+        except:
+            pass
+
+        return result[0]
+
 
     def toggle_server(self):
         if self.start_btn.text() == "Start Server":
@@ -167,6 +380,7 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet("color: green; font-weight: bold;")
         self.cwd_input.setEnabled(False)
         self.cwd_browse_btn.setEnabled(False)
+        self.cwd_history_btn.setEnabled(False)
         self.lan_checkbox.setEnabled(False)
         self.port_input.setEnabled(False)
 
@@ -177,6 +391,7 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
         self.cwd_input.setEnabled(True)
         self.cwd_browse_btn.setEnabled(True)
+        self.cwd_history_btn.setEnabled(True)
         self.lan_checkbox.setEnabled(True)
         self.port_input.setEnabled(True)
 
@@ -226,6 +441,30 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Success", "Configuration injected successfully.\nPlease restart Claude Desktop.")
             else:
                 QMessageBox.critical(self, "Error", "Failed to update configuration file.")
+
+    def show_cwd_history(self):
+        """Show history directory selection menu"""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+
+        history = self.cwd_manager.get_history()
+
+        if not history:
+            QMessageBox.information(self, "No History", "No recent directories")
+            return
+
+        menu = QMenu(self)
+
+        for path in history:
+            action = QAction(path, self)
+            # Use default argument p=path to capture loop variable
+            action.triggered.connect(lambda checked, p=path: self.switch_cwd(p))
+            menu.addAction(action)
+
+        # Show below the button
+        menu.exec(self.cwd_history_btn.mapToGlobal(
+            self.cwd_history_btn.rect().bottomLeft()
+        ))
 
     def closeEvent(self, event):
         # Stop server when closing window
