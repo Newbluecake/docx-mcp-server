@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-01-21
+
+### 🐛 Fixes
+
+- Fixed critical bug in Windows Launcher where clicking "Start Server" would recursively spawn new GUI windows instead of the server process.
+
+### 👷 CI/CD
+
+- Added comprehensive GitHub Actions workflow (`ci.yml`) for cross-platform testing (Windows, macOS, Ubuntu) and Python version matrix.
+
 ## [0.1.0] - 2026-01-20
 
 ### ✨ Features
