@@ -1013,6 +1013,11 @@ def main():
         mcp.settings.host = args.host
         mcp.settings.port = args.port
 
+        # Disable DNS rebinding protection if listening on all interfaces (LAN access)
+        # Otherwise, strict checks on Host header will fail for external IPs
+        if args.host == "0.0.0.0":
+            mcp.settings.transport_security = None
+
         mcp.run(transport="sse")
     else:
         mcp.run(transport="stdio")
