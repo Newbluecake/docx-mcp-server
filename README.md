@@ -6,9 +6,14 @@
 
 - **会话管理**：维护有状态的文档编辑会话，支持并发操作
 - **原子化操作**：精确控制段落、文本块、标题和表格的每个元素
+- **混合上下文**：支持基于 ID 的精确操作和基于上下文的便捷操作
+- **高级内容操作**：
+  - **表格处理**：深拷贝表格、批量填充数据
+  - **文本替换**：支持跨 Run 的智能文本替换（Text Stitching）
+  - **模板填充**：完善的模板占位符处理能力
 - **格式化**：设置字体（粗体、斜体、大小、颜色）和对齐方式
 - **布局控制**：调整页边距和插入分页符
-- **表格支持**：创建表格并填充单元格内容
+- **Windows GUI**：提供独立的 Windows 启动器，无需配置环境即可使用
 
 ## 快速开始
 
@@ -26,7 +31,13 @@
 pip install .
 ```
 
+### Windows 用户（GUI 启动器）
+
+直接下载最新发布的 `DocxServerLauncher.exe`，双击运行即可。无需安装 Python 或任何依赖。
+
 ### 运行服务器
+
+CLI 模式：
 
 ```bash
 mcp-server-docx
@@ -50,123 +61,84 @@ mcp-server-docx
 
 ### 生命周期管理
 
-- `docx_create()` - 创建新文档会话
-  - 返回：`session_id`
-
+- `docx_create(file_path=None, auto_save=False)` - 创建新文档会话
 - `docx_save(session_id, file_path)` - 保存文档到文件
-  - 参数：会话 ID、文件路径（绝对路径）
-  - 返回：成功消息
-
 - `docx_close(session_id)` - 关闭会话并释放资源
-  - 参数：会话 ID
-  - 返回：成功消息
+- `docx_get_context(session_id)` - 获取当前会话上下文信息
 
-### 内容操作
+### 内容检索与浏览
+
+- `docx_read_content(session_id)` - 读取文档全文
+- `docx_list_files(directory=".")` - 列出目录下的 .docx 文件
+- `docx_find_paragraphs(session_id, query)` - 查找包含特定文本的段落
+- `docx_find_table(session_id, text)` - 查找包含特定文本的表格
+- `docx_get_table(session_id, index)` - 按索引获取表格
+
+### 内容编辑
 
 - `docx_add_paragraph(session_id, text, style=None)` - 添加段落
-  - 返回：`paragraph_id`
-
 - `docx_add_heading(session_id, text, level=1)` - 添加标题
-  - 参数：标题文本、级别（0-9）
-  - 返回：`paragraph_id`
-
-- `docx_add_run(session_id, paragraph_id, text)` - 向段落添加文本块
-  - 返回：`run_id`
-
+- `docx_add_run(session_id, text, paragraph_id=None)` - 向段落添加文本块
 - `docx_add_page_break(session_id)` - 插入分页符
-  - 返回：成功消息
+- `docx_insert_image(session_id, image_path, width=None, height=None)` - 插入图片
 
-- `docx_copy_paragraph(session_id, paragraph_id)` - 复制段落（包括所有格式和文本块）
-  - 参数：要复制的段落 ID
-  - 返回：新段落的 `paragraph_id`
+### 高级编辑
 
-- `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 修改段落文本内容
-  - 参数：段落 ID、新文本内容
-  - 返回：成功消息
-  - 注意：会替换段落中的所有文本块
-
-- `docx_update_run_text(session_id, run_id, new_text)` - 修改文本块内容（保留格式）
-  - 参数：文本块 ID、新文本内容
-  - 返回：成功消息
-
-### 格式化
-
-- `docx_set_font(session_id, run_id, size=None, bold=None, italic=None, color_hex=None)` - 设置字体属性
-  - 参数：
-    - `size`: 字号（磅）
-    - `bold`: 是否粗体
-    - `italic`: 是否斜体
-    - `color_hex`: 颜色（如 "FF0000" 表示红色）
-
-- `docx_set_alignment(session_id, paragraph_id, alignment)` - 设置段落对齐
-  - 参数：`alignment` 可选值：`"left"`, `"center"`, `"right"`, `"justify"`
-
-- `docx_set_margins(session_id, top=None, bottom=None, left=None, right=None)` - 设置页边距
-  - 参数：边距值（英寸）
+- `docx_copy_paragraph(session_id, paragraph_id)` - 复制段落（保留格式）
+- `docx_copy_table(session_id, table_id)` - 深拷贝表格（保留结构与格式）
+- `docx_replace_text(session_id, old_text, new_text, scope_id=None)` - 智能文本替换（支持模板填充）
+- `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 更新段落文本
+- `docx_update_run_text(session_id, run_id, new_text)` - 更新 Run 文本
 
 ### 表格操作
 
 - `docx_add_table(session_id, rows, cols)` - 创建表格
-  - 返回：`table_id`
-
+- `docx_add_table_row(session_id, table_id=None)` - 添加行
+- `docx_add_table_col(session_id, table_id=None)` - 添加列
+- `docx_fill_table(session_id, data, table_id=None, start_row=0)` - 批量填充表格数据
 - `docx_get_cell(session_id, table_id, row, col)` - 获取单元格
-  - 参数：行列索引（从 0 开始）
-  - 返回：`cell_id`
+- `docx_add_paragraph_to_cell(session_id, cell_id, text)` - 向单元格添加段落
 
-- `docx_add_paragraph_to_cell(session_id, cell_id, text)` - 向单元格添加内容
-  - 返回：`paragraph_id`
+### 格式化
+
+- `docx_set_properties(session_id, properties, element_id=None)` - 通用属性设置（JSON 格式）
+- `docx_set_font(...)` - 设置字体属性（快捷方式）
+- `docx_set_alignment(...)` - 设置对齐方式（快捷方式）
+- `docx_set_margins(...)` - 设置页边距
 
 ## 使用示例
 
-### 示例 1：创建简单文档
+### 示例 1：模板填充（智能替换）
 
 ```python
-# 通过 Claude 使用 MCP 工具
-session_id = docx_create()
-docx_add_heading(session_id, "我的文档", level=1)
-para_id = docx_add_paragraph(session_id, "这是第一段内容。")
-docx_save(session_id, "/path/to/output.docx")
-docx_close(session_id)
+session_id = docx_create(file_path="/path/to/template.docx")
+
+# 智能替换 {{name}} 占位符，即使它跨越了多个 Run
+docx_replace_text(session_id, "{{name}}", "张三")
+docx_replace_text(session_id, "{{date}}", "2026-01-20")
+
+docx_save(session_id, "/path/to/result.docx")
 ```
 
-### 示例 2：格式化文本
+### 示例 2：表格克隆与填充
 
 ```python
 session_id = docx_create()
 
-# 创建段落和文本块
-para_id = docx_add_paragraph(session_id, "")
-run_id = docx_add_run(session_id, para_id, "重要提示")
+# 获取模板中的第一个表格
+table_id = docx_get_table(session_id, 0)
 
-# 设置格式
-docx_set_font(session_id, run_id, size=16, bold=True, color_hex="FF0000")
-docx_set_alignment(session_id, para_id, "center")
+# 克隆表格用于填充新数据
+new_table_id = docx_copy_table(session_id, table_id)
 
-docx_save(session_id, "/path/to/formatted.docx")
-docx_close(session_id)
-```
+# 批量填充数据
+data = json.dumps([
+    ["李四", "28", "工程师"],
+    ["王五", "32", "设计师"]
+])
+docx_fill_table(session_id, data, table_id=new_table_id, start_row=1)
 
-### 示例 3：创建表格
-
-```python
-session_id = docx_create()
-
-# 创建 3x2 表格
-table_id = docx_add_table(session_id, rows=3, cols=2)
-
-# 填充表头
-cell_id = docx_get_cell(session_id, table_id, row=0, col=0)
-docx_add_paragraph_to_cell(session_id, cell_id, "姓名")
-
-cell_id = docx_get_cell(session_id, table_id, row=0, col=1)
-docx_add_paragraph_to_cell(session_id, cell_id, "年龄")
-
-# 填充数据
-cell_id = docx_get_cell(session_id, table_id, row=1, col=0)
-docx_add_paragraph_to_cell(session_id, cell_id, "张三")
-
-docx_save(session_id, "/path/to/table.docx")
-docx_close(session_id)
+docx_save(session_id, "/path/to/report.docx")
 ```
 
 ## 开发指南
@@ -200,92 +172,17 @@ python -m pytest tests/e2e/ -v
 docx-mcp-server/
 ├── src/docx_mcp_server/
 │   ├── server.py          # MCP 工具定义
-│   ├── core/
-│   │   └── session.py     # 会话管理
-│   └── utils/
-│       └── logger.py      # 日志工具
+│   ├── core/              # 核心逻辑
+│   │   ├── session.py     # 会话管理
+│   │   ├── copier.py      # 对象克隆引擎
+│   │   ├── replacer.py    # 文本替换引擎
+│   │   └── properties.py  # 属性设置引擎
+├── src/docx_server_launcher/ # Windows GUI 启动器
 ├── tests/
-│   ├── unit/              # 单元测试
-│   └── e2e/               # 端到端测试
 ├── config/
-│   ├── dev.yaml           # 开发环境配置
-│   └── prod.yaml          # 生产环境配置
 ├── scripts/
-│   ├── install.sh         # 安装脚本
-│   └── test.sh            # 测试脚本
-├── .claude/
-│   └── prompts/           # Claude 提示词模板
-├── CLAUDE.md              # Claude 开发指南
-└── README.md
+└── CLAUDE.md              # Claude 开发指南
 ```
-
-### 添加新工具
-
-参考 [CLAUDE.md](CLAUDE.md) 中的开发指南，或使用 `.claude/prompts/add-new-tool.md` 模板。
-
-### 配置说明
-
-- `config/dev.yaml` - 开发环境配置（详细日志、短超时）
-- `config/prod.yaml` - 生产环境配置（警告日志、长超时）
-
-## 核心概念
-
-### 会话管理
-
-每个文档编辑操作都在一个会话中进行：
-
-1. 创建会话：`docx_create()` 返回 `session_id`
-2. 执行操作：使用 `session_id` 调用其他工具
-3. 保存文档：`docx_save(session_id, path)`
-4. 关闭会话：`docx_close(session_id)` 释放资源
-
-会话默认 1 小时后自动过期。
-
-### 对象 ID 映射
-
-python-docx 的对象（段落、文本块）没有稳定 ID，本服务器通过 ID 映射系统解决：
-
-- 创建对象时返回唯一 ID（如 `para_a1b2c3d4`）
-- 后续操作使用该 ID 引用对象
-- ID 在会话内有效
-
-### 原子化操作
-
-每个工具只做一件事，通过组合实现复杂功能：
-
-```python
-# 创建格式化段落需要多步操作
-para_id = docx_add_paragraph(session_id, "")
-run_id = docx_add_run(session_id, para_id, "文本")
-docx_set_font(session_id, run_id, bold=True)
-```
-
-这种设计让 Claude 可以灵活控制每个细节。
-
-## 常见问题
-
-**Q: 会话过期后数据会丢失吗？**
-
-A: 是的。必须在过期前调用 `docx_save()` 保存文件。
-
-**Q: 可以同时编辑多个文档吗？**
-
-A: 可以。每个 `docx_create()` 创建独立的会话。
-
-**Q: 如何处理大文档？**
-
-A: 分批操作，及时保存，避免长时间持有会话。参考 `.claude/prompts/optimize-performance.md`。
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-提交前请：
-1. 运行 `./scripts/test.sh` 确保测试通过
-2. 遵循现有代码风格
-3. 更新相关文档
-
-详细指南请参考 [CLAUDE.md](CLAUDE.md)。
 
 ## 许可证
 
@@ -295,4 +192,3 @@ MIT License
 
 - [MCP 协议规范](https://modelcontextprotocol.io)
 - [python-docx 文档](https://python-docx.readthedocs.io)
-- [Claude Desktop](https://claude.ai/download)
