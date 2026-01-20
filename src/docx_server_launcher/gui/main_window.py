@@ -138,6 +138,11 @@ class MainWindow(QMainWindow):
         # We don't need to do much immediately, value is read on save/start
         pass
 
+    def browse_cwd(self):
+        dir_path = QFileDialog.getExistingDirectory(self, "Select Working Directory", self.cwd_input.text())
+        if dir_path:
+            self.cwd_input.setText(dir_path)
+
     def toggle_server(self):
         if self.start_btn.text() == "Start Server":
             host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
@@ -174,6 +179,16 @@ class MainWindow(QMainWindow):
         self.cwd_browse_btn.setEnabled(True)
         self.lan_checkbox.setEnabled(True)
         self.port_input.setEnabled(True)
+
+    def on_server_error(self, error_msg):
+        self.append_log(f"ERROR: {error_msg}")
+        self.on_server_stopped()
+
+    def append_log(self, text):
+        self.log_area.appendPlainText(text.strip())
+        self.log_area.verticalScrollBar().setValue(
+            self.log_area.verticalScrollBar().maximum()
+        )
 
     def inject_config(self):
         default_path = self.config_injector.get_default_config_path()
