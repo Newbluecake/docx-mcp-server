@@ -29,9 +29,16 @@ class TestLoadExisting:
         assert "Existing Content" in texts
         assert "New Content" in texts
 
-    def test_create_with_nonexistent_file(self):
-        with pytest.raises(ValueError, match="not found"):
-            docx_create(file_path="/non/existent/path.docx")
+    def test_create_with_nonexistent_file(self, tmp_path):
+        # Test that creating a session with a non-existent file creates a new document
+        # intended to be saved to that path later.
+        target_path = tmp_path / "new_doc.docx"
+        session_id = docx_create(file_path=str(target_path))
+        assert session_id is not None
+
+        # Verify it's an empty document (or default styles)
+        content = docx_read_content(session_id)
+        assert content == "[Empty Document]"
 
     def test_read_content(self, tmp_path):
         # Setup
