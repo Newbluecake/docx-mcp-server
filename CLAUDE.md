@@ -76,6 +76,23 @@ docx_set_alignment(session_id, para_id, "center")
 
 ## 开发指南
 
+### 环境配置
+
+本项目推荐使用 [uv](https://github.com/astral-sh/uv) 进行依赖管理，以获得极致的安装速度。
+
+```bash
+# 安装 uv
+pip install uv
+
+# 创建并激活虚拟环境
+uv venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 安装项目依赖
+uv pip install -e .[gui]
+uv pip install pytest pytest-cov
+```
+
 ### 添加新工具
 
 1. **在 `server.py` 中定义工具**

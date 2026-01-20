@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-01-21
+
+### 🐛 Fixes
+
+- Fixed `ModuleNotFoundError` in Windows packaged build by implementing a "dual-mode" launcher. The executable now supports a `--server-mode` flag to run the MCP server directly from within the frozen environment, eliminating dependency on external Python installations.
+
+### 👷 CI/CD
+
+- Migrated CI workflows to use [uv](https://github.com/astral-sh/uv) for faster dependency resolution and testing.
+
 ## [0.1.1] - 2026-01-21
 
 ### 🐛 Fixes

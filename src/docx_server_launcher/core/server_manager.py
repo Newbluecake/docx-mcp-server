@@ -35,27 +35,25 @@ class ServerManager(QObject):
             self.log_received.emit("Server is already running.")
             return
 
-        # Determine Python interpreter path
+        # Determine program and args
         if getattr(sys, 'frozen', False):
-            # Packaged environment: find system Python
-            python_exe = shutil.which('python') or shutil.which('python3')
-            if not python_exe:
-                self.server_error.emit(
-                    "Cannot find Python interpreter in PATH.\n"
-                    "Please install Python 3.10+ and add it to PATH."
-                )
-                return
-            program = python_exe
+            # Packaged environment: run the executable itself in server mode
+            program = sys.executable
+            args = [
+                "--server-mode",
+                "--transport", "sse",
+                "--port", str(port),
+                "--host", host
+            ]
         else:
             # Development environment: use current Python interpreter
             program = sys.executable
-
-        args = [
-            "-m", "docx_mcp_server.server",
-            "--transport", "sse",
-            "--port", str(port),
-            "--host", host
-        ]
+            args = [
+                "-m", "docx_mcp_server.server",
+                "--transport", "sse",
+                "--port", str(port),
+                "--host", host
+            ]
 
         self.process.setWorkingDirectory(cwd)
 

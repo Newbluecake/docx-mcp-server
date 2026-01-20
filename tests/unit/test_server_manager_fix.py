@@ -54,20 +54,17 @@ class TestServerManagerBugFix:
             assert "-m" in args
             assert "docx_mcp_server.server" in args
 
-    def test_packaged_environment_uses_system_python(self, server_manager):
+    def test_packaged_environment_uses_self_executable_in_server_mode(self, server_manager):
         """
         Test that in packaged environment (frozen=True),
-        the server uses system Python from PATH, not the .exe itself.
-
-        This is the key bugfix: prevents launching the GUI .exe again.
+        the server uses the executable itself with --server-mode flag.
         """
-        # Mock QProcess to prevent actual process start
+        # Mock QProcess
         with patch.object(server_manager.process, 'start') as mock_start, \
              patch.object(server_manager.process, 'state', return_value=QProcess.ProcessState.NotRunning), \
              patch.object(server_manager.process, 'setWorkingDirectory'), \
              patch.object(server_manager.process, 'processEnvironment'), \
-             patch.object(server_manager.process, 'setProcessEnvironment'), \
-             patch('shutil.which', return_value='/usr/bin/python3'):
+             patch.object(server_manager.process, 'setProcessEnvironment'):
 
             # Simulate packaged environment
             sys.frozen = True
@@ -76,50 +73,21 @@ class TestServerManagerBugFix:
                 # Start server
                 server_manager.start_server('127.0.0.1', 8000, '/tmp')
 
-                # Verify start was called with system Python
+                # Verify start was called
                 mock_start.assert_called_once()
                 call_args = mock_start.call_args
                 program = call_args[0][0]
                 args = call_args[0][1]
 
-                # Key assertion: should NOT use sys.executable in frozen state
-                assert program != sys.executable, \
-                    "In frozen state, should use system Python, not sys.executable"
+                # Key assertion: should use sys.executable (the exe itself)
+                assert program == sys.executable, \
+                    f"Expected program to be sys.executable ({sys.executable}), got {program}"
 
-                # Should use the Python found via shutil.which
-                assert program == '/usr/bin/python3', \
-                    f"Expected program to be /usr/bin/python3, got {program}"
+                # Key assertion: should include --server-mode flag
+                assert "--server-mode" in args, "Args must include --server-mode"
+                assert "--transport" in args
+                assert "sse" in args
 
-                assert "-m" in args
-                assert "docx_mcp_server.server" in args
-            finally:
-                # Clean up
-                if hasattr(sys, 'frozen'):
-                    delattr(sys, 'frozen')
-
-    def test_packaged_environment_no_python_shows_error(self, server_manager):
-        """
-        Test that when Python is not found in PATH in packaged environment,
-        a clear error message is emitted.
-        """
-        # Mock signal to capture error
-        error_emitted = []
-        server_manager.server_error.connect(lambda msg: error_emitted.append(msg))
-
-        with patch.object(server_manager.process, 'state', return_value=QProcess.ProcessState.NotRunning), \
-             patch('shutil.which', return_value=None):
-
-            # Simulate packaged environment
-            sys.frozen = True
-
-            try:
-                # Start server (should fail gracefully)
-                server_manager.start_server('127.0.0.1', 8000, '/tmp')
-
-                # Verify error was emitted
-                assert len(error_emitted) > 0, "Expected error to be emitted"
-                assert "Cannot find Python interpreter" in error_emitted[0]
-                assert "PATH" in error_emitted[0]
             finally:
                 # Clean up
                 if hasattr(sys, 'frozen'):
