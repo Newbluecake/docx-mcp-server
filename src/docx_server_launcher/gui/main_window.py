@@ -193,6 +193,30 @@ class MainWindow(QMainWindow):
         # We don't need to do much immediately, value is read on save/start
         pass
 
+    def populate_languages(self):
+        """Populate the language combo box with available languages."""
+        available_languages = self.language_manager.get_available_languages()
+
+        # Clear existing items
+        self.lang_combo.clear()
+
+        # Add languages (display name as shown, locale code as data)
+        for locale_code, display_name in available_languages.items():
+            self.lang_combo.addItem(display_name, locale_code)
+
+        # Set current selection based on saved preference
+        current_locale = self.language_manager.current_locale
+        index = self.lang_combo.findData(current_locale)
+        if index >= 0:
+            self.lang_combo.setCurrentIndex(index)
+
+    def on_language_changed(self, display_name: str):
+        """Handle language selection change."""
+        # Get the locale code from the combo box's current item
+        locale_code = self.lang_combo.currentData()
+        if locale_code and locale_code != self.language_manager.current_locale:
+            self.language_manager.load_language(locale_code)
+
     def browse_cwd(self):
         """Open directory selection dialog"""
         current_dir = self.cwd_input.text() or os.getcwd()
