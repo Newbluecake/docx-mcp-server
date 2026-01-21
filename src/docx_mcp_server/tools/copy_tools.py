@@ -1,9 +1,9 @@
 """Copy and Metadata tools"""
 import json
 import logging
-import time
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.copy_engine import CopyEngine
+from docx_mcp_server.utils.metadata_tools import MetadataTools
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +118,8 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
             if hasattr(new_obj, "add_run"): prefix = "para"
             elif hasattr(new_obj, "rows"): prefix = "table"
 
-            # Metadata
-            meta = {"copied_at": time.time(), "range_copy": True}
+            # Metadata using shared utility
+            meta = MetadataTools.create_copy_metadata(operation_type="range_copy")
 
             # If we can map to source
             if i < len(source_elements):

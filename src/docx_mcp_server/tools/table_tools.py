@@ -1,11 +1,11 @@
 """Table manipulation tools"""
 import json
 import logging
-import time
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Inches
 from docx_mcp_server.core.finder import Finder
 from docx_mcp_server.core.copier import clone_table
+from docx_mcp_server.utils.metadata_tools import MetadataTools
 
 logger = logging.getLogger(__name__)
 
@@ -610,12 +610,11 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
 
     new_table = clone_table(table)
 
-    # Track lineage metadata
-    meta = {
-        "source_id": table_id,
-        "source_type": "table",
-        "copied_at": time.time()
-    }
+    # Track lineage metadata using shared utility
+    meta = MetadataTools.create_copy_metadata(
+        source_id=table_id,
+        source_type="table"
+    )
 
     t_id = session.register_object(new_table, "table", metadata=meta)
 

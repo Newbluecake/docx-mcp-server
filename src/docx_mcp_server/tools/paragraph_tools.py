@@ -1,7 +1,7 @@
 """Paragraph manipulation tools"""
 import logging
-import time
 from mcp.server.fastmcp import FastMCP
+from docx_mcp_server.utils.metadata_tools import MetadataTools
 
 logger = logging.getLogger(__name__)
 
@@ -287,12 +287,11 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
         if run.font.color.rgb is not None:
             new_run.font.color.rgb = run.font.color.rgb
 
-    # Track lineage metadata
-    meta = {
-        "source_id": paragraph_id,
-        "source_type": "paragraph",
-        "copied_at": time.time()
-    }
+    # Track lineage metadata using shared utility
+    meta = MetadataTools.create_copy_metadata(
+        source_id=paragraph_id,
+        source_type="paragraph"
+    )
 
     return session.register_object(new_para, "para", metadata=meta)
 

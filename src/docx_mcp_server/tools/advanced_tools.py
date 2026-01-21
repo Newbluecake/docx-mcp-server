@@ -69,37 +69,21 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
         logger.error(f"docx_replace_text failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
-    count = 0
-    targets = []
-
+    # Use shared scope resolution logic
+    tools = TextTools()
     if scope_id:
         obj = session.get_object(scope_id)
         if not obj:
             logger.error(f"docx_replace_text failed: Scope object {scope_id} not found")
             raise ValueError(f"Scope object {scope_id} not found")
-        # Identify what kind of object
-        if hasattr(obj, "paragraphs"): # Document or Cell or Table (no, table has rows)
-            targets.extend(obj.paragraphs)
-        elif hasattr(obj, "rows"): # Table
-            for row in obj.rows:
-                for cell in row.cells:
-                    targets.extend(cell.paragraphs)
-        elif hasattr(obj, "text"): # Paragraph or Run
-            # If it's a paragraph, we treat it as a target
-            if hasattr(obj, "runs"):
-                targets.append(obj)
+        targets = tools.collect_paragraphs_from_scope(obj)
     else:
-        # Full document
-        targets.extend(session.document.paragraphs)
-        for table in session.document.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    targets.extend(cell.paragraphs)
+        targets = tools.collect_paragraphs_from_scope(None, session.document)
 
+    count = 0
     for p in targets:
         if replace_text_in_paragraph(p, old_text, new_text):
             count += 1
-            # If successful, we updated the paragraph in place
 
     logger.debug(f"docx_replace_text success: replaced {count} occurrences")
     return f"Replaced {count} occurrences of '{old_text}'"
@@ -145,32 +129,17 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         logger.error(f"docx_batch_replace_text failed: Invalid JSON - {e}")
         raise ValueError("Invalid JSON for replacements")
 
-    # Determine scope elements
-    targets = []
+    # Use shared scope resolution logic
+    tools = TextTools()
     if scope_id:
         obj = session.get_object(scope_id)
         if not obj:
             logger.error(f"docx_batch_replace_text failed: Scope object {scope_id} not found")
             raise ValueError(f"Scope object {scope_id} not found")
-
-        # Collect paragraphs from scope
-        if hasattr(obj, "paragraphs"):
-             targets.extend(obj.paragraphs) # Document-like or Cell
-        if hasattr(obj, "rows"): # Table
-             for row in obj.rows:
-                 for cell in row.cells:
-                     targets.extend(cell.paragraphs)
-        if hasattr(obj, "runs"): # Paragraph
-             targets.append(obj)
+        targets = tools.collect_paragraphs_from_scope(obj)
     else:
-        # Full document
-        targets.extend(session.document.paragraphs)
-        for table in session.document.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    targets.extend(cell.paragraphs)
+        targets = tools.collect_paragraphs_from_scope(None, session.document)
 
-    tools = TextTools()
     count = tools.batch_replace_text(targets, replacements)
 
     logger.debug(f"docx_batch_replace_text success: replaced {count} occurrences")
