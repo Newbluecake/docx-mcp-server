@@ -52,16 +52,8 @@ logger.setLevel(logging.INFO)
 # Initialize SessionManager
 session_manager = SessionManager()
 
-# Create MCP Server with default configuration
-# Note: host and port can be overridden via environment variables or command line
-default_host = os.environ.get("DOCX_MCP_HOST", "127.0.0.1")
-default_port = int(os.environ.get("DOCX_MCP_PORT", "8000"))
-
-mcp = FastMCP(
-    "docx-mcp-server",
-    host=default_host,
-    port=default_port
-)
+# Create MCP Server (without host/port to avoid network init during import)
+mcp = FastMCP("docx-mcp-server")
 
 # Register all tools
 register_all_tools(mcp)
