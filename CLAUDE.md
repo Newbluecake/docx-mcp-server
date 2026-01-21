@@ -76,21 +76,24 @@ docx_set_alignment(session_id, para_id, "center")
 
 ## 开发指南
 
-### 环境配置
+### 环境配置与运行
 
-本项目推荐使用 [uv](https://github.com/astral-sh/uv) 进行依赖管理，以获得极致的安装速度。
+本项目**必须**使用 [uv](https://github.com/astral-sh/uv) 进行依赖管理和任务执行。
 
 ```bash
-# 安装 uv
+# 1. 安装 uv
 pip install uv
 
-# 创建并激活虚拟环境
-uv venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 安装项目依赖
+# 2. 安装项目依赖 (创建虚拟环境)
+uv venv
 uv pip install -e .[gui]
 uv pip install pytest pytest-cov
+
+# 3. 运行服务器
+uv run mcp-server-docx
+
+# 4. 运行 GUI 启动器
+uv run docx-server-launcher
 ```
 
 ### 添加新工具
@@ -154,7 +157,9 @@ def test_new_feature():
 
 **运行测试**：
 ```bash
-./scripts/test.sh
+uv run pytest
+# 或运行脚本
+uv run ./scripts/test.sh
 ```
 
 ### 调试技巧
