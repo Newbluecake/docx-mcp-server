@@ -37,11 +37,58 @@ pip install .
 
 ### 运行服务器
 
-CLI 模式：
+服务器支持三种传输模式：
+
+#### 1. STDIO 模式（默认，用于 Claude Desktop）
 
 ```bash
 mcp-server-docx
+# 或显式指定
+mcp-server-docx --transport stdio
 ```
+
+#### 2. SSE 模式（HTTP Server-Sent Events）
+
+适用于需要通过 HTTP 访问的场景：
+
+```bash
+# 使用默认配置（127.0.0.1:8000）
+mcp-server-docx --transport sse
+
+# 指定自定义 host 和 port
+mcp-server-docx --transport sse --host 0.0.0.0 --port 3000
+
+# 使用环境变量
+DOCX_MCP_TRANSPORT=sse DOCX_MCP_HOST=127.0.0.1 DOCX_MCP_PORT=3000 mcp-server-docx
+```
+
+启动后可通过 `http://127.0.0.1:8000` 访问（或你指定的 host:port）。
+
+#### 3. Streamable HTTP 模式
+
+```bash
+# 使用默认配置
+mcp-server-docx --transport streamable-http
+
+# 指定 host、port 和挂载路径
+mcp-server-docx --transport streamable-http --host 0.0.0.0 --port 8080 --mount-path /mcp
+```
+
+启动后可通过 `http://0.0.0.0:8080/mcp` 访问（如果指定了 mount-path）。
+
+#### 查看所有选项
+
+```bash
+mcp-server-docx --help
+mcp-server-docx --version
+```
+
+#### Windows GUI 启动器
+
+Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界面中配置：
+- **Host**: 通过"Allow LAN Access"复选框选择 127.0.0.1（本地）或 0.0.0.0（局域网）
+- **Port**: 在端口输入框中指定端口号
+- **Working Directory**: 服务器的工作目录
 
 ### 构建可执行文件
 

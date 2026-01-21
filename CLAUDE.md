@@ -86,8 +86,19 @@ uv venv
 uv pip install -e .[gui]
 uv pip install pytest pytest-cov
 
-# 3. 运行服务器
+# 3. 运行服务器 (多种模式)
+
+# STDIO 模式 (默认)
 uv run mcp-server-docx
+
+# SSE 模式 (HTTP Server-Sent Events)
+uv run mcp-server-docx --transport sse --host 127.0.0.1 --port 3000
+
+# Streamable HTTP 模式
+uv run mcp-server-docx --transport streamable-http --port 8080 --mount-path /mcp
+
+# 查看所有选项
+uv run mcp-server-docx --help
 
 # 4. 运行 GUI 启动器
 uv run docx-server-launcher
