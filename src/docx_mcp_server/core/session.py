@@ -99,16 +99,47 @@ class Session:
 
     def _get_siblings(self, parent: Any) -> List[Any]:
         """Get all child elements from parent container."""
-        if hasattr(parent, 'paragraphs') and hasattr(parent, 'tables'):
-            # Document body or Cell
-            elements = []
+        elements = []
+
+        # For Document, use paragraphs and tables properties
+        if hasattr(parent, 'paragraphs') and hasattr(parent, 'tables') and not isinstance(parent, _Cell):
+            # Merge paragraphs and tables in document order
+            para_list = list(parent.paragraphs)
+            table_list = list(parent.tables)
+
+            # Get all body elements in order
+            for child in parent._element.body:
+                if child.tag.endswith('p'):
+                    # Find matching paragraph
+                    for p in para_list:
+                        if p._element is child:
+                            elements.append(p)
+                            break
+                elif child.tag.endswith('tbl'):
+                    # Find matching table
+                    for t in table_list:
+                        if t._element is child:
+                            elements.append(t)
+                            break
+        # For Cell, use paragraphs and tables
+        elif isinstance(parent, _Cell):
+            para_list = list(parent.paragraphs)
+            table_list = list(parent.tables)
+
+            # Get all cell elements in order
             for child in parent._element:
                 if child.tag.endswith('p'):
-                    elements.append(Paragraph(child, parent))
+                    for p in para_list:
+                        if p._element is child:
+                            elements.append(p)
+                            break
                 elif child.tag.endswith('tbl'):
-                    elements.append(Table(child, parent))
-            return elements
-        return []
+                    for t in table_list:
+                        if t._element is child:
+                            elements.append(t)
+                            break
+
+        return elements
 
     def _format_element_summary(self, element: Any) -> str:
         """Format element summary with truncation."""
@@ -133,7 +164,10 @@ class Session:
                 return f"Cursor: after {self.cursor.element_id} (element not found)"
 
             # Get parent container
-            parent = self.get_object(self.cursor.parent_id) if self.cursor.parent_id else self.document
+            if self.cursor.parent_id and self.cursor.parent_id != "document_body":
+                parent = self.get_object(self.cursor.parent_id)
+            else:
+                parent = self.document
 
             # Get siblings
             siblings = self._get_siblings(parent)
@@ -154,7 +188,7 @@ class Session:
             # Build context
             lines = [f"Cursor: after {type(current_element).__name__} {self.cursor.element_id}"]
 
-            if self.cursor.parent_id:
+            if self.cursor.parent_id and self.cursor.parent_id != "document_body":
                 parent_obj = self.get_object(self.cursor.parent_id)
                 if parent_obj:
                     lines.append(f"Parent: {type(parent_obj).__name__} {self.cursor.parent_id}")
