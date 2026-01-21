@@ -2,10 +2,12 @@ import uuid
 import time
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from docx import Document
 from docx.document import Document as DocumentType
+from docx.table import Table, _Cell
+from docx.text.paragraph import Paragraph
 from docx_mcp_server.core.validators import validate_path_safety
 from docx_mcp_server.core.cursor import Cursor
 from docx_mcp_server.preview.manager import PreviewManager
@@ -28,6 +30,9 @@ class Session:
     last_accessed_id: Optional[str] = None
     auto_save: bool = False
     cursor: Cursor = field(default_factory=Cursor)
+
+    # Reverse ID mapping cache: id(element._element) -> element_id
+    _element_id_cache: Dict[int, str] = field(default_factory=dict)
 
     # Preview controller for handling live updates
     preview_controller: Any = field(init=False)
@@ -58,6 +63,10 @@ class Session:
         obj_id = f"{prefix}_{uuid.uuid4().hex[:8]}"
         self.object_registry[obj_id] = obj
 
+        # Update reverse cache for context lookup
+        if hasattr(obj, '_element'):
+            self._element_id_cache[id(obj._element)] = obj_id
+
         if metadata:
             self.element_metadata[obj_id] = metadata
 
@@ -70,6 +79,116 @@ class Session:
 
     def get_object(self, obj_id: str) -> Optional[Any]:
         return self.object_registry.get(obj_id)
+
+    def _get_element_id(self, element: Any, auto_register: bool = True) -> Optional[str]:
+        """Get element ID from cache, optionally auto-register if not found."""
+        if not hasattr(element, '_element'):
+            return None
+
+        element_key = id(element._element)
+        if element_key in self._element_id_cache:
+            return self._element_id_cache[element_key]
+
+        if auto_register:
+            prefix = "para" if isinstance(element, Paragraph) else \
+                     "table" if isinstance(element, Table) else \
+                     "cell" if isinstance(element, _Cell) else "obj"
+            return self.register_object(element, prefix)
+
+        return None
+
+    def _get_siblings(self, parent: Any) -> List[Any]:
+        """Get all child elements from parent container."""
+        if hasattr(parent, 'paragraphs') and hasattr(parent, 'tables'):
+            # Document body or Cell
+            elements = []
+            for child in parent._element:
+                if child.tag.endswith('p'):
+                    elements.append(Paragraph(child, parent))
+                elif child.tag.endswith('tbl'):
+                    elements.append(Table(child, parent))
+            return elements
+        return []
+
+    def _format_element_summary(self, element: Any) -> str:
+        """Format element summary with truncation."""
+        if isinstance(element, Paragraph):
+            text = element.text.replace('\n', ' ')
+            return f'"{text[:50]}{"..." if len(text) > 50 else ""}"'
+        elif isinstance(element, Table):
+            rows = len(element.rows)
+            cols = len(element.columns) if element.rows else 0
+            return f"Table ({rows}x{cols})"
+        return str(type(element).__name__)
+
+    def get_cursor_context(self, num_before: int = 2, num_after: int = 2) -> str:
+        """Generate cursor position context description."""
+        try:
+            # Handle empty document
+            if not self.cursor.element_id:
+                return "Cursor: at empty document start"
+
+            current_element = self.get_object(self.cursor.element_id)
+            if not current_element:
+                return f"Cursor: after {self.cursor.element_id} (element not found)"
+
+            # Get parent container
+            parent = self.get_object(self.cursor.parent_id) if self.cursor.parent_id else self.document
+
+            # Get siblings
+            siblings = self._get_siblings(parent)
+            if not siblings:
+                return f"Cursor: after {self.cursor.element_id}"
+
+            # Find current index
+            current_idx = None
+            for i, sib in enumerate(siblings):
+                if hasattr(sib, '_element') and hasattr(current_element, '_element'):
+                    if sib._element is current_element._element:
+                        current_idx = i
+                        break
+
+            if current_idx is None:
+                return f"Cursor: after {self.cursor.element_id}"
+
+            # Build context
+            lines = [f"Cursor: after {type(current_element).__name__} {self.cursor.element_id}"]
+
+            if self.cursor.parent_id:
+                parent_obj = self.get_object(self.cursor.parent_id)
+                if parent_obj:
+                    lines.append(f"Parent: {type(parent_obj).__name__} {self.cursor.parent_id}")
+
+            lines.append("Context:")
+
+            # Before elements
+            start = max(0, current_idx - num_before)
+            for i in range(start, current_idx):
+                elem = siblings[i]
+                elem_id = self._get_element_id(elem, auto_register=True)
+                summary = self._format_element_summary(elem)
+                lines.append(f"  [{i - current_idx}] {type(elem).__name__} {elem_id}: {summary}")
+
+            # Current element
+            summary = self._format_element_summary(current_element)
+            lines.append(f"  [Current] {type(current_element).__name__} {self.cursor.element_id}: {summary}")
+
+            # After elements
+            end = min(len(siblings), current_idx + 1 + num_after)
+            for i in range(current_idx + 1, end):
+                elem = siblings[i]
+                elem_id = self._get_element_id(elem, auto_register=True)
+                summary = self._format_element_summary(elem)
+                lines.append(f"  [+{i - current_idx}] {type(elem).__name__} {elem_id}: {summary}")
+
+            if current_idx + 1 >= len(siblings):
+                lines.append("  [Document End]")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.warning(f"Failed to generate cursor context: {e}")
+            return f"Cursor: after {self.cursor.element_id if self.cursor.element_id else 'unknown'}"
 
 class SessionManager:
     def __init__(self, ttl_seconds: int = 3600):
