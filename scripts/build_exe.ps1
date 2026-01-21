@@ -1,7 +1,10 @@
 # Build script for Windows (PowerShell) using uv
 $ErrorActionPreference = "Stop"
-# Ensure UTF-8 output for emojis and special characters
+
+# Ensure UTF-8 encoding for emojis and special characters
+chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host "🚀 Building Docx Server Launcher using uv..." -ForegroundColor Cyan
 
