@@ -101,6 +101,7 @@ mcp-server-docx
 - `docx_replace_text(session_id, old_text, new_text, scope_id=None)` - 智能文本替换（支持模板填充）
 - `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 更新段落文本
 - `docx_update_run_text(session_id, run_id, new_text)` - 更新 Run 文本
+- `docx_extract_template_structure(session_id)` - 提取文档模板结构（智能识别标题、表格、段落）
 
 ### 表格操作
 
@@ -120,7 +121,55 @@ mcp-server-docx
 
 ## 使用示例
 
-### 示例 1：模板填充（智能替换）
+### 示例 1：提取模板结构
+
+```python
+session_id = docx_create(file_path="/path/to/template.docx")
+
+# 提取文档结构（智能识别标题、表格、段落）
+structure_json = docx_extract_template_structure(session_id)
+structure = json.loads(structure_json)
+
+# 查看提取的元素
+for element in structure["document_structure"]:
+    if element["type"] == "table":
+        print(f"表格: {element['headers']}")  # 自动检测的表头
+    elif element["type"] == "heading":
+        print(f"标题 {element['level']}: {element['text']}")
+```
+
+输出格式：
+```json
+{
+  "metadata": {
+    "extracted_at": "2026-01-21T...",
+    "docx_version": "0.1.3"
+  },
+  "document_structure": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "章节标题",
+      "style": {"font": "Arial", "size": 16, "bold": true}
+    },
+    {
+      "type": "table",
+      "rows": 5,
+      "cols": 3,
+      "header_row": 0,
+      "headers": ["姓名", "年龄", "部门"],
+      "style": {...}
+    },
+    {
+      "type": "paragraph",
+      "text": "段落内容",
+      "style": {"font": "宋体", "size": 12, "alignment": "left"}
+    }
+  ]
+}
+```
+
+### 示例 2：模板填充（智能替换）
 
 ```python
 session_id = docx_create(file_path="/path/to/template.docx")
