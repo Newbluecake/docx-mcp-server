@@ -32,51 +32,29 @@ from docx_mcp_server.tools.format_tools import (
 from docx_mcp_server.tools.advanced_tools import (
     docx_replace_text, docx_insert_image
 )
-from docx_mcp_server.tools.system_tools import (
-    docx_server_status
-)
+from docx_mcp_server.tools.system_tools import docx_server_status
 from docx_mcp_server.tools.cursor_tools import (
-    docx_cursor_get, docx_cursor_move, docx_insert_paragraph_at_cursor, docx_insert_table_at_cursor
+    docx_cursor_move, docx_cursor_get,
+    docx_insert_paragraph_at_cursor, docx_insert_table_at_cursor
 )
 
-logger = logging.getLogger(__name__)
+# Configure logging
+logging.basicConfig()
+logger = logging.getLogger("docx-mcp-server")
+logger.setLevel(logging.INFO)
 
-# Initialize MCP server
-mcp = FastMCP("docx-mcp-server")
-
-# Global session manager
+# Initialize SessionManager
 session_manager = SessionManager()
 
-# Register all tools
-register_all_tools(mcp)
+# Create MCP Server
+mcp = FastMCP("docx-mcp-server")
 
+# Register all tools
+register_all_tools(mcp, session_manager)
 
 def main():
-    """Server startup entry point"""
-    import argparse
-    parser = argparse.ArgumentParser(description="DOCX MCP Server")
-    parser.add_argument("--transport", default="stdio", choices=["stdio", "sse"], help="Transport protocol")
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (SSE only)")
-    parser.add_argument("--port", type=int, default=8000, help="Port to listen on (SSE only)")
-
-    # Parse known args to avoid conflict if FastMCP parses its own
-    args, unknown = parser.parse_known_args()
-
-    if args.transport == "sse":
-        print(f"Starting SSE server on {args.host}:{args.port}...", flush=True)
-
-        # FastMCP.run() doesn't accept host/port args, we must update settings directly
-        mcp.settings.host = args.host
-        mcp.settings.port = args.port
-
-        # Disable DNS rebinding protection for non-localhost addresses (LAN access)
-        if args.host not in ("127.0.0.1", "localhost"):
-            mcp.settings.transport_security = None
-
-        mcp.run(transport="sse")
-    else:
-        mcp.run(transport="stdio")
-
+    """Main entry point for the server"""
+    mcp.run()
 
 if __name__ == "__main__":
     main()

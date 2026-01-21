@@ -338,6 +338,23 @@ cell_id = docx_get_cell(session_id, table_id, row=0, col=0)
 docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 ```
 
+**格式复制与批量替换（高级工作流）**：
+```python
+# 1. 复制模板章节（Heading 到 End Marker）
+new_ids = json.loads(docx_copy_elements_range(session_id, start_h1_id, end_marker_id))
+
+# 2. 提取并应用格式
+template = docx_extract_format_template(session_id, source_run_id)
+docx_apply_format_template(session_id, target_run_id, template)
+
+# 3. 批量填充数据
+replacements = {
+    "{{NAME}}": "张三",
+    "{{DATE}}": "2026-01-21"
+}
+docx_batch_replace_text(session_id, json.dumps(replacements))
+```
+
 ---
 
 **最后更新**：2026-01-21

@@ -98,10 +98,15 @@ mcp-server-docx
 
 - `docx_copy_paragraph(session_id, paragraph_id)` - 复制段落（保留格式）
 - `docx_copy_table(session_id, table_id)` - 深拷贝表格（保留结构与格式）
+- `docx_copy_elements_range(session_id, start_id, end_id)` - 复制元素区间（如整个章节）
 - `docx_replace_text(session_id, old_text, new_text, scope_id=None)` - 智能文本替换（支持模板填充）
+- `docx_batch_replace_text(session_id, replacements_json, scope_id=None)` - 批量文本替换（格式保留）
 - `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 更新段落文本
 - `docx_update_run_text(session_id, run_id, new_text)` - 更新 Run 文本
 - `docx_extract_template_structure(session_id)` - 提取文档模板结构（智能识别标题、表格、段落）
+- `docx_extract_format_template(session_id, element_id)` - 提取格式模板
+- `docx_apply_format_template(session_id, element_id, template_json)` - 应用格式模板
+- `docx_get_element_source(session_id, element_id)` - 获取元素来源元数据
 
 ### 表格操作
 
