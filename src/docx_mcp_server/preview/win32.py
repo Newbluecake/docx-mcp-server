@@ -85,7 +85,7 @@ class Win32PreviewController(PreviewController):
                 time.sleep(0.2)
                 return True
             except Exception as e:
-                logger.error(f"Failed to close document via COM: {e}")
+                logger.exception(f"Failed to close document via COM: {e}")
                 return False
 
         return False
@@ -120,7 +120,7 @@ class Win32PreviewController(PreviewController):
 
                 return True
             except Exception as e:
-                logger.error(f"Failed to re-open document via COM: {e}")
+                logger.exception(f"Failed to re-open document via COM: {e}")
                 return False
 
         return False

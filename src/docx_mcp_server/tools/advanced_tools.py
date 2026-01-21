@@ -1,0 +1,190 @@
+"""Advanced document operations"""
+import os
+import logging
+from mcp.server.fastmcp import FastMCP
+from docx.shared import Inches
+from docx_mcp_server.core.replacer import replace_text_in_paragraph
+
+logger = logging.getLogger(__name__)
+
+
+def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: str = None) -> str:
+    """
+    Replace all occurrences of text in the document or a specific scope.
+
+    Searches and replaces text while preserving formatting. Can operate on the entire
+    document or be limited to a specific element (paragraph, table, etc.).
+
+    Typical Use Cases:
+        - Replace placeholders in templates
+        - Update repeated text globally
+        - Batch text modifications
+
+    Args:
+        session_id (str): Active session ID returned by docx_create().
+        old_text (str): Text to find and replace (exact match).
+        new_text (str): Replacement text.
+        scope_id (str, optional): ID of element to limit scope (paragraph, table, cell).
+            If None, searches entire document body.
+
+    Returns:
+        str: Summary message with count of replacements made.
+
+    Raises:
+        ValueError: If session_id or scope_id is invalid.
+
+    Examples:
+        Replace globally:
+        >>> session_id = docx_create(file_path="./template.docx")
+        >>> result = docx_replace_text(session_id, "{{COMPANY}}", "Acme Corp")
+        >>> print(result)
+        'Replaced 5 occurrences of {{COMPANY}}'
+
+        Replace in specific paragraph:
+        >>> para_id = docx_find_paragraphs(session_id, "{{NAME}}")[0]["id"]
+        >>> docx_replace_text(session_id, "{{NAME}}", "John", scope_id=para_id)
+
+        Replace in table:
+        >>> table_id = docx_find_table(session_id, "Invoice")
+        >>> docx_replace_text(session_id, "TBD", "Completed", scope_id=table_id)
+
+    Notes:
+        - Preserves text formatting (bold, italic, etc.)
+        - Exact text match (case-sensitive)
+        - Searches document body, tables, and cells
+        - Does not search headers/footers
+
+    See Also:
+        - docx_find_paragraphs: Find specific paragraphs
+        - docx_update_paragraph_text: Replace entire paragraph
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    count = 0
+    targets = []
+
+    if scope_id:
+        obj = session.get_object(scope_id)
+        if not obj:
+            raise ValueError(f"Scope object {scope_id} not found")
+        # Identify what kind of object
+        if hasattr(obj, "paragraphs"): # Document or Cell or Table (no, table has rows)
+            targets.extend(obj.paragraphs)
+        elif hasattr(obj, "rows"): # Table
+            for row in obj.rows:
+                for cell in row.cells:
+                    targets.extend(cell.paragraphs)
+        elif hasattr(obj, "text"): # Paragraph or Run
+            # If it's a paragraph, we treat it as a target
+            if hasattr(obj, "runs"):
+                targets.append(obj)
+    else:
+        # Full document
+        targets.extend(session.document.paragraphs)
+        for table in session.document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    targets.extend(cell.paragraphs)
+
+    for p in targets:
+        if replace_text_in_paragraph(p, old_text, new_text):
+            count += 1
+            # If successful, we updated the paragraph in place
+
+    return f"Replaced {count} occurrences of '{old_text}'"
+
+def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None) -> str:
+    """
+    Insert an image into the document.
+
+    Adds an image file to the document with optional size constraints. Images can be
+    added to the document body or within specific paragraphs.
+
+    Typical Use Cases:
+        - Add logos or diagrams to documents
+        - Insert charts or screenshots
+        - Embed visual content in reports
+
+    Args:
+        session_id (str): Active session ID returned by docx_create().
+        image_path (str): Absolute or relative path to the image file (PNG, JPG, etc.).
+        width (float, optional): Image width in inches. If None, uses original size.
+        height (float, optional): Image height in inches. If None, uses original size.
+        parent_id (str, optional): ID of parent paragraph. If None, creates new paragraph.
+
+    Returns:
+        str: Element ID of the container paragraph (format: "para_xxxxx").
+
+    Raises:
+        ValueError: If session_id is invalid or image_path not found.
+        FileNotFoundError: If image file does not exist.
+
+    Examples:
+        Insert image with default size:
+        >>> session_id = docx_create()
+        >>> para_id = docx_insert_image(session_id, "./logo.png")
+
+        Insert with specific dimensions:
+        >>> para_id = docx_insert_image(session_id, "./chart.png", width=4.0, height=3.0)
+
+        Insert into existing paragraph:
+        >>> para_id = docx_add_paragraph(session_id, "See image: ")
+        >>> docx_insert_image(session_id, "./diagram.png", width=2.0, parent_id=para_id)
+
+    Notes:
+        - Supported formats: PNG, JPG, GIF, BMP
+        - Size is in inches (1 inch = 2.54 cm)
+        - If only width or height specified, aspect ratio is preserved
+        - Image is embedded in document (increases file size)
+
+    See Also:
+        - docx_add_paragraph: Create container paragraph
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    if not os.path.exists(image_path):
+        raise ValueError(f"Image file not found: {image_path}")
+
+    # Determine parent
+    parent = session.document
+    if parent_id:
+        parent_obj = session.get_object(parent_id)
+        if parent_obj:
+            # If parent is a paragraph, we can add a run with picture?
+            # python-docx: run.add_picture()
+            if hasattr(parent_obj, "add_run"):
+                 # It's a paragraph
+                 run = parent_obj.add_run()
+                 run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
+                 r_id = session.register_object(run, "run")
+                 session.update_context(r_id, action="create")
+                 return r_id
+            elif hasattr(parent_obj, "add_picture"):
+                 # Maybe it's a run already? No, runs don't have add_picture, they ARE the container
+                 # Actually run.add_picture exists.
+                 pass
+
+    # Default: Add new paragraph then run with picture
+    paragraph = session.document.add_paragraph()
+    run = paragraph.add_run()
+    run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
+
+    # Register the run as the object of interest? Or the paragraph?
+    # Let's register the paragraph as the structural element.
+    p_id = session.register_object(paragraph, "para")
+    session.update_context(p_id, action="create")
+    return p_id
+
+
+def register_tools(mcp: FastMCP):
+    """Register advanced document operations"""
+    mcp.tool()(docx_replace_text)
+    mcp.tool()(docx_insert_image)

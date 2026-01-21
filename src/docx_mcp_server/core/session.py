@@ -79,7 +79,7 @@ class SessionManager:
                 except Exception as e:
                     # If file exists but fails to load (e.g. locked, corrupt), raise error
                     # so user knows why instead of silently returning empty doc
-                    logger.error(f"Failed to load file '{file_path}': {e}")
+                    logger.exception(f"Failed to load file '{file_path}': {e}")
                     raise RuntimeError(f"Failed to load existing file '{file_path}': {str(e)}")
             else:
                 # File doesn't exist.
