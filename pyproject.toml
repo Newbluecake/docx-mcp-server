@@ -15,7 +15,8 @@ gui = [
     "pyinstaller>=6.3.0"
 ]
 dev = [
-    "PySide6>=6.6.0"  # For translation compilation tools (lrelease)
+    "PySide6>=6.6.0",  # For translation compilation tools (lrelease)
+    "Pillow>=10.0.0"   # For icon generation
 ]
 
 [project.scripts]
