@@ -75,7 +75,7 @@ def test_add_to_history_reorder(manager):
 
 def test_add_to_history_max_limit(manager):
     with tempfile.TemporaryDirectory() as tmpdir:
-        base_path = Path(tmpdir)
+        base_path = Path(tmpdir).resolve()
 
         # Add 12 different directories
         for i in range(12):
@@ -86,19 +86,17 @@ def test_add_to_history_max_limit(manager):
         history = manager.get_history()
         assert len(history) == 10
         # The last added (dir11) should be first
-        assert str(base_path / "dir11") in history[0]
+        # Use resolved path for comparison to handle Windows short paths
+        expected_dir11 = str((base_path / "dir11").resolve())
+        assert expected_dir11 == history[0]
 
         # The first added (dir0, dir1) should be gone
         # Check strict equality of paths, not substrings
-        dir0 = str(base_path / "dir0")
-        dir1 = str(base_path / "dir1")
+        dir0 = str((base_path / "dir0").resolve())
+        dir1 = str((base_path / "dir1").resolve())
 
-        # Note: history stores resolved paths
-        resolved_dir0 = str(Path(dir0).resolve())
-        resolved_dir1 = str(Path(dir1).resolve())
-
-        assert resolved_dir0 not in history
-        assert resolved_dir1 not in history
+        assert dir0 not in history
+        assert dir1 not in history
 
 def test_save_load_settings(settings):
     settings.clear() # Ensure clean state

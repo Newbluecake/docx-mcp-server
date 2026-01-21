@@ -33,24 +33,27 @@ def test_update_context_access():
     # last_accessed_id should be updated to para_2
     assert session.last_accessed_id == "para_2"
 
-def test_auto_save_trigger():
+def test_auto_save_trigger(tmp_path):
+    test_file = str(tmp_path / "test.docx")
     doc = MagicMock()
-    session = Session(session_id="test", document=doc, file_path="/tmp/test.docx", auto_save=True)
+    session = Session(session_id="test", document=doc, file_path=test_file, auto_save=True)
 
     session.update_context("para_1", action="create")
-    doc.save.assert_called_with("/tmp/test.docx")
+    doc.save.assert_called_with(test_file)
 
-def test_auto_save_disabled():
+def test_auto_save_disabled(tmp_path):
+    test_file = str(tmp_path / "test.docx")
     doc = MagicMock()
-    session = Session(session_id="test", document=doc, file_path="/tmp/test.docx", auto_save=False)
+    session = Session(session_id="test", document=doc, file_path=test_file, auto_save=False)
 
     session.update_context("para_1", action="create")
     doc.save.assert_not_called()
 
-def test_session_manager_create_with_autosave():
+def test_session_manager_create_with_autosave(tmp_path):
+    test_file = str(tmp_path / "test.docx")
     manager = SessionManager()
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
-        sid = manager.create_session(file_path="/tmp/test.docx", auto_save=True)
+        sid = manager.create_session(file_path=test_file, auto_save=True)
         session = manager.get_session(sid)
         assert session.auto_save is True
-        assert session.file_path == "/tmp/test.docx"
+        assert session.file_path == test_file

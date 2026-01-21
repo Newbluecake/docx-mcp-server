@@ -9,12 +9,13 @@ from docx_mcp_server.server import (
     session_manager
 )
 
-def test_create_with_autosave():
+def test_create_with_autosave(tmp_path):
+    test_file = str(tmp_path / "test.docx")
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
-        sid = docx_create(file_path="/tmp/test.docx", auto_save=True)
+        sid = docx_create(file_path=test_file, auto_save=True)
         session = session_manager.get_session(sid)
         assert session.auto_save is True
-        assert session.file_path == "/tmp/test.docx"
+        assert session.file_path == test_file
 
 def test_implicit_context_flow():
     # 1. Create session
