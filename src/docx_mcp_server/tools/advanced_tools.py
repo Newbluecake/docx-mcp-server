@@ -218,8 +218,21 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
                  run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
                  r_id = session.register_object(run, "run")
                  session.update_context(r_id, action="create")
+
+                 # Update cursor
+                 session.cursor.element_id = r_id
+                 session.cursor.position = "after"
+
+                 # Attach context
+                 result_msg = r_id
+                 try:
+                     context = session.get_cursor_context()
+                     result_msg = f"{r_id}\n\n{context}"
+                 except Exception as e:
+                     logger.warning(f"Failed to get cursor context: {e}")
+
                  logger.debug(f"docx_insert_image success: created run {r_id} in paragraph {parent_id}")
-                 return r_id
+                 return result_msg
             elif hasattr(parent_obj, "add_picture"):
                  # Maybe it's a run already? No, runs don't have add_picture, they ARE the container
                  # Actually run.add_picture exists.
@@ -234,8 +247,22 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     # Let's register the paragraph as the structural element.
     p_id = session.register_object(paragraph, "para")
     session.update_context(p_id, action="create")
+
+    # Update cursor
+    session.cursor.element_id = p_id
+    session.cursor.parent_id = "document_body"
+    session.cursor.position = "after"
+
+    # Attach context
+    result_msg = p_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{p_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_insert_image success: created paragraph {p_id}")
-    return p_id
+    return result_msg
 
 
 def register_tools(mcp: FastMCP):
