@@ -304,6 +304,23 @@ A: 考虑分批操作，及时保存，避免长时间持有会话。
 
 ### 常用工具组合
 
+**提取模板结构**：
+```python
+session_id = docx_create(file_path="/path/to/template.docx")
+structure_json = docx_extract_template_structure(session_id)
+structure = json.loads(structure_json)
+
+# 遍历提取的元素
+for element in structure["document_structure"]:
+    if element["type"] == "table":
+        print(f"表格表头: {element['headers']}")  # 自动检测的表头
+        print(f"行数: {element['rows']}, 列数: {element['cols']}")
+    elif element["type"] == "heading":
+        print(f"标题 {element['level']}: {element['text']}")
+
+docx_close(session_id)
+```
+
 **创建格式化文档**：
 ```python
 session_id = docx_create()
@@ -323,4 +340,4 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 
 ---
 
-**最后更新**：2026-01-20
+**最后更新**：2026-01-21
