@@ -61,17 +61,50 @@ def docx_server_status() -> str:
 @mcp.tool()
 def docx_create(file_path: str = None, auto_save: bool = False) -> str:
     """
-    Create a new Word document session, optionally loading an existing file.
+    Create a new Word document session or load an existing document.
+
+    This is the entry point for all document operations. Creates an isolated session
+    with a unique session_id that maintains document state and object registry.
+
+    Typical Use Cases:
+        - Create a new blank document for content generation
+        - Load an existing template for modification
+        - Enable auto-save for real-time document updates
 
     Args:
-        file_path: Optional path to an existing .docx file.
-                   IMPORTANT: Use relative paths (e.g., "./doc.docx") whenever possible to ensure
-                   compatibility if the server is running on a different OS (e.g., Windows vs Linux).
-                   Absolute paths must match the SERVER's operating system conventions.
-        auto_save: Whether to automatically save changes after every modification. Requires file_path.
+        file_path (str, optional): Path to an existing .docx file to load.
+            If None, creates a new blank document. Use relative paths (e.g., "./doc.docx")
+            for cross-platform compatibility. Absolute paths must match the server's OS.
+        auto_save (bool, optional): Enable automatic saving after each modification.
+            Requires file_path to be set. Defaults to False.
 
     Returns:
-        str: The session_id to be used for subsequent operations.
+        str: Unique session_id (UUID format) for subsequent operations.
+
+    Raises:
+        FileNotFoundError: If file_path is specified but file does not exist.
+        ValueError: If auto_save is True but file_path is None.
+
+    Examples:
+        Create a new blank document:
+        >>> session_id = docx_create()
+        >>> print(session_id)
+        'abc-123-def-456'
+
+        Load an existing document:
+        >>> session_id = docx_create(file_path="./template.docx")
+
+        Enable auto-save mode:
+        >>> session_id = docx_create(file_path="./output.docx", auto_save=True)
+
+    Notes:
+        - Each session is independent and isolated from others
+        - Sessions auto-expire after 1 hour of inactivity
+        - Always call docx_close() when done to free resources
+
+    See Also:
+        - docx_save: Save document to disk
+        - docx_close: Close session and free resources
     """
     logger.info(f"docx_create called: file_path={file_path}, auto_save={auto_save}")
     try:
@@ -85,13 +118,41 @@ def docx_create(file_path: str = None, auto_save: bool = False) -> str:
 @mcp.tool()
 def docx_read_content(session_id: str) -> str:
     """
-    Read the text content of the document.
+    Read and extract all text content from the document.
+
+    Extracts text from all paragraphs in the document body, preserving order
+    but not formatting. Useful for content analysis, search, or preview.
+
+    Typical Use Cases:
+        - Preview document content before modification
+        - Extract text for analysis or indexing
+        - Verify document content after generation
 
     Args:
-        session_id: The active session ID.
+        session_id (str): Active session ID returned by docx_create().
 
     Returns:
-        str: A text summary of the document content.
+        str: Newline-separated text content of all paragraphs.
+            Returns "[Empty Document]" if document has no content.
+
+    Raises:
+        ValueError: If session_id is invalid or session has expired.
+
+    Examples:
+        Read content from a document:
+        >>> session_id = docx_create(file_path="./report.docx")
+        >>> content = docx_read_content(session_id)
+        >>> print(content)
+        'Chapter 1\nIntroduction\nThis is the first paragraph...'
+
+    Notes:
+        - Only extracts text, formatting information is not included
+        - Empty paragraphs are skipped
+        - Does not extract text from tables or headers/footers
+
+    See Also:
+        - docx_find_paragraphs: Search for specific text in paragraphs
+        - docx_extract_template_structure: Get full document structure
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -519,14 +580,50 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
 @mcp.tool()
 def docx_save(session_id: str, file_path: str) -> str:
     """
-    Save the document associated with the session to a file.
+    Save the document to disk at the specified path.
+
+    Persists all modifications made during the session to a .docx file.
+    Supports saving to a new location or overwriting the original file.
+
+    Typical Use Cases:
+        - Save generated document to output location
+        - Create a modified copy of a template
+        - Checkpoint document state during long operations
 
     Args:
-        session_id: The ID of the active session.
-        file_path: The absolute path where the file should be saved.
+        session_id (str): Active session ID returned by docx_create().
+        file_path (str): Absolute or relative path where the file should be saved.
+            Parent directory must exist. Use relative paths for portability.
 
     Returns:
-        str: A success message.
+        str: Success message with the saved file path.
+
+    Raises:
+        ValueError: If session_id is invalid or session has expired.
+        RuntimeError: If file cannot be saved (permission denied, disk full, etc.).
+        FileNotFoundError: If parent directory does not exist.
+
+    Examples:
+        Save a new document:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "Hello World")
+        >>> result = docx_save(session_id, "./output.docx")
+        >>> print(result)
+        'Document saved successfully to ./output.docx'
+
+        Save modified template:
+        >>> session_id = docx_create(file_path="./template.docx")
+        >>> # ... make modifications ...
+        >>> docx_save(session_id, "./filled_template.docx")
+
+    Notes:
+        - If file exists, it will be overwritten without warning
+        - In auto_save mode, this is called automatically after each modification
+        - Live preview feature will refresh Word if file is open
+
+    See Also:
+        - docx_create: Create session with auto_save option
+        - docx_close: Close session after saving
     """
     logger.info(f"docx_save called: session_id={session_id}, file_path={file_path}")
     session = session_manager.get_session(session_id)
@@ -562,10 +659,40 @@ def docx_save(session_id: str, file_path: str) -> str:
 @mcp.tool()
 def docx_close(session_id: str) -> str:
     """
-    Close the session and free resources.
+    Close the session and free all associated resources.
+
+    Terminates the document session, releasing memory and clearing the object registry.
+    Should be called when document operations are complete to prevent resource leaks.
+
+    Typical Use Cases:
+        - Clean up after document generation is complete
+        - Free resources in long-running processes
+        - Ensure proper session lifecycle management
 
     Args:
-        session_id: The ID of the session to close.
+        session_id (str): Active session ID to close.
+
+    Returns:
+        str: Success message confirming session closure.
+
+    Examples:
+        Complete document workflow:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "Content")
+        >>> docx_save(session_id, "./output.docx")
+        >>> result = docx_close(session_id)
+        >>> print(result)
+        'Session abc-123 closed successfully'
+
+    Notes:
+        - Unsaved changes will be lost - always call docx_save() first
+        - Closed sessions cannot be reopened - create a new session instead
+        - Sessions auto-expire after 1 hour, but explicit closure is recommended
+        - Calling close on an already closed session returns a not-found message
+
+    See Also:
+        - docx_create: Create a new session
+        - docx_save: Save before closing
     """
     logger.info(f"docx_close called: session_id={session_id}")
     success = session_manager.close_session(session_id)
@@ -578,17 +705,55 @@ def docx_close(session_id: str) -> str:
 @mcp.tool()
 def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id: str = None) -> str:
     """
-    Add a paragraph to the document or a specific parent (like a Cell).
+    Add a new paragraph to the document or a specific parent container.
+
+    Creates a paragraph with the specified text content. Paragraphs are the fundamental
+    building blocks for text content in Word documents.
+
+    Typical Use Cases:
+        - Add body text to a document
+        - Add content to table cells
+        - Create structured content with specific styles
 
     Args:
-        session_id: The active session ID.
-        text: The text content of the paragraph.
-        style: Optional style name (e.g., 'List Bullet').
-        parent_id: Optional ID of the parent object (e.g., a cell_id).
-                   If None, adds to the end of the document body.
+        session_id (str): Active session ID returned by docx_create().
+        text (str): Text content for the paragraph. Can be empty string.
+        style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text').
+            Defaults to None (Normal style).
+        parent_id (str, optional): ID of parent container (e.g., cell_id from docx_get_cell).
+            If None, adds to document body.
 
     Returns:
-        str: The element_id of the new paragraph (e.g., "para_1234").
+        str: Element ID of the new paragraph (format: "para_xxxxx").
+
+    Raises:
+        ValueError: If session_id is invalid or parent_id not found.
+        ValueError: If parent object cannot contain paragraphs.
+
+    Examples:
+        Add paragraph to document:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "Hello World")
+        >>> print(para_id)
+        'para_a1b2c3d4'
+
+        Add styled paragraph:
+        >>> para_id = docx_add_paragraph(session_id, "Item 1", style="List Bullet")
+
+        Add paragraph to table cell:
+        >>> table_id = docx_add_table(session_id, 2, 2)
+        >>> cell_id = docx_get_cell(session_id, table_id, 0, 0)
+        >>> para_id = docx_add_paragraph(session_id, "Cell content", parent_id=cell_id)
+
+    Notes:
+        - Returns element_id for use in subsequent operations (e.g., adding runs)
+        - Sets session context to this paragraph for implicit operations
+        - Empty text is valid - use for formatting-only paragraphs
+
+    See Also:
+        - docx_add_run: Add formatted text to paragraph
+        - docx_add_heading: Add heading instead of paragraph
+        - docx_update_paragraph_text: Modify existing paragraph
     """
     logger.debug(f"docx_add_paragraph called: session_id={session_id}, parent_id={parent_id}")
     session = session_manager.get_session(session_id)
@@ -620,13 +785,42 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     """
     Add a heading to the document.
 
+    Creates a heading paragraph with the specified level. Headings provide document
+    structure and are used for navigation and table of contents generation.
+
+    Typical Use Cases:
+        - Create document sections and chapters
+        - Structure reports and articles
+        - Generate navigable document outlines
+
     Args:
-        session_id: The active session ID.
-        text: The heading text.
-        level: The heading level (0-9).
+        session_id (str): Active session ID returned by docx_create().
+        text (str): Heading text content.
+        level (int, optional): Heading level from 0-9. Level 0 is Title style,
+            levels 1-9 are Heading 1-9 styles. Defaults to 1.
 
     Returns:
-        str: The element_id of the new paragraph.
+        str: Element ID of the new heading paragraph (format: "para_xxxxx").
+
+    Raises:
+        ValueError: If session_id is invalid or level is out of range.
+
+    Examples:
+        Add main heading:
+        >>> session_id = docx_create()
+        >>> h1_id = docx_add_heading(session_id, "Chapter 1", level=1)
+
+        Add title and subheadings:
+        >>> title_id = docx_add_heading(session_id, "Report Title", level=0)
+        >>> h2_id = docx_add_heading(session_id, "Introduction", level=2)
+
+    Notes:
+        - Level 0 applies Title style (larger, centered)
+        - Levels 1-9 apply Heading 1-9 styles
+        - Headings are paragraphs with special styling
+
+    See Also:
+        - docx_add_paragraph: Add regular paragraph
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -638,17 +832,56 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
 @mcp.tool()
 def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     """
-    Append a text run to a paragraph.
-    Supports both (text, paragraph_id) and legacy (paragraph_id, text) signatures.
+    Add a text run to a paragraph with independent formatting.
+
+    Runs are the atomic text units within paragraphs. Each run can have its own
+    formatting (bold, italic, color, size) independent of other runs in the paragraph.
+
+    Typical Use Cases:
+        - Add formatted text within a paragraph
+        - Mix different text styles in one paragraph
+        - Build complex formatted content incrementally
 
     Args:
-        session_id: The active session ID.
-        text: The text to append.
-        paragraph_id: The ID of the parent paragraph.
-                      If None, uses the last created paragraph context.
+        session_id (str): Active session ID returned by docx_create().
+        text (str): Text content for the run.
+        paragraph_id (str, optional): ID of the parent paragraph. If None, uses
+            the last created paragraph from session context.
 
     Returns:
-        str: The element_id of the new run.
+        str: Element ID of the new run (format: "run_xxxxx").
+
+    Raises:
+        ValueError: If session_id is invalid or paragraph_id not found.
+        ValueError: If no paragraph context available when paragraph_id is None.
+        ValueError: If specified object is not a paragraph.
+
+    Examples:
+        Add run to specific paragraph:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run_id = docx_add_run(session_id, "Hello ", paragraph_id=para_id)
+        >>> run_id2 = docx_add_run(session_id, "World", paragraph_id=para_id)
+
+        Use implicit context:
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run_id = docx_add_run(session_id, "Implicit context")
+
+        Build formatted paragraph:
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run1 = docx_add_run(session_id, "Normal ", paragraph_id=para_id)
+        >>> run2 = docx_add_run(session_id, "Bold", paragraph_id=para_id)
+        >>> docx_set_font(session_id, run2, bold=True)
+
+    Notes:
+        - Supports legacy signature: docx_add_run(sid, para_id, text) for compatibility
+        - Context mechanism allows omitting paragraph_id for sequential operations
+        - Use docx_set_font() to apply formatting after creation
+
+    See Also:
+        - docx_add_paragraph: Create parent paragraph
+        - docx_set_font: Format the run
+        - docx_update_run_text: Modify existing run
     """
     # Compatibility shim for legacy calls: docx_add_run(sid, para_id, text)
     # If 'text' looks like a para_id and 'paragraph_id' is present (and doesn't look like a para_id)
@@ -689,17 +922,54 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
 @mcp.tool()
 def docx_set_properties(session_id: str, properties: str, element_id: str = None) -> str:
     """
-    Set various properties on a document element (Run, Paragraph, Table, Cell).
+    Set advanced properties on a document element using JSON configuration.
+
+    Provides flexible property setting for runs, paragraphs, tables, and cells.
+    Supports font, paragraph format, and other advanced formatting options.
+
+    Typical Use Cases:
+        - Apply complex formatting in one call
+        - Set properties not covered by dedicated tools
+        - Batch apply multiple formatting options
 
     Args:
-        session_id: The active session ID.
-        properties: A JSON string defining the properties to set.
-                    Example: '{"font": {"bold": true, "size": 12}, "paragraph_format": {"alignment": "center"}}'
-        element_id: The ID of the element to modify.
-                    If None, uses the last accessed object (context).
+        session_id (str): Active session ID returned by docx_create().
+        properties (str): JSON string defining properties to set. Structure:
+            {
+                "font": {"bold": true, "size": 12, "name": "Arial"},
+                "paragraph_format": {"alignment": "center", "line_spacing": 1.5}
+            }
+        element_id (str, optional): ID of element to modify (run, paragraph, table, cell).
+            If None, uses last accessed object from session context.
 
     Returns:
-        str: Success message.
+        str: Success message confirming property update.
+
+    Raises:
+        ValueError: If session_id or element_id is invalid.
+        ValueError: If properties is not valid JSON.
+        ValueError: If no element context available when element_id is None.
+
+    Examples:
+        Set font properties:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run_id = docx_add_run(session_id, "Text", paragraph_id=para_id)
+        >>> props = '{"font": {"bold": true, "size": 14, "name": "Arial"}}'
+        >>> docx_set_properties(session_id, props, element_id=run_id)
+
+        Set paragraph format:
+        >>> props = '{"paragraph_format": {"alignment": "center", "line_spacing": 1.5}}'
+        >>> docx_set_properties(session_id, props, element_id=para_id)
+
+    Notes:
+        - JSON must be valid and properly escaped
+        - Available properties depend on element type
+        - Use dedicated tools (docx_set_font, docx_set_alignment) for simpler cases
+
+    See Also:
+        - docx_set_font: Simpler font formatting
+        - docx_set_alignment: Simpler alignment setting
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -773,16 +1043,54 @@ def docx_set_font(
     """
     Set font properties for a specific text run.
 
+    Applies formatting to a run, allowing fine-grained control over text appearance.
+    Multiple properties can be set in a single call.
+
+    Typical Use Cases:
+        - Format important text (bold, larger size)
+        - Apply color coding to text
+        - Create styled headings and emphasis
+
     Args:
-        session_id: The active session ID.
-        run_id: The ID of the text run to modify.
-        size: Font size in points (e.g., 12.0).
-        bold: True to set bold, False to unset.
-        italic: True to set italic, False to unset.
-        color_hex: Hex color string (e.g., "FF0000" for red).
+        session_id (str): Active session ID returned by docx_create().
+        run_id (str): ID of the text run to format.
+        size (float, optional): Font size in points (e.g., 12.0, 14.5).
+        bold (bool, optional): True to make bold, False to remove bold.
+        italic (bool, optional): True to make italic, False to remove italic.
+        color_hex (str, optional): Hex color code without '#' (e.g., "FF0000" for red,
+            "0000FF" for blue). Must be 6 characters (RRGGBB format).
 
     Returns:
-        str: Success message.
+        str: Success message confirming font update.
+
+    Raises:
+        ValueError: If session_id or run_id is invalid.
+        ValueError: If color_hex is not valid 6-character hex string.
+
+    Examples:
+        Basic formatting:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run_id = docx_add_run(session_id, "Important", paragraph_id=para_id)
+        >>> docx_set_font(session_id, run_id, size=14, bold=True)
+
+        Apply color:
+        >>> run_id = docx_add_run(session_id, "Red text", paragraph_id=para_id)
+        >>> docx_set_font(session_id, run_id, color_hex="FF0000")
+
+        Multiple properties:
+        >>> run_id = docx_add_run(session_id, "Styled", paragraph_id=para_id)
+        >>> docx_set_font(session_id, run_id, size=16, bold=True, italic=True, color_hex="0000FF")
+
+    Notes:
+        - Size is in points (1 point = 1/72 inch)
+        - Color format is RRGGBB without '#' prefix
+        - Omitted parameters are not changed
+        - Setting bold/italic to False explicitly removes the formatting
+
+    See Also:
+        - docx_add_run: Create run to format
+        - docx_set_properties: Advanced formatting options
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -814,15 +1122,54 @@ def docx_set_font(
 @mcp.tool()
 def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> str:
     """
-    Set paragraph alignment.
+    Set horizontal alignment for a paragraph.
+
+    Controls how text is aligned within the paragraph margins. Affects the entire
+    paragraph, not individual runs.
+
+    Typical Use Cases:
+        - Center headings and titles
+        - Right-align dates or signatures
+        - Justify body text for formal documents
 
     Args:
-        session_id: The active session ID.
-        paragraph_id: The ID of the paragraph.
-        alignment: One of "left", "center", "right", "justify".
+        session_id (str): Active session ID returned by docx_create().
+        paragraph_id (str): ID of the paragraph to align.
+        alignment (str): Alignment value. Must be one of:
+            - "left": Align text to left margin (default)
+            - "center": Center text between margins
+            - "right": Align text to right margin
+            - "justify": Distribute text evenly between margins
 
     Returns:
-        str: Success message.
+        str: Success message confirming alignment change.
+
+    Raises:
+        ValueError: If session_id or paragraph_id is invalid.
+        ValueError: If alignment is not one of the valid values.
+
+    Examples:
+        Center a heading:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_heading(session_id, "Title", level=0)
+        >>> docx_set_alignment(session_id, para_id, "center")
+
+        Right-align a date:
+        >>> para_id = docx_add_paragraph(session_id, "January 21, 2026")
+        >>> docx_set_alignment(session_id, para_id, "right")
+
+        Justify body text:
+        >>> para_id = docx_add_paragraph(session_id, "Long paragraph text...")
+        >>> docx_set_alignment(session_id, para_id, "justify")
+
+    Notes:
+        - Alignment is case-insensitive
+        - Applies to entire paragraph, not individual runs
+        - Default alignment is "left"
+
+    See Also:
+        - docx_add_paragraph: Create paragraph to align
+        - docx_set_properties: Advanced paragraph formatting
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -841,13 +1188,40 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
 @mcp.tool()
 def docx_add_page_break(session_id: str) -> str:
     """
-    Add a page break to the document.
+    Insert a page break at the current position in the document.
+
+    Forces content after the break to start on a new page. Useful for separating
+    sections or chapters in a document.
+
+    Typical Use Cases:
+        - Separate chapters or major sections
+        - Start new content on a fresh page
+        - Control pagination in reports
 
     Args:
-        session_id: The active session ID.
+        session_id (str): Active session ID returned by docx_create().
 
     Returns:
-        str: Success message.
+        str: Success message confirming page break insertion.
+
+    Raises:
+        ValueError: If session_id is invalid or session has expired.
+
+    Examples:
+        Add page break between sections:
+        >>> session_id = docx_create()
+        >>> docx_add_heading(session_id, "Chapter 1", level=1)
+        >>> docx_add_paragraph(session_id, "Content of chapter 1...")
+        >>> docx_add_page_break(session_id)
+        >>> docx_add_heading(session_id, "Chapter 2", level=1)
+
+    Notes:
+        - Page break is inserted at the end of the document
+        - Content added after this call will appear on the new page
+        - Does not return an element_id (structural operation)
+
+    See Also:
+        - docx_add_heading: Add section headings
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -865,15 +1239,48 @@ def docx_set_margins(
     right: float = None
 ) -> str:
     """
-    Set page margins for the current section (usually the whole document if one section).
-    Units are in Inches.
+    Set page margins for the document section.
+
+    Adjusts the white space around the content area on each page. Applies to the
+    last section of the document (typically the entire document if single-section).
+
+    Typical Use Cases:
+        - Adjust margins for printing requirements
+        - Create narrow margins for more content
+        - Set wide margins for annotations
 
     Args:
-        session_id: The active session ID.
-        top: Top margin in inches.
-        bottom: Bottom margin in inches.
-        left: Left margin in inches.
-        right: Right margin in inches.
+        session_id (str): Active session ID returned by docx_create().
+        top (float, optional): Top margin in inches.
+        bottom (float, optional): Bottom margin in inches.
+        left (float, optional): Left margin in inches.
+        right (float, optional): Right margin in inches.
+
+    Returns:
+        str: Success message confirming margin update.
+
+    Raises:
+        ValueError: If session_id is invalid or session has expired.
+
+    Examples:
+        Set all margins:
+        >>> session_id = docx_create()
+        >>> docx_set_margins(session_id, top=1.0, bottom=1.0, left=1.0, right=1.0)
+
+        Set narrow margins:
+        >>> docx_set_margins(session_id, top=0.5, bottom=0.5, left=0.5, right=0.5)
+
+        Set only top and bottom:
+        >>> docx_set_margins(session_id, top=1.5, bottom=1.5)
+
+    Notes:
+        - All measurements are in inches (1 inch = 2.54 cm)
+        - Omitted parameters leave existing margins unchanged
+        - Applies to the last section (usually entire document)
+        - Default Word margins are typically 1 inch on all sides
+
+    See Also:
+        - docx_add_page_break: Control page breaks
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -897,15 +1304,48 @@ def docx_set_margins(
 @mcp.tool()
 def docx_add_table(session_id: str, rows: int, cols: int) -> str:
     """
-    Add a table to the document.
+    Create a new table in the document.
+
+    Adds a table with the specified dimensions. Tables are created with default
+    'Table Grid' style and can be populated using cell operations.
+
+    Typical Use Cases:
+        - Create data tables for reports
+        - Build structured layouts
+        - Display tabular information
 
     Args:
-        session_id: The active session ID.
-        rows: Number of rows.
-        cols: Number of columns.
+        session_id (str): Active session ID returned by docx_create().
+        rows (int): Number of rows to create (must be >= 1).
+        cols (int): Number of columns to create (must be >= 1).
 
     Returns:
-        str: The element_id of the new table (e.g., "table_123").
+        str: Element ID of the new table (format: "table_xxxxx").
+
+    Raises:
+        ValueError: If session_id is invalid or rows/cols are less than 1.
+
+    Examples:
+        Create a simple table:
+        >>> session_id = docx_create()
+        >>> table_id = docx_add_table(session_id, rows=3, cols=2)
+        >>> print(table_id)
+        'table_a1b2c3d4'
+
+        Create and populate table:
+        >>> table_id = docx_add_table(session_id, 2, 3)
+        >>> cell_id = docx_get_cell(session_id, table_id, 0, 0)
+        >>> docx_add_paragraph_to_cell(session_id, cell_id, "Header 1")
+
+    Notes:
+        - Default style is 'Table Grid' with borders
+        - Cells are not pre-registered - use docx_get_cell() to access them
+        - Rows and columns can be added later with docx_add_table_row/col()
+
+    See Also:
+        - docx_get_cell: Access table cells
+        - docx_fill_table: Batch populate table data
+        - docx_add_table_row: Add rows dynamically
     """
     logger.debug(f"docx_add_table called: session_id={session_id}, rows={rows}, cols={cols}")
     session = session_manager.get_session(session_id)
@@ -925,18 +1365,50 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
 @mcp.tool()
 def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
     """
-    Get the element_id for a specific cell in a table.
-    Cells are not automatically registered when a table is created to save memory.
-    You must request the cell ID to edit it.
+    Get a cell from a table by its row and column indices.
+
+    Retrieves and registers a specific cell for subsequent operations. Cells are
+    not automatically registered when tables are created to conserve memory.
+
+    Typical Use Cases:
+        - Access cells to add content
+        - Modify specific cell properties
+        - Navigate table structure
 
     Args:
-        session_id: The active session ID.
-        table_id: The ID of the table.
-        row: Row index (0-based).
-        col: Column index (0-based).
+        session_id (str): Active session ID returned by docx_create().
+        table_id (str): ID of the table containing the cell.
+        row (int): Row index (0-based, 0 is first row).
+        col (int): Column index (0-based, 0 is first column).
 
     Returns:
-        str: The element_id of the cell (e.g., "cell_456").
+        str: Element ID of the cell (format: "cell_xxxxx").
+
+    Raises:
+        ValueError: If session_id or table_id is invalid.
+        ValueError: If row or col indices are out of range.
+
+    Examples:
+        Access table cells:
+        >>> session_id = docx_create()
+        >>> table_id = docx_add_table(session_id, 3, 2)
+        >>> cell_id = docx_get_cell(session_id, table_id, 0, 0)
+        >>> print(cell_id)
+        'cell_a1b2c3d4'
+
+        Populate first row:
+        >>> for col in range(2):
+        ...     cell_id = docx_get_cell(session_id, table_id, 0, col)
+        ...     docx_add_paragraph_to_cell(session_id, cell_id, f"Header {col+1}")
+
+    Notes:
+        - Indices are 0-based (first cell is row=0, col=0)
+        - Cell is registered and can be reused in subsequent calls
+        - Out-of-range indices raise ValueError
+
+    See Also:
+        - docx_add_table: Create table
+        - docx_add_paragraph_to_cell: Add content to cell
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -1040,16 +1512,50 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
 @mcp.tool()
 def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
     """
-    Update the text content of an existing paragraph.
-    This replaces all runs in the paragraph with a single run containing the new text.
+    Replace all text content in an existing paragraph.
+
+    Clears all existing runs in the paragraph and replaces with a single run
+    containing the new text. All previous formatting within the paragraph is lost.
+
+    Typical Use Cases:
+        - Update placeholder text in templates
+        - Replace entire paragraph content
+        - Reset paragraph to plain text
 
     Args:
-        session_id: The active session ID.
-        paragraph_id: The ID of the paragraph to update.
-        new_text: The new text content.
+        session_id (str): Active session ID returned by docx_create().
+        paragraph_id (str): ID of the paragraph to update.
+        new_text (str): New text content to replace existing content.
 
     Returns:
-        str: Success message.
+        str: Success message confirming the update.
+
+    Raises:
+        ValueError: If session_id or paragraph_id is invalid.
+        ValueError: If specified object is not a paragraph.
+
+    Examples:
+        Update paragraph text:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "Old text")
+        >>> result = docx_update_paragraph_text(session_id, para_id, "New text")
+        >>> print(result)
+        'Paragraph para_xxx updated successfully'
+
+        Update template placeholder:
+        >>> session_id = docx_create(file_path="./template.docx")
+        >>> matches = docx_find_paragraphs(session_id, "{{NAME}}")
+        >>> para_id = json.loads(matches)[0]["id"]
+        >>> docx_update_paragraph_text(session_id, para_id, "John Doe")
+
+    Notes:
+        - Removes all existing runs and their formatting
+        - Creates a single new run with the new text
+        - To preserve formatting, use docx_update_run_text() on individual runs
+
+    See Also:
+        - docx_update_run_text: Update run while preserving formatting
+        - docx_find_paragraphs: Find paragraphs to update
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -1071,15 +1577,46 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
 @mcp.tool()
 def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     """
-    Update the text content of an existing run while preserving its formatting.
+    Update the text content of an existing run while preserving formatting.
+
+    Replaces the text in a run without affecting its formatting properties
+    (bold, italic, color, size, etc.). Useful for updating content while maintaining style.
+
+    Typical Use Cases:
+        - Update formatted text without losing styling
+        - Replace placeholders in styled content
+        - Modify specific text portions in a paragraph
 
     Args:
-        session_id: The active session ID.
-        run_id: The ID of the run to update.
-        new_text: The new text content.
+        session_id (str): Active session ID returned by docx_create().
+        run_id (str): ID of the run to update.
+        new_text (str): New text content to replace existing text.
 
     Returns:
-        str: Success message.
+        str: Success message confirming the update.
+
+    Raises:
+        ValueError: If session_id or run_id is invalid.
+        ValueError: If specified object is not a run.
+
+    Examples:
+        Update run text:
+        >>> session_id = docx_create()
+        >>> para_id = docx_add_paragraph(session_id, "")
+        >>> run_id = docx_add_run(session_id, "Old", paragraph_id=para_id)
+        >>> docx_set_font(session_id, run_id, bold=True, size=14)
+        >>> result = docx_update_run_text(session_id, run_id, "New")
+        >>> print(result)
+        'Run run_xxx updated successfully'
+
+    Notes:
+        - Preserves all formatting: bold, italic, size, color, etc.
+        - Only the text content is changed
+        - More precise than docx_update_paragraph_text()
+
+    See Also:
+        - docx_update_paragraph_text: Replace entire paragraph content
+        - docx_set_font: Modify run formatting
     """
     session = session_manager.get_session(session_id)
     if not session:
