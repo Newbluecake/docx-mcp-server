@@ -79,7 +79,14 @@ class Session:
         return self.element_metadata.get(obj_id)
 
     def get_object(self, obj_id: str) -> Optional[Any]:
-        return self.object_registry.get(obj_id)
+        if not obj_id or not isinstance(obj_id, str):
+            return None
+
+        # Clean ID: remove whitespace and extra context (take first token)
+        # This handles cases where LLM returns "id\n\nContext..."
+        clean_id = obj_id.strip().split()[0] if obj_id.strip() else ""
+
+        return self.object_registry.get(clean_id)
 
     def _get_element_id(self, element: Any, auto_register: bool = True) -> Optional[str]:
         """Get element ID from cache, optionally auto-register if not found."""

@@ -53,7 +53,8 @@ def test_docx_insert_image():
 
              # Verify session update
              session = session_manager.get_session(sid)
-             assert session.last_created_id == r_id
+             clean_id = r_id.strip().split()[0]
+             assert session.last_created_id == clean_id
 
 def test_context_and_delete():
     sid = docx_create()
