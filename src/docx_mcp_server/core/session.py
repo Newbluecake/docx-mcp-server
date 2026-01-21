@@ -8,6 +8,7 @@ from docx import Document
 from docx.document import Document as DocumentType
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
+from docx.text.run import Run
 from docx_mcp_server.core.validators import validate_path_safety
 from docx_mcp_server.core.cursor import Cursor
 from docx_mcp_server.preview.manager import PreviewManager
@@ -92,7 +93,8 @@ class Session:
         if auto_register:
             prefix = "para" if isinstance(element, Paragraph) else \
                      "table" if isinstance(element, Table) else \
-                     "cell" if isinstance(element, _Cell) else "obj"
+                     "cell" if isinstance(element, _Cell) else \
+                     "run" if isinstance(element, Run) else "obj"
             return self.register_object(element, prefix)
 
         return None
@@ -139,6 +141,10 @@ class Session:
                             elements.append(t)
                             break
 
+        # For Paragraph, use runs
+        elif isinstance(parent, Paragraph):
+            return list(parent.runs)
+
         return elements
 
     def _format_element_summary(self, element: Any) -> str:
@@ -146,6 +152,9 @@ class Session:
         if isinstance(element, Paragraph):
             text = element.text.replace('\n', ' ')
             return f'"{text[:50]}{"..." if len(text) > 50 else ""}"'
+        elif isinstance(element, Run):
+            text = element.text.replace('\n', ' ')
+            return f'Run: "{text[:50]}{"..." if len(text) > 50 else ""}"'
         elif isinstance(element, Table):
             rows = len(element.rows)
             cols = len(element.columns) if element.rows else 0

@@ -101,8 +101,21 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     # Update context: this is a creation action
     session.update_context(r_id, action="create")
 
+    # Update cursor to point after the new run
+    session.cursor.element_id = r_id
+    session.cursor.parent_id = paragraph_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = r_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{r_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_run success: {r_id}")
-    return r_id
+    return result_msg
 
 def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     """
@@ -168,8 +181,20 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     # Update text while preserving formatting
     run.text = new_text
 
+    # Update cursor
+    session.cursor.element_id = run_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Run {run_id} updated successfully"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_update_run_text success: {run_id}")
-    return f"Run {run_id} updated successfully"
+    return result_msg
 
 def docx_set_font(
     session_id: str,
@@ -263,8 +288,20 @@ def docx_set_font(
             logger.error(f"docx_set_font failed: Invalid hex color {color_hex}")
             raise ValueError(f"Invalid hex color: {color_hex}")
 
+    # Update cursor to point to this run
+    session.cursor.element_id = run_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Font updated for {run_id}"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_set_font success: {run_id}")
-    return f"Font updated for {run_id}"
+    return result_msg
 
 
 def register_tools(mcp: FastMCP):
