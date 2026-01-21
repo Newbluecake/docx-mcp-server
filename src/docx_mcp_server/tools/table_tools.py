@@ -69,8 +69,21 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
 
     session.update_context(t_id, action="create")
 
+    # Update cursor to point after the new table
+    session.cursor.element_id = t_id
+    session.cursor.parent_id = "document_body" # Tables usually added to body
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = t_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{t_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_table success: {t_id}")
-    return t_id
+    return result_msg
 
 def docx_get_table(session_id: str, index: int) -> str:
     """
@@ -339,7 +352,20 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
         # Update context: modifying existing paragraph
         session.update_context(p_id, action="access")
 
-        return p_id
+        # Update cursor
+        session.cursor.element_id = p_id
+        session.cursor.parent_id = cell_id
+        session.cursor.position = "after"
+
+        # Attach cursor context
+        result_msg = p_id
+        try:
+            context = session.get_cursor_context()
+            result_msg = f"{p_id}\n\n{context}"
+        except Exception as e:
+            logger.warning(f"Failed to get cursor context: {e}")
+
+        return result_msg
     else:
         p = cell.add_paragraph(text)
         p_id = session.register_object(p, "para")
@@ -347,7 +373,20 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
         # Update context: creating new paragraph
         session.update_context(p_id, action="create")
 
-        return p_id
+        # Update cursor
+        session.cursor.element_id = p_id
+        session.cursor.parent_id = cell_id
+        session.cursor.position = "after"
+
+        # Attach cursor context
+        result_msg = p_id
+        try:
+            context = session.get_cursor_context()
+            result_msg = f"{p_id}\n\n{context}"
+        except Exception as e:
+            logger.warning(f"Failed to get cursor context: {e}")
+
+        return result_msg
 
 def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     """
@@ -415,8 +454,20 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     # Let's keep context on the table.
     session.update_context(table_id, action="access")
 
+    # Update cursor to point to the table (structural change)
+    session.cursor.element_id = table_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Row added to {table_id}"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_table_row success: row added to {table_id}")
-    return f"Row added to {table_id}"
+    return result_msg
 
 def docx_add_table_col(session_id: str, table_id: str = None) -> str:
     """
@@ -478,8 +529,20 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
     table.add_column(width=Inches(1.0))
     session.update_context(table_id, action="access")
 
+    # Update cursor
+    session.cursor.element_id = table_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Column added to {table_id}"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_table_col success: column added to {table_id}")
-    return f"Column added to {table_id}"
+    return result_msg
 
 def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row: int = 0) -> str:
     """
@@ -582,8 +645,20 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
 
     session.update_context(table_id, action="access")
 
+    # Update cursor
+    session.cursor.element_id = table_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Table filled with {len(rows_data)} rows starting at {start_row}"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_fill_table success: filled {len(rows_data)} rows starting at {start_row}")
-    return f"Table filled with {len(rows_data)} rows starting at {start_row}"
+    return result_msg
 
 def docx_copy_table(session_id: str, table_id: str) -> str:
     """
@@ -657,8 +732,21 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
 
     session.update_context(t_id, action="create")
 
+    # Update cursor
+    session.cursor.element_id = t_id
+    session.cursor.parent_id = "document_body"
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = t_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{t_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_copy_table success: {t_id}")
-    return t_id
+    return result_msg
 
 
 def register_tools(mcp: FastMCP):
