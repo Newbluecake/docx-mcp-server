@@ -10,6 +10,7 @@ from docx_mcp_server.core.properties import set_properties
 from docx_mcp_server.core.finder import Finder, list_docx_files
 from docx_mcp_server.core.copier import clone_table
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
+from docx_mcp_server.core.format_painter import FormatPainter
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
@@ -693,6 +694,40 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
     session.update_context(target_id, action="access")
 
     return f"Properties updated for {target_id}"
+
+@mcp.tool()
+def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
+    """
+    Copy format from source element to target element.
+    Supports Run -> Run, Paragraph -> Paragraph, Table -> Table.
+
+    Args:
+        session_id: The active session ID.
+        source_id: The ID of the source element (e.g. 'para_123', 'run_456').
+        target_id: The ID of the target element.
+
+    Returns:
+        str: Success message.
+    """
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    source = session.get_object(source_id)
+    if not source:
+        raise ValueError(f"Source object {source_id} not found")
+
+    target = session.get_object(target_id)
+    if not target:
+        raise ValueError(f"Target object {target_id} not found")
+
+    painter = FormatPainter()
+    painter.copy_format(source, target)
+
+    # Update context: we modified the target
+    session.update_context(target_id, action="access")
+
+    return f"Format copied from {source_id} to {target_id}"
 
 @mcp.tool()
 def docx_set_font(
