@@ -139,9 +139,21 @@ def docx_cursor_move(
 
         session.cursor.element_id = element_id
         session.cursor.position = position
-        # We don't strictly update parent_id here because finding it from element is complex
-        # without searching the whole tree.
-        # The insertion logic will access element._parent.
+
+        # Attempt to resolve parent_id to ensure context generation works
+        # This is critical when moving cursor between different scopes (e.g. from cell to body)
+        if hasattr(obj, "_parent"):
+            parent = obj._parent
+            # Check if parent is the document's body
+            # python-docx Paragraph._parent is usually the Body object
+            if hasattr(session.document, '_body') and parent == session.document._body:
+                 session.cursor.parent_id = "document_body"
+            else:
+                 # It's likely a cell or other container. Try to get its ID.
+                 # Using protected method _get_element_id as we are inside the server package
+                 p_id = session._get_element_id(parent, auto_register=True)
+                 if p_id:
+                     session.cursor.parent_id = p_id
 
     logger.debug(f"docx_cursor_move success: {position} {element_id}")
     result_msg = f"Cursor moved {position} {element_id}"
