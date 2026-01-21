@@ -157,7 +157,13 @@ def test_new_feature():
 
 **运行测试**：
 ```bash
-uv run pytest
+# 1. 安装测试依赖 (含 GUI 和测试工具)
+uv pip install -e ".[gui,dev]"
+
+# 2. 运行测试
+# 注意：在无头 Linux 环境需指定 QT_QPA_PLATFORM=offscreen
+QT_QPA_PLATFORM=offscreen uv run pytest
+
 # 或运行脚本
 uv run ./scripts/test.sh
 ```

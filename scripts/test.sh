@@ -5,23 +5,13 @@ set -e
 
 echo "=== docx-mcp-server 测试脚本 ==="
 
-# 激活虚拟环境
-if [ -d "venv" ]; then
-    source venv/bin/activate
-else
-    echo "错误: 虚拟环境不存在，请先运行 ./scripts/install.sh"
-    exit 1
-fi
+# 设置 QT 平台为 offscreen，避免在无头环境中 GUI 测试失败
+# 如果用户已设置该变量，则使用用户设置
+export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen}
 
-# 运行单元测试
-echo ""
-echo "运行单元测试..."
-python -m pytest tests/unit/ -v
-
-# 运行 E2E 测试
-echo ""
-echo "运行 E2E 测试..."
-python -m pytest tests/e2e/ -v
+# 运行所有测试
+echo "运行所有测试 (unit, integration, e2e)..."
+uv run pytest "$@"
 
 echo ""
 echo "=== 所有测试通过 ==="

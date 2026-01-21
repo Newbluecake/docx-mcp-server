@@ -21,3 +21,4 @@ logs/
 # MCP
 *.docx
 .worktrees/
+test_config.ini
