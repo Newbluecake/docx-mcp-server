@@ -3,6 +3,7 @@ import json
 import sys
 import time
 import platform
+import logging
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.session import SessionManager
@@ -17,6 +18,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 SERVER_START_TIME = time.time()
 VERSION = "0.1.3"
+
+logger = logging.getLogger(__name__)
 
 # Initialize the MCP server
 mcp = FastMCP("docx-mcp-server")
@@ -70,12 +73,14 @@ def docx_create(file_path: str = None, auto_save: bool = False) -> str:
     Returns:
         str: The session_id to be used for subsequent operations.
     """
-    if file_path:
-        pass
-        # We allow creating new files at the path if they don't exist, handled by session manager logic mostly
-        # or we can enforce existence. For now let's be flexible to allow "new file at path".
-
-    return session_manager.create_session(file_path, auto_save=auto_save)
+    logger.info(f"docx_create called: file_path={file_path}, auto_save={auto_save}")
+    try:
+        session_id = session_manager.create_session(file_path, auto_save=auto_save)
+        logger.info(f"docx_create success: session_id={session_id}")
+        return session_id
+    except Exception as e:
+        logger.error(f"docx_create failed: {e}")
+        raise
 
 @mcp.tool()
 def docx_read_content(session_id: str) -> str:
@@ -523,8 +528,10 @@ def docx_save(session_id: str, file_path: str) -> str:
     Returns:
         str: A success message.
     """
+    logger.info(f"docx_save called: session_id={session_id}, file_path={file_path}")
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_save failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found or expired")
 
     # Security check: Ensure we are writing to an allowed location if needed.
@@ -535,19 +542,20 @@ def docx_save(session_id: str, file_path: str) -> str:
         session.preview_controller.prepare_for_save(file_path)
     except Exception as e:
         # Log but don't block save
-        # TODO: Add proper logging integration
-        print(f"Warning: Preview prepare failed: {e}", file=sys.stderr)
+        logger.warning(f"Preview prepare failed: {e}")
 
     try:
         session.document.save(file_path)
+        logger.info(f"docx_save success: {file_path}")
     except Exception as e:
+        logger.error(f"docx_save failed: {e}")
         raise RuntimeError(f"Failed to save document: {str(e)}")
 
     # LIVE PREVIEW: Refresh (reload file in Word)
     try:
         session.preview_controller.refresh(file_path)
     except Exception as e:
-         print(f"Warning: Preview refresh failed: {e}", file=sys.stderr)
+         logger.warning(f"Preview refresh failed: {e}")
 
     return f"Document saved successfully to {file_path}"
 
@@ -559,10 +567,12 @@ def docx_close(session_id: str) -> str:
     Args:
         session_id: The ID of the session to close.
     """
+    logger.info(f"docx_close called: session_id={session_id}")
     success = session_manager.close_session(session_id)
     if success:
         return f"Session {session_id} closed successfully"
     else:
+        logger.warning(f"docx_close: Session {session_id} not found")
         return f"Session {session_id} not found"
 
 @mcp.tool()
@@ -580,16 +590,20 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     Returns:
         str: The element_id of the new paragraph (e.g., "para_1234").
     """
+    logger.debug(f"docx_add_paragraph called: session_id={session_id}, parent_id={parent_id}")
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_paragraph failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     parent = session.document
     if parent_id:
         parent = session.get_object(parent_id)
         if not parent:
+            logger.error(f"docx_add_paragraph failed: Parent {parent_id} not found")
             raise ValueError(f"Parent object {parent_id} not found")
         if not hasattr(parent, 'add_paragraph'):
+            logger.error(f"docx_add_paragraph failed: Parent {parent_id} cannot contain paragraphs")
             raise ValueError(f"Object {parent_id} cannot contain paragraphs")
 
     paragraph = parent.add_paragraph(text, style=style)
@@ -598,6 +612,7 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     # Update context: this is a creation action
     session.update_context(p_id, action="create")
 
+    logger.debug(f"docx_add_paragraph success: {p_id}")
     return p_id
 
 @mcp.tool()
@@ -892,8 +907,10 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
     Returns:
         str: The element_id of the new table (e.g., "table_123").
     """
+    logger.debug(f"docx_add_table called: session_id={session_id}, rows={rows}, cols={cols}")
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_table failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     table = session.document.add_table(rows=rows, cols=cols)
@@ -902,6 +919,7 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
 
     session.update_context(t_id, action="create")
 
+    logger.debug(f"docx_add_table success: {t_id}")
     return t_id
 
 @mcp.tool()
