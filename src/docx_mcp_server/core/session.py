@@ -21,6 +21,8 @@ class Session:
     # Registry to map string IDs to internal python-docx objects
     # structure: { "para_123": <docx.text.paragraph.Paragraph>, "run_456": ... }
     object_registry: Dict[str, Any] = field(default_factory=dict)
+    # Metadata registry to store additional info about objects (e.g., source info)
+    element_metadata: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     last_created_id: Optional[str] = None
     last_accessed_id: Optional[str] = None
     auto_save: bool = False
@@ -49,12 +51,20 @@ class Session:
             except Exception as e:
                 logger.warning(f"Auto-save failed for {self.file_path}: {e}")
 
-    def register_object(self, obj: Any, prefix: str = "obj") -> str:
-        """Register a docx object and return its ID."""
+    def register_object(self, obj: Any, prefix: str = "obj", metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Register a docx object and return its ID, optionally storing metadata."""
         obj_id = f"{prefix}_{uuid.uuid4().hex[:8]}"
         self.object_registry[obj_id] = obj
+
+        if metadata:
+            self.element_metadata[obj_id] = metadata
+
         logger.debug(f"Object registered: {obj_id} (type={type(obj).__name__})")
         return obj_id
+
+    def get_metadata(self, obj_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve metadata for a registered object."""
+        return self.element_metadata.get(obj_id)
 
     def get_object(self, obj_id: str) -> Optional[Any]:
         return self.object_registry.get(obj_id)
