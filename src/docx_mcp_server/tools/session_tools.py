@@ -61,7 +61,7 @@ def docx_create(file_path: str = None, auto_save: bool = False) -> str:
         logger.info(f"docx_create success: session_id={session_id}")
         return session_id
     except Exception as e:
-        logger.error(f"docx_create failed: {e}")
+        logger.exception(f"docx_create failed: {e}")
         raise
 
 def docx_close(session_id: str) -> str:
@@ -180,7 +180,7 @@ def docx_save(session_id: str, file_path: str) -> str:
         session.document.save(file_path)
         logger.info(f"docx_save success: {file_path}")
     except Exception as e:
-        logger.error(f"docx_save failed: {e}")
+        logger.exception(f"docx_save failed: {e}")
         raise RuntimeError(f"Failed to save document: {str(e)}")
 
     # LIVE PREVIEW: Refresh (reload file in Word)

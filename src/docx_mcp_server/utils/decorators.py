@@ -36,7 +36,7 @@ def log_tool_call(func: Callable) -> Callable:
             logger.debug(f"{func.__name__} success")
             return result
         except Exception as e:
-            logger.error(f"{func.__name__} failed: {e}")
+            logger.exception(f"{func.__name__} failed: {e}")
             raise
 
     return wrapper

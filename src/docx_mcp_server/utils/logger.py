@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Optional
+from docx_mcp_server.utils.logging_config import StackTraceFormatter
 
 def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
@@ -12,7 +13,7 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     if not logger.handlers:
         # MCP servers communicate via stdout, so logs MUST go to stderr
         handler = logging.StreamHandler(sys.stderr)
-        formatter = logging.Formatter(
+        formatter = StackTraceFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         handler.setFormatter(formatter)
