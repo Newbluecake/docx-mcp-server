@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from docx import Document
 from docx.document import Document as DocumentType
 from docx_mcp_server.core.validators import validate_path_safety
+from docx_mcp_server.core.cursor import Cursor
 from docx_mcp_server.preview.manager import PreviewManager
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ class Session:
     last_created_id: Optional[str] = None
     last_accessed_id: Optional[str] = None
     auto_save: bool = False
+    cursor: Cursor = field(default_factory=Cursor)
 
     # Preview controller for handling live updates
     preview_controller: Any = field(init=False)

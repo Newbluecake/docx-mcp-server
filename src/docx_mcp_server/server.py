@@ -35,6 +35,9 @@ from docx_mcp_server.tools.advanced_tools import (
 from docx_mcp_server.tools.system_tools import (
     docx_server_status
 )
+from docx_mcp_server.tools.cursor_tools import (
+    docx_cursor_get, docx_cursor_move, docx_insert_paragraph_at_cursor, docx_insert_table_at_cursor
+)
 
 logger = logging.getLogger(__name__)
 
