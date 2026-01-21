@@ -142,11 +142,15 @@ class TemplateParser:
 
         if paragraph.runs:
             run = paragraph.runs[0]
+            color_hex = "000000"
+            if run.font.color and run.font.color.rgb:
+                rgb = run.font.color.rgb
+                color_hex = f"{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
             style = {
                 "font": run.font.name or "默认",
                 "size": run.font.size.pt if run.font.size else 16,
                 "bold": run.font.bold or False,
-                "color": run.font.color.rgb.hex() if run.font.color and run.font.color.rgb else "000000"
+                "color": color_hex
             }
 
         return {
@@ -189,7 +193,11 @@ class TemplateParser:
             style["bold"] = run.font.bold or False
             style["italic"] = run.font.italic or False
             style["underline"] = run.font.underline or False
-            style["color"] = run.font.color.rgb.hex() if run.font.color and run.font.color.rgb else "000000"
+            if run.font.color and run.font.color.rgb:
+                rgb = run.font.color.rgb
+                style["color"] = f"{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
+            else:
+                style["color"] = "000000"
 
         # Extract alignment
         alignment_map = {
