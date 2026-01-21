@@ -11,6 +11,7 @@ from docx_mcp_server.core.finder import Finder, list_docx_files
 from docx_mcp_server.core.copier import clone_table
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
 from docx_mcp_server.core.format_painter import FormatPainter
+from docx_mcp_server.core.template_parser import TemplateParser
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
@@ -1061,6 +1062,48 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     run.text = new_text
 
     return f"Run {run_id} updated successfully"
+
+
+@mcp.tool()
+def docx_extract_template_structure(session_id: str) -> str:
+    """
+    Extract the complete structure of a Word document template.
+
+    This tool intelligently identifies and extracts:
+    - Headings (Heading 1/2/3) with level and style
+    - Tables with automatic header detection (bold or background color)
+    - Paragraphs with text and styling
+    - Element order preserved as in the original document
+
+    Args:
+        session_id: The active session ID.
+
+    Returns:
+        str: JSON string containing the document structure with metadata.
+             Format: {
+                 "metadata": {"extracted_at": "...", "docx_version": "..."},
+                 "document_structure": [
+                     {"type": "heading", "level": 1, "text": "...", "style": {...}},
+                     {"type": "table", "rows": 5, "cols": 3, "headers": [...], ...},
+                     {"type": "paragraph", "text": "...", "style": {...}}
+                 ]
+             }
+
+    Raises:
+        ValueError: If session not found or document is empty.
+        ValueError: If table header cannot be detected (strict mode).
+    """
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    if not session.document:
+        raise ValueError("Document not found in session")
+
+    parser = TemplateParser()
+    structure = parser.extract_structure(session.document)
+
+    return json.dumps(structure, indent=2, ensure_ascii=False)
 
 
 def main():
