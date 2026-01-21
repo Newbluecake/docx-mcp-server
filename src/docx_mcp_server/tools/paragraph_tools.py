@@ -82,8 +82,21 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     # Update context: this is a creation action
     session.update_context(p_id, action="create")
 
+    # Update cursor to point after the new paragraph
+    session.cursor.element_id = p_id
+    session.cursor.parent_id = parent_id if parent_id else "document_body"
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = p_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{p_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_paragraph success: {p_id}")
-    return p_id
+    return result_msg
 
 def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     """
@@ -141,8 +154,21 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     # Update context: this is a creation action
     session.update_context(h_id, action="create")
 
+    # Update cursor to point after the new heading
+    session.cursor.element_id = h_id
+    session.cursor.parent_id = "document_body"
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = h_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{h_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_add_heading success: {h_id}")
-    return h_id
+    return result_msg
 
 def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
     """
@@ -208,7 +234,19 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
     paragraph.clear()
     paragraph.add_run(new_text)
 
-    return f"Paragraph {paragraph_id} updated successfully"
+    # Update cursor to point to this paragraph
+    session.cursor.element_id = paragraph_id
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = f"Paragraph {paragraph_id} updated successfully"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
+    return result_msg
 
 def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
     """
@@ -374,7 +412,21 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
             if session.last_created_id == element_id:
                 session.last_created_id = None
 
-            return f"Deleted {element_id}"
+            # Update cursor to parent container since element is gone
+            # We don't easily know the parent ID here unless we look it up or stored it
+            # But we can default to document body or just say "after deletion"
+            session.cursor.element_id = None
+            session.cursor.position = "inside_end"
+            # Ideally we'd know the parent_id, but for now this resets to a safe state
+
+            result_msg = f"Deleted {element_id}"
+            try:
+                context = session.get_cursor_context()
+                result_msg += f"\n\n{context}"
+            except Exception as e:
+                logger.warning(f"Failed to get cursor context: {e}")
+
+            return result_msg
         else:
              raise ValueError("Element has no parent or cannot be deleted")
     except Exception as e:

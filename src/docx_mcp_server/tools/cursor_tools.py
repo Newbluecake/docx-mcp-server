@@ -42,6 +42,13 @@ def docx_cursor_get(session_id: str) -> dict:
         "description": f"Cursor is {cursor.position} {cursor.element_id or cursor.parent_id}"
     }
 
+    # Add context
+    try:
+        result["context"] = session.get_cursor_context()
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+        result["context"] = "Context unavailable"
+
     logger.debug(f"docx_cursor_get success: position={cursor.position}")
     return result
 
@@ -88,7 +95,13 @@ def docx_cursor_move(
         session.cursor.element_id = None
         session.cursor.position = position
         logger.debug(f"docx_cursor_move success: moved to {position} of document")
-        return f"Cursor moved to {position} of document"
+        result_msg = f"Cursor moved to {position} of document"
+        try:
+            context = session.get_cursor_context()
+            result_msg += f"\n\n{context}"
+        except Exception as e:
+            logger.warning(f"Failed to get cursor context: {e}")
+        return result_msg
 
     # Get object to verify it exists and determine parent
     obj = session.get_object(element_id)
@@ -126,12 +139,30 @@ def docx_cursor_move(
 
         session.cursor.element_id = element_id
         session.cursor.position = position
-        # We don't strictly update parent_id here because finding it from element is complex
-        # without searching the whole tree.
-        # The insertion logic will access element._parent.
+
+        # Attempt to resolve parent_id to ensure context generation works
+        # This is critical when moving cursor between different scopes (e.g. from cell to body)
+        if hasattr(obj, "_parent"):
+            parent = obj._parent
+            # Check if parent is the document's body
+            # python-docx Paragraph._parent is usually the Body object
+            if hasattr(session.document, '_body') and parent == session.document._body:
+                 session.cursor.parent_id = "document_body"
+            else:
+                 # It's likely a cell or other container. Try to get its ID.
+                 # Using protected method _get_element_id as we are inside the server package
+                 p_id = session._get_element_id(parent, auto_register=True)
+                 if p_id:
+                     session.cursor.parent_id = p_id
 
     logger.debug(f"docx_cursor_move success: {position} {element_id}")
-    return f"Cursor moved {position} {element_id}"
+    result_msg = f"Cursor moved {position} {element_id}"
+    try:
+        context = session.get_cursor_context()
+        result_msg += f"\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+    return result_msg
 
 
 def docx_insert_paragraph_at_cursor(
@@ -230,8 +261,31 @@ def docx_insert_paragraph_at_cursor(
         ref_element._element.addnext(new_para._element)
 
     para_id = session.register_object(new_para, "para")
+
+    # Update context: creation
+    session.update_context(para_id, action="create")
+
+    # Update cursor to point after the new paragraph
+    session.cursor.element_id = para_id
+    # parent is resolved in logic above, we can try to set it if we know it,
+    # or rely on next lookup. For safety/consistency:
+    if parent == session.document:
+        session.cursor.parent_id = "document_body"
+    elif hasattr(parent, "_element") and id(parent._element) in session._element_id_cache:
+         session.cursor.parent_id = session._element_id_cache[id(parent._element)]
+
+    session.cursor.position = "after"
+
+    # Attach cursor context
+    result_msg = para_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{para_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_insert_paragraph_at_cursor success: {para_id}")
-    return para_id
+    return result_msg
 
 
 def docx_insert_table_at_cursor(
@@ -319,8 +373,26 @@ def docx_insert_table_at_cursor(
         ref_element._element.addnext(new_table._element)
 
     table_id = session.register_object(new_table, "table")
+
+    # Update context
+    session.update_context(table_id, action="create")
+
+    # Update cursor
+    session.cursor.element_id = table_id
+    session.cursor.position = "after"
+    if parent == session.document:
+        session.cursor.parent_id = "document_body"
+
+    # Attach context
+    result_msg = table_id
+    try:
+        context = session.get_cursor_context()
+        result_msg = f"{table_id}\n\n{context}"
+    except Exception as e:
+        logger.warning(f"Failed to get cursor context: {e}")
+
     logger.debug(f"docx_insert_table_at_cursor success: {table_id}")
-    return table_id
+    return result_msg
 
 def register_tools(mcp: FastMCP):
     """Register cursor tools"""

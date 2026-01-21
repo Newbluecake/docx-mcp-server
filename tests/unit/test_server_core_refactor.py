@@ -24,11 +24,13 @@ def test_implicit_context_flow():
 
     # 2. Add paragraph (should set last_created_id)
     p_id = docx_add_paragraph(sid, "Hello")
-    assert session.last_created_id == p_id
+    clean_id = p_id.strip().split()[0]
+    assert session.last_created_id == clean_id
 
     # 3. Add run without parent (should use p_id)
     r_id = docx_add_run(sid, " World")
-    assert session.last_accessed_id == r_id
+    clean_rid = r_id.strip().split()[0]
+    assert session.last_accessed_id == clean_rid
 
     # Verify run was added to paragraph
     para_obj = session.get_object(p_id)
