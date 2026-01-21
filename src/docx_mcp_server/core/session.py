@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from docx import Document
 from docx.document import Document as DocumentType
 from docx_mcp_server.core.validators import validate_path_safety
+from docx_mcp_server.preview.manager import PreviewManager
 
 @dataclass
 class Session:
@@ -20,6 +21,12 @@ class Session:
     last_created_id: Optional[str] = None
     last_accessed_id: Optional[str] = None
     auto_save: bool = False
+
+    # Preview controller for handling live updates
+    preview_controller: Any = field(init=False)
+
+    def __post_init__(self):
+        self.preview_controller = PreviewManager.get_controller()
 
     def touch(self):
         self.last_accessed = time.time()

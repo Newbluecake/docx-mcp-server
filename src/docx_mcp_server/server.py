@@ -528,11 +528,27 @@ def docx_save(session_id: str, file_path: str) -> str:
 
     # Security check: Ensure we are writing to an allowed location if needed.
     # For now, we assume the user (Claude) acts with the user's permissions.
+
+    # LIVE PREVIEW: Prepare for save (release locks if file is open in Word)
+    try:
+        session.preview_controller.prepare_for_save(file_path)
+    except Exception as e:
+        # Log but don't block save
+        # TODO: Add proper logging integration
+        print(f"Warning: Preview prepare failed: {e}", file=sys.stderr)
+
     try:
         session.document.save(file_path)
-        return f"Document saved successfully to {file_path}"
     except Exception as e:
         raise RuntimeError(f"Failed to save document: {str(e)}")
+
+    # LIVE PREVIEW: Refresh (reload file in Word)
+    try:
+        session.preview_controller.refresh(file_path)
+    except Exception as e:
+         print(f"Warning: Preview refresh failed: {e}", file=sys.stderr)
+
+    return f"Document saved successfully to {file_path}"
 
 @mcp.tool()
 def docx_close(session_id: str) -> str:
