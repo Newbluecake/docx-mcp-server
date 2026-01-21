@@ -255,7 +255,12 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
     except IndexError:
         raise ValueError(f"Cell ({row}, {col}) out of range")
 
-    return session.register_object(cell, "cell")
+    c_id = session.register_object(cell, "cell")
+
+    # Update context: accessing/getting a cell
+    session.update_context(c_id, action="access")
+
+    return c_id
 
 def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
     """
@@ -317,10 +322,20 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
     if len(cell.paragraphs) == 1 and not cell.paragraphs[0].text:
         p = cell.paragraphs[0]
         p.text = text
-        return session.register_object(p, "para")
+        p_id = session.register_object(p, "para")
+
+        # Update context: modifying existing paragraph
+        session.update_context(p_id, action="access")
+
+        return p_id
     else:
         p = cell.add_paragraph(text)
-        return session.register_object(p, "para")
+        p_id = session.register_object(p, "para")
+
+        # Update context: creating new paragraph
+        session.update_context(p_id, action="create")
+
+        return p_id
 
 def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     """

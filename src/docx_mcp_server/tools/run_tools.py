@@ -61,6 +61,8 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_add_run called: session_id={session_id}, text_len={len(text)}, paragraph_id={paragraph_id}")
+
     # Compatibility shim for legacy calls: docx_add_run(sid, para_id, text)
     # If 'text' looks like a para_id and 'paragraph_id' is present (and doesn't look like a para_id)
     if text and text.startswith("para_") and paragraph_id and not paragraph_id.startswith("para_"):
@@ -72,29 +74,34 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_run failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if paragraph_id is None:
         # Implicit context
         if not session.last_created_id:
+            logger.error(f"docx_add_run failed: No paragraph context available")
             raise ValueError("No paragraph context available. Please specify paragraph_id.")
         paragraph_id = session.last_created_id
 
     paragraph = session.get_object(paragraph_id)
     if not paragraph:
+        logger.error(f"docx_add_run failed: Paragraph {paragraph_id} not found")
         raise ValueError(f"Paragraph {paragraph_id} not found")
 
     # Simple type check
     if not hasattr(paragraph, 'add_run'):
          # If the last_created_id was a table or something else, we might have an issue
+         logger.error(f"docx_add_run failed: Object {paragraph_id} is not a paragraph")
          raise ValueError(f"Object {paragraph_id} is not a paragraph (cannot add run)")
 
     run = paragraph.add_run(text)
     r_id = session.register_object(run, "run")
 
-    # Update context: access action (we modified the paragraph, but the 'current' object of interest is now the run)
-    session.update_context(r_id, action="access")
+    # Update context: this is a creation action
+    session.update_context(r_id, action="create")
 
+    logger.debug(f"docx_add_run success: {r_id}")
     return r_id
 
 def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
@@ -142,20 +149,26 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_update_run_text called: session_id={session_id}, run_id={run_id}, new_text_len={len(new_text)}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_update_run_text failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     run = session.get_object(run_id)
     if not run:
+        logger.error(f"docx_update_run_text failed: Run {run_id} not found")
         raise ValueError(f"Run {run_id} not found")
 
     if not hasattr(run, 'text'):
+        logger.error(f"docx_update_run_text failed: Object {run_id} is not a run")
         raise ValueError(f"Object {run_id} is not a run")
 
     # Update text while preserving formatting
     run.text = new_text
 
+    logger.debug(f"docx_update_run_text success: {run_id}")
     return f"Run {run_id} updated successfully"
 
 def docx_set_font(
@@ -220,14 +233,16 @@ def docx_set_font(
     """
     from docx_mcp_server.server import session_manager
 
-    
+    logger.debug(f"docx_set_font called: session_id={session_id}, run_id={run_id}, size={size}, bold={bold}, italic={italic}, color_hex={color_hex}")
 
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_set_font failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     run = session.get_object(run_id)
     if not run:
+        logger.error(f"docx_set_font failed: Run {run_id} not found")
         raise ValueError(f"Run {run_id} not found")
 
     font = run.font
@@ -244,9 +259,11 @@ def docx_set_font(
             g = int(color_hex[2:4], 16)
             b = int(color_hex[4:6], 16)
             font.color.rgb = RGBColor(r, g, b)
-        except ValueError:
+        except ValueError as e:
+            logger.error(f"docx_set_font failed: Invalid hex color {color_hex}")
             raise ValueError(f"Invalid hex color: {color_hex}")
 
+    logger.debug(f"docx_set_font success: {run_id}")
     return f"Font updated for {run_id}"
 
 

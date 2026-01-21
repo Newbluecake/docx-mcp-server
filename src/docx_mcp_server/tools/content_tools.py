@@ -48,12 +48,18 @@ def docx_read_content(session_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_read_content called: session_id={session_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_read_content failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     paragraphs = [p.text for p in session.document.paragraphs if p.text.strip()]
-    return "\n".join(paragraphs) if paragraphs else "[Empty Document]"
+    result = "\n".join(paragraphs) if paragraphs else "[Empty Document]"
+
+    logger.debug(f"docx_read_content success: extracted {len(paragraphs)} paragraphs")
+    return result
 
 def docx_find_paragraphs(session_id: str, query: str) -> str:
     """
@@ -105,8 +111,11 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_find_paragraphs called: session_id={session_id}, query='{query}'")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_find_paragraphs failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     matches = []
@@ -117,6 +126,7 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
             p_id = session.register_object(p, "para")
             matches.append({"id": p_id, "text": p.text})
 
+    logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches")
     return json.dumps(matches)
 
 def docx_list_files(directory: str = ".") -> str:
@@ -162,10 +172,14 @@ def docx_list_files(directory: str = ".") -> str:
     See Also:
         - docx_create: Open discovered files
     """
+    logger.debug(f"docx_list_files called: directory={directory}")
+
     try:
         files = list_docx_files(directory)
+        logger.debug(f"docx_list_files success: found {len(files)} files")
         return json.dumps(files)
     except Exception as e:
+        logger.error(f"docx_list_files failed: {e}")
         raise ValueError(str(e))
 
 def docx_extract_template_structure(session_id: str) -> str:
@@ -225,17 +239,26 @@ def docx_extract_template_structure(session_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_extract_template_structure called: session_id={session_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_extract_template_structure failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if not session.document:
+        logger.error(f"docx_extract_template_structure failed: Document not found in session")
         raise ValueError("Document not found in session")
 
     parser = TemplateParser()
-    structure = parser.extract_structure(session.document)
-
-    return json.dumps(structure, indent=2, ensure_ascii=False)
+    try:
+        structure = parser.extract_structure(session.document)
+        element_count = len(structure.get('document_structure', []))
+        logger.debug(f"docx_extract_template_structure success: extracted {element_count} elements")
+        return json.dumps(structure, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"docx_extract_template_structure failed: {e}")
+        raise
 
 
 def register_tools(mcp: FastMCP):

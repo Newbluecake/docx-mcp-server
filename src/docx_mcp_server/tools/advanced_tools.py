@@ -62,8 +62,11 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_replace_text called: session_id={session_id}, old_text='{old_text}', new_text='{new_text}', scope_id={scope_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_replace_text failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     count = 0
@@ -72,6 +75,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
     if scope_id:
         obj = session.get_object(scope_id)
         if not obj:
+            logger.error(f"docx_replace_text failed: Scope object {scope_id} not found")
             raise ValueError(f"Scope object {scope_id} not found")
         # Identify what kind of object
         if hasattr(obj, "paragraphs"): # Document or Cell or Table (no, table has rows)
@@ -97,6 +101,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
             count += 1
             # If successful, we updated the paragraph in place
 
+    logger.debug(f"docx_replace_text success: replaced {count} occurrences")
     return f"Replaced {count} occurrences of '{old_text}'"
 
 def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: str = None) -> str:
@@ -127,13 +132,17 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_batch_replace_text called: session_id={session_id}, replacements_len={len(replacements_json)}, scope_id={scope_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_batch_replace_text failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     try:
         replacements = json.loads(replacements_json)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"docx_batch_replace_text failed: Invalid JSON - {e}")
         raise ValueError("Invalid JSON for replacements")
 
     # Determine scope elements
@@ -141,6 +150,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     if scope_id:
         obj = session.get_object(scope_id)
         if not obj:
+            logger.error(f"docx_batch_replace_text failed: Scope object {scope_id} not found")
             raise ValueError(f"Scope object {scope_id} not found")
 
         # Collect paragraphs from scope
@@ -163,6 +173,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     tools = TextTools()
     count = tools.batch_replace_text(targets, replacements)
 
+    logger.debug(f"docx_batch_replace_text success: replaced {count} occurrences")
     return f"Batch replacement completed. Replaced {count} occurrences."
 
 def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None) -> str:
@@ -214,11 +225,15 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, parent_id={parent_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_insert_image failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if not os.path.exists(image_path):
+        logger.error(f"docx_insert_image failed: Image file not found - {image_path}")
         raise ValueError(f"Image file not found: {image_path}")
 
     # Determine parent
@@ -234,6 +249,7 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
                  run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
                  r_id = session.register_object(run, "run")
                  session.update_context(r_id, action="create")
+                 logger.debug(f"docx_insert_image success: created run {r_id} in paragraph {parent_id}")
                  return r_id
             elif hasattr(parent_obj, "add_picture"):
                  # Maybe it's a run already? No, runs don't have add_picture, they ARE the container
@@ -249,6 +265,7 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     # Let's register the paragraph as the structural element.
     p_id = session.register_object(paragraph, "para")
     session.update_context(p_id, action="create")
+    logger.debug(f"docx_insert_image success: created paragraph {p_id}")
     return p_id
 
 

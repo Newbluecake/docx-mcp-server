@@ -24,14 +24,19 @@ def docx_get_element_source(session_id: str, element_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_get_element_source called: session_id={session_id}, element_id={element_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_get_element_source failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     metadata = session.get_metadata(element_id)
     if not metadata:
+        logger.debug(f"docx_get_element_source success: no metadata for {element_id}")
         return "{}"
 
+    logger.debug(f"docx_get_element_source success: found metadata for {element_id}")
     return json.dumps(metadata)
 
 
@@ -63,20 +68,25 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_copy_elements_range called: session_id={session_id}, start_id={start_id}, end_id={end_id}, target_parent_id={target_parent_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_copy_elements_range failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     start_el = session.get_object(start_id)
     end_el = session.get_object(end_id)
 
     if not start_el or not end_el:
+        logger.error(f"docx_copy_elements_range failed: Start or end element not found")
         raise ValueError("Start or end element not found")
 
     # Determine target parent
     if target_parent_id:
         target_parent = session.get_object(target_parent_id)
         if not target_parent:
+            logger.error(f"docx_copy_elements_range failed: Target parent {target_parent_id} not found")
             raise ValueError(f"Target parent {target_parent_id} not found")
     else:
         target_parent = session.document
@@ -122,6 +132,7 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
             new_id = session.register_object(new_obj, prefix, metadata=meta)
             result_map.append({"new_id": new_id, "type": prefix})
 
+        logger.debug(f"docx_copy_elements_range success: copied {len(new_objects)} elements")
         return json.dumps(result_map)
 
     except Exception as e:

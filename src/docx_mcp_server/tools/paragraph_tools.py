@@ -128,12 +128,21 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_add_heading called: session_id={session_id}, text='{text}', level={level}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_heading failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     heading = session.document.add_heading(text, level=level)
-    return session.register_object(heading, "para")
+    h_id = session.register_object(heading, "para")
+
+    # Update context: this is a creation action
+    session.update_context(h_id, action="create")
+
+    logger.debug(f"docx_add_heading success: {h_id}")
+    return h_id
 
 def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
     """
