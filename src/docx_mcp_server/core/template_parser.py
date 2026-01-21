@@ -35,6 +35,26 @@ class TemplateParser:
             "document_structure": []
         }
 
+        # Traverse document elements in order
+        for element in document.element.body:
+            tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag
+
+            if tag == 'p':  # Paragraph
+                para = Paragraph(element, document)
+                # Check if it's a heading
+                if para.style and para.style.name and 'Heading' in para.style.name:
+                    result["document_structure"].append(self.extract_heading_structure(para))
+                elif para.text.strip():  # Only add non-empty paragraphs
+                    result["document_structure"].append(self.extract_paragraph_structure(para))
+
+            elif tag == 'tbl':  # Table
+                table = Table(element, document)
+                try:
+                    result["document_structure"].append(self.extract_table_structure(table))
+                except ValueError:
+                    # Skip tables without detectable headers
+                    pass
+
         return result
 
     def detect_header_row(self, table: Table) -> int:

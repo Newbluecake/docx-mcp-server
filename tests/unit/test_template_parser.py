@@ -143,3 +143,31 @@ def test_extract_table_structure():
     assert result["header_row"] == 0
     assert result["headers"] == ["Column 1", "Column 2", "Column 3"]
     assert "style" in result
+
+
+# T-007: Main extraction method tests
+def test_extract_structure_order():
+    """Test that extract_structure preserves element order."""
+    doc = Document()
+
+    # Add elements in specific order
+    doc.add_heading("Heading 1", level=1)
+    doc.add_paragraph("Paragraph 1")
+
+    table = doc.add_table(rows=2, cols=2)
+    for i, cell in enumerate(table.rows[0].cells):
+        cell.text = f"H{i + 1}"
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    doc.add_paragraph("Paragraph 2")
+
+    parser = TemplateParser()
+    result = parser.extract_structure(doc)
+
+    assert len(result["document_structure"]) == 4
+    assert result["document_structure"][0]["type"] == "heading"
+    assert result["document_structure"][1]["type"] == "paragraph"
+    assert result["document_structure"][2]["type"] == "table"
+    assert result["document_structure"][3]["type"] == "paragraph"
