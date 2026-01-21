@@ -24,9 +24,18 @@ if (-not (Test-Path ".venv")) {
 Write-Host "⬇️ Installing dependencies..." -ForegroundColor Yellow
 uv pip install ".[gui]" pyinstaller
 
-# 4. Compile Translations
-Write-Host "🌐 Compiling translations..." -ForegroundColor Yellow
-& "$PSScriptRoot\compile_translations.ps1"
+# 4. Compile Translations (if needed)
+$qmFile = "src\docx_server_launcher\resources\translations\zh_CN.qm"
+if (-not (Test-Path $qmFile)) {
+    Write-Host "🌐 Compiling translations..." -ForegroundColor Yellow
+    try {
+        & "$PSScriptRoot\compile_translations.ps1"
+    } catch {
+        Write-Host "⚠️  Warning: Translation compilation failed. Using pre-compiled files." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "✓ Translation files already compiled" -ForegroundColor Green
+}
 
 # 5. Build EXE
 Write-Host "🔨 Running PyInstaller..." -ForegroundColor Yellow

@@ -14,6 +14,9 @@ gui = [
     "PyQt6>=6.6.0",
     "pyinstaller>=6.3.0"
 ]
+dev = [
+    "PySide6>=6.6.0"  # For translation compilation tools (lrelease)
+]
 
 [project.scripts]
 mcp-server-docx = "docx_mcp_server.server:main"
