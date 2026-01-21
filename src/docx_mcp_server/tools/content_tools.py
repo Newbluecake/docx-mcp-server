@@ -129,7 +129,7 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
     logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches")
     return json.dumps(matches)
 
-def docx_list_files(directory: str = ".") -> str:
+def docx_list_files(directory: str = None) -> str:
     """
     List all .docx files in the specified directory.
 
@@ -173,6 +173,9 @@ def docx_list_files(directory: str = ".") -> str:
         - docx_create: Open discovered files
     """
     logger.debug(f"docx_list_files called: directory={directory}")
+
+    if directory is None:
+        directory = "."
 
     try:
         files = list_docx_files(directory)
