@@ -66,7 +66,7 @@ docx_add_formatted_paragraph(session_id, text, bold=True, size=14, alignment="ce
 
 # 好的设计（原子化）
 para_id = docx_add_paragraph(session_id, "Hello")
-run_id = docx_add_run(session_id, para_id, "World")
+run_id = docx_add_run(session_id, text="World", paragraph_id=para_id)
 docx_set_font(session_id, run_id, bold=True, size=14)
 docx_set_alignment(session_id, para_id, "center")
 ```
@@ -262,6 +262,111 @@ table_id = docx_add_table(session_id, rows=3, cols=2)
 cell_id = docx_get_cell(session_id, table_id, row=0, col=0)
 docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 ```
+
+## 完整工具参考
+
+本服务器提供 42 个 MCP 工具，按功能领域分为 10 个模块：
+
+### 1. Session Tools（会话管理，4 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_create(file_path=None, auto_save=False)` | 创建新会话或加载文档 |
+| `docx_save(session_id, file_path)` | 保存文档到指定路径 |
+| `docx_close(session_id)` | 关闭会话并释放资源 |
+| `docx_get_context(session_id)` | 获取会话上下文信息 |
+
+### 2. Content Tools（内容检索，4 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_read_content(session_id)` | 读取文档全文 |
+| `docx_find_paragraphs(session_id, query)` | 查找包含指定文本的段落 |
+| `docx_list_files(directory=".")` | 列出目录下的 .docx 文件 |
+| `docx_extract_template_structure(session_id)` | 提取文档结构（标题、表格、段落） |
+
+### 3. Paragraph Tools（段落操作，6 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_add_paragraph(session_id, text, style=None, parent_id=None)` | 添加段落 |
+| `docx_add_heading(session_id, text, level=1)` | 添加标题 |
+| `docx_update_paragraph_text(session_id, paragraph_id, new_text)` | 更新段落文本 |
+| `docx_copy_paragraph(session_id, paragraph_id)` | 深拷贝段落（保留格式） |
+| `docx_delete(session_id, element_id=None)` | 删除元素 |
+| `docx_add_page_break(session_id)` | 插入分页符 |
+
+### 4. Run Tools（文本块操作，3 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_add_run(session_id, text, paragraph_id=None)` | 向段落添加文本块 |
+| `docx_update_run_text(session_id, run_id, new_text)` | 更新 Run 文本 |
+| `docx_set_font(session_id, run_id, size=None, bold=None, italic=None, color_hex=None)` | 设置字体属性 |
+
+### 5. Table Tools（表格操作，9 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_add_table(session_id, rows, cols)` | 创建表格 |
+| `docx_get_table(session_id, index)` | 按索引获取表格 |
+| `docx_find_table(session_id, text)` | 查找包含指定文本的表格 |
+| `docx_get_cell(session_id, table_id, row, col)` | 获取单元格 |
+| `docx_add_paragraph_to_cell(session_id, cell_id, text)` | 向单元格添加段落 |
+| `docx_add_table_row(session_id, table_id=None)` | 添加行 |
+| `docx_add_table_col(session_id, table_id=None)` | 添加列 |
+| `docx_fill_table(session_id, data, table_id=None, start_row=0)` | 批量填充表格数据 |
+| `docx_copy_table(session_id, table_id)` | 深拷贝表格 |
+
+### 6. Format Tools（格式化，6 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_set_alignment(session_id, paragraph_id, alignment)` | 设置段落对齐方式 |
+| `docx_set_properties(session_id, properties, element_id=None)` | 通用属性设置（JSON） |
+| `docx_format_copy(session_id, source_id, target_id)` | 复制格式（格式刷） |
+| `docx_set_margins(session_id, top=None, bottom=None, left=None, right=None)` | 设置页边距 |
+| `docx_extract_format_template(session_id, element_id)` | 提取格式模板 |
+| `docx_apply_format_template(session_id, element_id, template_json)` | 应用格式模板 |
+
+### 7. Advanced Tools（高级编辑，3 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_replace_text(session_id, old_text, new_text, scope_id=None)` | 智能文本替换（跨 Run） |
+| `docx_batch_replace_text(session_id, replacements_json, scope_id=None)` | 批量文本替换 |
+| `docx_insert_image(session_id, image_path, width=None, height=None, parent_id=None)` | 插入图片 |
+
+### 8. Cursor Tools（光标定位，4 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_cursor_get(session_id)` | 获取当前光标位置 |
+| `docx_cursor_move(session_id, element_id, position)` | 移动光标到指定位置 |
+| `docx_insert_paragraph_at_cursor(session_id, text, style=None)` | 在光标处插入段落 |
+| `docx_insert_table_at_cursor(session_id, rows, cols)` | 在光标处插入表格 |
+
+### 9. Copy Tools（复制与元数据，2 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_get_element_source(session_id, element_id)` | 获取元素来源元数据 |
+| `docx_copy_elements_range(session_id, start_id, end_id)` | 复制元素区间 |
+
+### 10. System Tools（系统状态，1 个）
+
+| 工具 | 说明 |
+|------|------|
+| `docx_server_status()` | 获取服务器状态和环境信息 |
+
+### 工具设计原则
+
+1. **原子化操作**：每个工具只做一件事
+2. **ID 映射系统**：所有对象通过稳定 ID 引用
+3. **混合上下文**：支持显式 ID 和隐式上下文
+4. **格式保留**：高级操作保留原始格式
+
+详细参数和示例请参考 [README.md](../README.md) 的工具列表部分。
 
 ---
 

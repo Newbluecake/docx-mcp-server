@@ -124,6 +124,13 @@ mcp-server-docx
 - `docx_set_alignment(...)` - 设置对齐方式（快捷方式）
 - `docx_set_margins(...)` - 设置页边距
 
+### Cursor 定位系统
+
+- `docx_cursor_get(session_id)` - 获取当前光标位置
+- `docx_cursor_move(session_id, element_id, position)` - 移动光标到指定位置
+- `docx_insert_paragraph_at_cursor(session_id, text, style=None)` - 在光标处插入段落
+- `docx_insert_table_at_cursor(session_id, rows, cols)` - 在光标处插入表格
+
 ## 使用示例
 
 ### 示例 1：提取模板结构
@@ -174,7 +181,9 @@ for element in structure["document_structure"]:
 }
 ```
 
-### 示例 2：模板填充（智能替换）
+### 示例 2：高级编辑功能
+
+#### 2.1 模板填充（智能替换）
 
 ```python
 session_id = docx_create(file_path="/path/to/template.docx")
@@ -186,7 +195,7 @@ docx_replace_text(session_id, "{{date}}", "2026-01-20")
 docx_save(session_id, "/path/to/result.docx")
 ```
 
-### 示例 2：表格克隆与填充
+#### 2.2 表格克隆与填充
 
 ```python
 session_id = docx_create()
@@ -237,16 +246,35 @@ python -m pytest tests/e2e/ -v
 ```
 docx-mcp-server/
 ├── src/docx_mcp_server/
-│   ├── server.py          # MCP 工具定义
+│   ├── server.py          # MCP 主入口
+│   ├── tools/             # 工具模块（按领域拆分）
+│   │   ├── __init__.py
+│   │   ├── session_tools.py      # 会话生命周期
+│   │   ├── content_tools.py      # 内容检索与浏览
+│   │   ├── paragraph_tools.py    # 段落操作
+│   │   ├── run_tools.py          # 文本块操作
+│   │   ├── table_tools.py        # 表格操作
+│   │   ├── format_tools.py       # 格式化与样式
+│   │   ├── advanced_tools.py     # 高级编辑（替换、图片）
+│   │   ├── cursor_tools.py       # 光标定位系统
+│   │   ├── copy_tools.py         # 复制与元数据
+│   │   └── system_tools.py       # 系统状态
 │   ├── core/              # 核心逻辑
 │   │   ├── session.py     # 会话管理
+│   │   ├── cursor.py      # 光标系统
 │   │   ├── copier.py      # 对象克隆引擎
 │   │   ├── replacer.py    # 文本替换引擎
 │   │   └── properties.py  # 属性设置引擎
+│   ├── preview/           # 实时预览
+│   └── utils/             # 工具函数
 ├── src/docx_server_launcher/ # Windows GUI 启动器
 ├── tests/
-├── config/
-├── scripts/
+│   ├── unit/              # 单元测试
+│   ├── e2e/               # 端到端测试
+│   └── integration/       # 集成测试
+├── docs/                  # 文档
+├── config/                # 配置文件
+├── scripts/               # 脚本工具
 └── CLAUDE.md              # Claude 开发指南
 ```
 
