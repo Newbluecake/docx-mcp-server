@@ -120,17 +120,23 @@ def docx_get_table(session_id: str, index: int) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_get_table called: session_id={session_id}, index={index}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_get_table failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     finder = Finder(session.document)
     table = finder.get_table_by_index(index)
     if not table:
+        logger.error(f"docx_get_table failed: Table at index {index} not found")
         raise ValueError(f"Table at index {index} not found")
 
     t_id = session.register_object(table, "table")
     session.update_context(t_id, action="access")
+
+    logger.debug(f"docx_get_table success: {t_id}")
     return t_id
 
 def docx_find_table(session_id: str, text: str) -> str:
@@ -179,18 +185,24 @@ def docx_find_table(session_id: str, text: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_find_table called: session_id={session_id}, text='{text}'")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_find_table failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     finder = Finder(session.document)
     tables = finder.find_tables_by_text(text)
     if not tables:
+        logger.error(f"docx_find_table failed: No table found containing text '{text}'")
         raise ValueError(f"No table found containing text '{text}'")
 
     # Return the first match
     t_id = session.register_object(tables[0], "table")
     session.update_context(t_id, action="access")
+
+    logger.debug(f"docx_find_table success: {t_id}")
     return t_id
 
 def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
@@ -383,8 +395,11 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_add_table_row called: session_id={session_id}, table_id={table_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_table_row failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if not table_id:
@@ -392,12 +407,15 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
 
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'add_row'):
+        logger.error(f"docx_add_table_row failed: Valid table context not found for ID {table_id}")
         raise ValueError(f"Valid table context not found for ID {table_id}")
 
     table.add_row()
     # We could return the new row's cells IDs but usually just adding row is structural.
     # Let's keep context on the table.
     session.update_context(table_id, action="access")
+
+    logger.debug(f"docx_add_table_row success: row added to {table_id}")
     return f"Row added to {table_id}"
 
 def docx_add_table_col(session_id: str, table_id: str = None) -> str:
@@ -440,8 +458,11 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_add_table_col called: session_id={session_id}, table_id={table_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_add_table_col failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if not table_id:
@@ -449,12 +470,15 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
 
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'add_column'):
+        logger.error(f"docx_add_table_col failed: Valid table context not found for ID {table_id}")
         raise ValueError(f"Valid table context not found for ID {table_id}")
 
     # width is mandatory for add_column in python-docx usually, or defaults?
     # It requires width. Let's default to 1 inch.
     table.add_column(width=Inches(1.0))
     session.update_context(table_id, action="access")
+
+    logger.debug(f"docx_add_table_col success: column added to {table_id}")
     return f"Column added to {table_id}"
 
 def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row: int = 0) -> str:
@@ -508,8 +532,11 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_fill_table called: session_id={session_id}, data_len={len(data)}, table_id={table_id}, start_row={start_row}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_fill_table failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     if not table_id:
@@ -517,15 +544,18 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
 
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'rows'):
+        logger.error(f"docx_fill_table failed: Valid table context not found for ID {table_id}")
         raise ValueError(f"Valid table context not found for ID {table_id}")
 
     try:
         rows_data = json.loads(data)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"docx_fill_table failed: Invalid JSON data - {e}")
         raise ValueError("Invalid JSON data")
 
     if not isinstance(rows_data, list):
-         raise ValueError("Data must be a list of lists")
+        logger.error(f"docx_fill_table failed: Data must be a list of lists")
+        raise ValueError("Data must be a list of lists")
 
     current_row_idx = start_row
 
@@ -551,6 +581,8 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
         current_row_idx += 1
 
     session.update_context(table_id, action="access")
+
+    logger.debug(f"docx_fill_table success: filled {len(rows_data)} rows starting at {start_row}")
     return f"Table filled with {len(rows_data)} rows starting at {start_row}"
 
 def docx_copy_table(session_id: str, table_id: str) -> str:
@@ -596,16 +628,21 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
+    logger.debug(f"docx_copy_table called: session_id={session_id}, table_id={table_id}")
+
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"docx_copy_table failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
     table = session.get_object(table_id)
     if not table:
+        logger.error(f"docx_copy_table failed: Table {table_id} not found")
         raise ValueError(f"Table {table_id} not found")
 
     # Check if it is a table
     if not hasattr(table, 'rows'):
+        logger.error(f"docx_copy_table failed: Object {table_id} is not a table")
         raise ValueError(f"Object {table_id} is not a table")
 
     new_table = clone_table(table)
@@ -619,6 +656,8 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
     t_id = session.register_object(new_table, "table", metadata=meta)
 
     session.update_context(t_id, action="create")
+
+    logger.debug(f"docx_copy_table success: {t_id}")
     return t_id
 
 
