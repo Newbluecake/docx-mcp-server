@@ -1,9 +1,11 @@
 """Advanced document operations"""
 import os
+import json
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Inches
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
+from docx_mcp_server.utils.text_tools import TextTools
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,72 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
 
     return f"Replaced {count} occurrences of '{old_text}'"
 
+def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: str = None) -> str:
+    """
+    Perform batch text replacement across the document or a specific scope.
+
+    Efficiently replaces multiple text patterns in a single pass. Strictly preserves
+    formatting by only replacing text within individual runs. Does NOT match text
+    that spans across multiple runs (e.g., if half a word is bold and half is not).
+
+    Typical Use Cases:
+        - Bulk fill templates ({NAME} -> "John", {DATE} -> "2023")
+        - Anonymize documents (replace names with Redacted)
+        - Update terminology globally
+
+    Args:
+        session_id (str): Active session ID.
+        replacements_json (str): JSON object mapping old text to new text.
+            Example: '{"{{NAME}}": "John Doe", "{{DATE}}": "2023-01-01"}'
+        scope_id (str, optional): ID of element to limit scope (paragraph, table).
+            If None, applies to entire document body.
+
+    Returns:
+        str: Summary message with total replacement count.
+
+    Raises:
+        ValueError: If JSON is invalid or session not found.
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    try:
+        replacements = json.loads(replacements_json)
+    except json.JSONDecodeError:
+        raise ValueError("Invalid JSON for replacements")
+
+    # Determine scope elements
+    targets = []
+    if scope_id:
+        obj = session.get_object(scope_id)
+        if not obj:
+            raise ValueError(f"Scope object {scope_id} not found")
+
+        # Collect paragraphs from scope
+        if hasattr(obj, "paragraphs"):
+             targets.extend(obj.paragraphs) # Document-like or Cell
+        if hasattr(obj, "rows"): # Table
+             for row in obj.rows:
+                 for cell in row.cells:
+                     targets.extend(cell.paragraphs)
+        if hasattr(obj, "runs"): # Paragraph
+             targets.append(obj)
+    else:
+        # Full document
+        targets.extend(session.document.paragraphs)
+        for table in session.document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    targets.extend(cell.paragraphs)
+
+    tools = TextTools()
+    count = tools.batch_replace_text(targets, replacements)
+
+    return f"Batch replacement completed. Replaced {count} occurrences."
+
 def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None) -> str:
     """
     Insert an image into the document.
@@ -187,4 +255,5 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
 def register_tools(mcp: FastMCP):
     """Register advanced document operations"""
     mcp.tool()(docx_replace_text)
+    mcp.tool()(docx_batch_replace_text)
     mcp.tool()(docx_insert_image)

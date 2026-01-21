@@ -10,6 +10,7 @@ docx-mcp-server 是一个基于 Model Context Protocol (MCP) 的服务器，为 
 - **原子化操作**：每个操作针对单一元素（段落、文本块、表格）
 - **ID 映射系统**：将 python-docx 的内存对象映射为稳定的字符串 ID
 - **MCP 协议兼容**：完全符合 MCP 规范，易于集成
+- **模块化架构**：工具按领域拆分，便于维护和扩展
 
 ## 核心架构
 
@@ -24,6 +25,7 @@ Session {
     session_id: "abc-123"
     document: Document()
     object_registry: {}
+    cursor: Cursor()      # 新增：光标位置管理
     last_accessed: timestamp
 }
 ```
@@ -69,11 +71,6 @@ docx_set_font(session_id, run_id, bold=True, size=14)
 docx_set_alignment(session_id, para_id, "center")
 ```
 
-**优势**：
-- Claude 可以灵活组合操作
-- 错误定位更精确
-- 代码更易维护
-
 ## 开发指南
 
 ### 环境配置与运行
@@ -98,10 +95,11 @@ uv run docx-server-launcher
 
 ### 添加新工具
 
-1. **在 `server.py` 中定义工具**
+1. **在 `src/docx_mcp_server/tools/` 下的相应模块中定义工具**
+
+   （如 `paragraph_tools.py`，或新建模块）
 
 ```python
-@mcp.tool()
 def docx_new_feature(session_id: str, param: str) -> str:
     """
     工具描述（Claude 会读取这个）
@@ -113,21 +111,26 @@ def docx_new_feature(session_id: str, param: str) -> str:
     Returns:
         str: 返回值说明
     """
+    from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
     if not session:
         raise ValueError(f"Session {session_id} not found")
 
     # 实现逻辑
-    result = session.document.some_operation(param)
-
-    # 如果创建了新对象，注册它
-    if needs_tracking:
-        return session.register_object(result, "prefix")
-
-    return "Success message"
+    # ...
 ```
 
-2. **编写单元测试**
+2. **注册工具**
+
+   - 如果是现有模块，无需额外操作（已自动扫描）
+   - 如果是新模块，需要在 `src/docx_mcp_server/tools/__init__.py` 中注册：
+
+```python
+from . import new_module
+new_module.register_tools(mcp)
+```
+
+3. **编写单元测试**
 
 在 `tests/unit/` 创建测试文件：
 
@@ -138,7 +141,7 @@ def test_new_feature():
     assert "expected" in result
 ```
 
-3. **更新文档**
+4. **更新文档**
 
 - 在 `README.md` 的工具列表中添加
 - 如果是重要功能，在本文件添加说明
@@ -165,7 +168,7 @@ uv pip install -e ".[gui,dev]"
 QT_QPA_PLATFORM=offscreen uv run pytest
 
 # 或运行脚本
-uv run ./scripts/test.sh
+./scripts/test.sh
 ```
 
 ### 调试技巧
@@ -173,23 +176,16 @@ uv run ./scripts/test.sh
 1. **查看会话状态**
 
 ```python
-# 在 server.py 临时添加
+# 临时添加调试工具
 @mcp.tool()
 def docx_debug_session(session_id: str) -> str:
     session = session_manager.get_session(session_id)
     return f"Objects: {list(session.object_registry.keys())}"
 ```
 
-2. **检查对象类型**
+2. **日志配置**
 
-```python
-obj = session.get_object(element_id)
-print(f"Type: {type(obj)}, Has add_run: {hasattr(obj, 'add_run')}")
-```
-
-3. **日志配置**
-
-修改 `config/dev.yaml` 中的日志级别为 `DEBUG`
+修改 `config/dev.yaml` 中的日志级别为 `DEBUG`。错误日志会自动包含堆栈跟踪（Stack Trace）。
 
 ## MCP 协议注意事项
 
@@ -201,24 +197,17 @@ print(f"Type: {type(obj)}, Has add_run: {hasattr(obj, 'add_run')}")
 
 ### 2. 错误处理
 
-始终使用明确的错误消息：
+始终使用明确的错误消息，利用 `logger.exception` 记录完整堆栈：
 
 ```python
-# 好的错误消息
-raise ValueError(f"Session {session_id} not found or expired")
-raise ValueError(f"Paragraph {para_id} not found in session")
-
-# 不好的错误消息
-raise Exception("Error")
+try:
+    # ...
+except Exception as e:
+    logger.exception(f"Operation failed: {e}")
+    raise ValueError(f"User friendly error message: {e}")
 ```
 
-### 3. 返回值设计
-
-- 创建操作：返回 `element_id`
-- 修改操作：返回成功消息
-- 查询操作：返回数据或 `element_id`
-
-### 4. 会话生命周期
+### 3. 会话生命周期
 
 ```
 创建 → 操作 → 保存 → 关闭
@@ -229,77 +218,6 @@ create  add_*  save   close
 
 **重要**：提醒 Claude 在完成后调用 `docx_close()` 释放资源。
 
-## 性能优化
-
-### 1. 对象注册策略
-
-不是所有对象都需要注册：
-
-- **需要注册**：后续会引用的对象（段落、表格）
-- **不需要注册**：一次性操作的结果
-
-### 2. 会话清理
-
-SessionManager 会自动清理过期会话，但在高负载场景下可以手动触发：
-
-```python
-session_manager.cleanup_expired()
-```
-
-### 3. 内存管理
-
-- 限制单个会话的对象数量（考虑添加配置）
-- 大文档操作完成后立即 `close`
-
-## 贡献指南
-
-### 代码风格
-
-- 遵循 PEP 8
-- 使用类型提示
-- 文档字符串使用 Google 风格
-
-### 提交规范
-
-```
-feat: 添加新工具 docx_add_image
-fix: 修复表格单元格合并问题
-docs: 更新 README 使用示例
-test: 添加字体设置的单元测试
-```
-
-### Pull Request 流程
-
-1. Fork 项目
-2. 创建功能分支：`git checkout -b feat/new-tool`
-3. 编写代码和测试
-4. 运行 `./scripts/test.sh` 确保通过
-5. 提交 PR，描述清楚改动内容
-
-## 常见问题
-
-### Q: 为什么不直接返回 python-docx 对象？
-
-A: MCP 协议基于 JSON-RPC，无法传输 Python 对象。ID 映射是必需的。
-
-### Q: 会话过期后数据会丢失吗？
-
-A: 是的。必须在过期前调用 `docx_save()` 保存文件。
-
-### Q: 可以同时编辑多个文档吗？
-
-A: 可以。每个 `docx_create()` 创建独立的会话。
-
-### Q: 如何处理大文档？
-
-A: 考虑分批操作，及时保存，避免长时间持有会话。
-
-## 相关资源
-
-- [MCP 协议规范](https://modelcontextprotocol.io)
-- [python-docx 文档](https://python-docx.readthedocs.io)
-- [FastMCP 框架](https://github.com/jlowin/fastmcp)
-
 ## 快速参考
 
 ### 常用工具组合
@@ -309,15 +227,6 @@ A: 考虑分批操作，及时保存，避免长时间持有会话。
 session_id = docx_create(file_path="/path/to/template.docx")
 structure_json = docx_extract_template_structure(session_id)
 structure = json.loads(structure_json)
-
-# 遍历提取的元素
-for element in structure["document_structure"]:
-    if element["type"] == "table":
-        print(f"表格表头: {element['headers']}")  # 自动检测的表头
-        print(f"行数: {element['rows']}, 列数: {element['cols']}")
-    elif element["type"] == "heading":
-        print(f"标题 {element['level']}: {element['text']}")
-
 docx_close(session_id)
 ```
 
@@ -331,28 +240,27 @@ docx_save(session_id, "/path/to/output.docx")
 docx_close(session_id)
 ```
 
+**Cursor 定位系统（高级插入）**：
+```python
+# 1. 移动光标到指定元素之后
+docx_cursor_move(session_id, element_id="para_123", position="after")
+
+# 2. 在光标处插入内容（而非追加到末尾）
+docx_insert_paragraph_at_cursor(session_id, "这是插入在中间的段落")
+docx_insert_table_at_cursor(session_id, rows=3, cols=2)
+```
+
+**格式刷（Format Painter）**：
+```python
+# 将源对象（如 Run, Paragraph, Table）的格式复制到目标对象
+docx_format_copy(session_id, source_id="run_src", target_id="run_target")
+```
+
 **创建表格**：
 ```python
 table_id = docx_add_table(session_id, rows=3, cols=2)
 cell_id = docx_get_cell(session_id, table_id, row=0, col=0)
 docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
-```
-
-**格式复制与批量替换（高级工作流）**：
-```python
-# 1. 复制模板章节（Heading 到 End Marker）
-new_ids = json.loads(docx_copy_elements_range(session_id, start_h1_id, end_marker_id))
-
-# 2. 提取并应用格式
-template = docx_extract_format_template(session_id, source_run_id)
-docx_apply_format_template(session_id, target_run_id, template)
-
-# 3. 批量填充数据
-replacements = {
-    "{{NAME}}": "张三",
-    "{{DATE}}": "2026-01-21"
-}
-docx_batch_replace_text(session_id, json.dumps(replacements))
 ```
 
 ---

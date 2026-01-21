@@ -27,15 +27,19 @@ from docx_mcp_server.tools.table_tools import (
     docx_fill_table, docx_copy_table
 )
 from docx_mcp_server.tools.format_tools import (
-    docx_set_alignment, docx_set_properties, docx_format_copy, docx_set_margins
+    docx_set_alignment, docx_set_properties, docx_format_copy, docx_set_margins,
+    docx_extract_format_template, docx_apply_format_template
 )
 from docx_mcp_server.tools.advanced_tools import (
-    docx_replace_text, docx_insert_image
+    docx_replace_text, docx_insert_image, docx_batch_replace_text
 )
 from docx_mcp_server.tools.system_tools import docx_server_status
 from docx_mcp_server.tools.cursor_tools import (
     docx_cursor_move, docx_cursor_get,
     docx_insert_paragraph_at_cursor, docx_insert_table_at_cursor
+)
+from docx_mcp_server.tools.copy_tools import (
+    docx_get_element_source, docx_copy_elements_range
 )
 
 # Configure logging
@@ -50,7 +54,7 @@ session_manager = SessionManager()
 mcp = FastMCP("docx-mcp-server")
 
 # Register all tools
-register_all_tools(mcp, session_manager)
+register_all_tools(mcp)
 
 def main():
     """Main entry point for the server"""

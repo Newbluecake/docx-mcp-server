@@ -6,6 +6,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 from docx_mcp_server.core.properties import set_properties
 from docx_mcp_server.core.format_painter import FormatPainter
+from docx_mcp_server.utils.format_template import TemplateManager
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +289,7 @@ def docx_set_margins(
     """
     from docx_mcp_server.server import session_manager
 
-    
+
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -309,6 +310,84 @@ def docx_set_margins(
 
     return "Margins updated"
 
+def docx_extract_format_template(session_id: str, element_id: str) -> str:
+    """
+    Extract style and formatting properties from an element as a reusable template.
+
+    Captures font, paragraph, or table properties into a JSON structure that can be
+    stored and applied to other elements later.
+
+    Typical Use Cases:
+        - Create a library of reusable styles
+        - "Pickup" formatting to apply elsewhere
+        - Persist styles between sessions
+
+    Args:
+        session_id (str): Active session ID.
+        element_id (str): ID of the element to extract format from.
+
+    Returns:
+        str: JSON string containing the format template.
+
+    Raises:
+        ValueError: If element not found or type unsupported.
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    element = session.get_object(element_id)
+    if not element:
+        raise ValueError(f"Element {element_id} not found")
+
+    manager = TemplateManager()
+    try:
+        template = manager.extract_template(element)
+        return manager.to_json(template)
+    except Exception as e:
+        raise ValueError(f"Failed to extract template: {str(e)}")
+
+
+def docx_apply_format_template(session_id: str, element_id: str, template_json: str) -> str:
+    """
+    Apply a format template to an element.
+
+    Applies properties defined in the template JSON to the target element.
+    Ignores properties that don't apply to the target type.
+
+    Typical Use Cases:
+        - Apply standard styles
+        - Replicate formatting extracted earlier
+        - Batch format elements
+
+    Args:
+        session_id (str): Active session ID.
+        element_id (str): Target element ID.
+        template_json (str): JSON string returned by docx_extract_format_template.
+
+    Returns:
+        str: Success message.
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise ValueError(f"Session {session_id} not found")
+
+    element = session.get_object(element_id)
+    if not element:
+        raise ValueError(f"Element {element_id} not found")
+
+    manager = TemplateManager()
+    try:
+        template = manager.from_json(template_json)
+        manager.apply_template(element, template)
+        return f"Template applied to {element_id}"
+    except Exception as e:
+        raise ValueError(f"Failed to apply template: {str(e)}")
+
 
 def register_tools(mcp: FastMCP):
     """Register formatting and styling tools"""
@@ -316,3 +395,5 @@ def register_tools(mcp: FastMCP):
     mcp.tool()(docx_set_properties)
     mcp.tool()(docx_format_copy)
     mcp.tool()(docx_set_margins)
+    mcp.tool()(docx_extract_format_template)
+    mcp.tool()(docx_apply_format_template)

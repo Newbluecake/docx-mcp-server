@@ -1,6 +1,7 @@
 """Table manipulation tools"""
 import json
 import logging
+import time
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Inches
 from docx_mcp_server.core.finder import Finder
@@ -593,7 +594,15 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
         raise ValueError(f"Object {table_id} is not a table")
 
     new_table = clone_table(table)
-    t_id = session.register_object(new_table, "table")
+
+    # Track lineage metadata
+    meta = {
+        "source_id": table_id,
+        "source_type": "table",
+        "copied_at": time.time()
+    }
+
+    t_id = session.register_object(new_table, "table", metadata=meta)
 
     session.update_context(t_id, action="create")
     return t_id
