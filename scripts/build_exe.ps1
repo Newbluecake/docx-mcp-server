@@ -24,7 +24,11 @@ if (-not (Test-Path ".venv")) {
 Write-Host "⬇️ Installing dependencies..." -ForegroundColor Yellow
 uv pip install ".[gui]" pyinstaller
 
-# 4. Build EXE
+# 4. Compile Translations
+Write-Host "🌐 Compiling translations..." -ForegroundColor Yellow
+& "$PSScriptRoot\compile_translations.ps1"
+
+# 5. Build EXE
 Write-Host "🔨 Running PyInstaller..." -ForegroundColor Yellow
 uv run pyinstaller --clean --noconfirm docx-server-launcher.spec
 
