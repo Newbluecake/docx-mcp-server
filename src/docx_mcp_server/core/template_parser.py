@@ -193,3 +193,52 @@ class TemplateParser:
             "text": text,
             "style": style
         }
+
+    def extract_table_structure(self, table: Table) -> Dict[str, Any]:
+        """
+        Extract table structure including headers and styling.
+
+        Args:
+            table: Table to extract.
+
+        Returns:
+            dict: Table structure with type, dimensions, headers, and style.
+
+        Raises:
+            ValueError: If header row cannot be detected.
+        """
+        rows = len(table.rows)
+        cols = len(table.columns)
+
+        # Detect header row
+        header_row = self.detect_header_row(table)
+
+        # Extract headers
+        headers = [cell.text for cell in table.rows[header_row].cells]
+
+        # Extract basic style (simplified for minimal implementation)
+        style = {
+            "border": {},
+            "cell_style": {
+                "font": "默认",
+                "size": 12,
+                "alignment": "left"
+            }
+        }
+
+        # Try to extract cell style from first data cell
+        if rows > 1 and table.rows[1].cells:
+            first_cell = table.rows[1].cells[0]
+            if first_cell.paragraphs and first_cell.paragraphs[0].runs:
+                run = first_cell.paragraphs[0].runs[0]
+                style["cell_style"]["font"] = run.font.name or "默认"
+                style["cell_style"]["size"] = run.font.size.pt if run.font.size else 12
+
+        return {
+            "type": "table",
+            "rows": rows,
+            "cols": cols,
+            "header_row": header_row,
+            "headers": headers,
+            "style": style
+        }

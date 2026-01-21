@@ -114,3 +114,32 @@ def test_extract_image_structure():
     """Test extracting image structure from paragraph."""
     # This test will be skipped for now as it requires actual image file
     pytest.skip("Image extraction requires actual image file")
+
+
+# T-003: Table extraction tests
+def test_extract_table_structure():
+    """Test extracting table structure with header detection."""
+    doc = Document()
+    table = doc.add_table(rows=3, cols=3)
+
+    # Make first row bold (header)
+    for i, cell in enumerate(table.rows[0].cells):
+        cell.text = f"Column {i + 1}"
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    # Add data rows
+    for row_idx in range(1, 3):
+        for col_idx in range(3):
+            table.rows[row_idx].cells[col_idx].text = f"Data {row_idx}-{col_idx}"
+
+    parser = TemplateParser()
+    result = parser.extract_table_structure(table)
+
+    assert result["type"] == "table"
+    assert result["rows"] == 3
+    assert result["cols"] == 3
+    assert result["header_row"] == 0
+    assert result["headers"] == ["Column 1", "Column 2", "Column 3"]
+    assert "style" in result
