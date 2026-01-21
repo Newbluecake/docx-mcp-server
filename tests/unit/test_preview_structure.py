@@ -11,16 +11,25 @@ from docx_mcp_server.preview.base import NoOpPreviewController, PreviewControlle
 from docx_mcp_server.core.session import Session, SessionManager
 from docx import Document
 
+@pytest.fixture(autouse=True)
+def reset_preview_manager():
+    """Reset the PreviewManager singleton before each test."""
+    PreviewManager._instance = None
+    yield
+    PreviewManager._instance = None
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux/macOS-specific test")
 def test_preview_manager_linux():
-    """Verify that on Linux (current env), we get NoOpPreviewController."""
+    """Verify that on Linux/macOS, we get NoOpPreviewController."""
     controller = PreviewManager.get_controller()
     assert isinstance(controller, NoOpPreviewController)
     assert isinstance(controller, PreviewController)
     assert controller.prepare_for_save("test.docx") is False
     assert controller.refresh("test.docx") is False
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux/macOS-specific test")
 def test_session_integration():
-    """Verify Session initializes with a controller."""
+    """Verify Session initializes with NoOpPreviewController on Linux/macOS."""
     doc = Document()
     session = Session(session_id="test-123", document=doc)
     assert hasattr(session, "preview_controller")
@@ -57,13 +66,37 @@ def test_docx_save_integration():
     session.document.save.assert_called_once_with(file_path)
     mock_controller.refresh.assert_called_once_with(file_path)
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
+def test_preview_manager_windows():
+    """Verify that on Windows, we get Win32PreviewController."""
+    controller = PreviewManager.get_controller()
+    # On Windows, we should get Win32PreviewController if available
+    # or NoOpPreviewController if import fails
+    assert isinstance(controller, PreviewController)
+    # We can't assert the exact type since it depends on whether
+    # win32com is available, but we can verify it's a valid controller
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
+def test_session_integration_windows():
+    """Verify Session initializes with a controller on Windows."""
+    doc = Document()
+    session = Session(session_id="test-win", document=doc)
+    assert hasattr(session, "preview_controller")
+    assert isinstance(session.preview_controller, PreviewController)
+
 if __name__ == "__main__":
     # Manually run if executed as script
     try:
-        test_preview_manager_linux()
-        test_session_integration()
+        if sys.platform == "win32":
+            test_preview_manager_windows()
+            test_session_integration_windows()
+        else:
+            test_preview_manager_linux()
+            test_session_integration()
         test_docx_save_integration()
         print("✅ All preview infrastructure tests passed!")
     except Exception as e:
         print(f"❌ Tests failed: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
