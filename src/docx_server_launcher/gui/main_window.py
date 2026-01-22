@@ -1,12 +1,15 @@
 import os
+import re
 from pathlib import Path
+from typing import List, Tuple
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QSpinBox, QPushButton,
     QGroupBox, QPlainTextEdit, QFileDialog, QMessageBox,
-    QCheckBox, QComboBox
+    QCheckBox, QComboBox, QTextEdit
 )
 from PyQt6.QtCore import Qt, QSettings, QEventLoop, QTimer, QEvent
+from PyQt6.QtGui import QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor
 from docx_server_launcher.core.server_manager import ServerManager
 from docx_server_launcher.core.config_injector import ConfigInjector
 from docx_server_launcher.core.working_directory_manager import WorkingDirectoryManager
@@ -27,6 +30,11 @@ class MainWindow(QMainWindow):
         self.cwd_manager = WorkingDirectoryManager(self.settings)
         self._is_switching_cwd = False
         self.is_running = False
+
+        # Search state (T-001, T-004, T-005)
+        self._search_matches: List[Tuple[int, int]] = []  # [(start, length), ...]
+        self._current_match_index: int = -1
+        self._search_timer: QTimer = None
 
         self.init_ui()
         self.connect_signals()
@@ -133,9 +141,55 @@ class MainWindow(QMainWindow):
         # --- Logs Section ---
         self.log_group = QGroupBox()
         log_layout = QVBoxLayout()
+
+        # T-001: Search Toolbar (Row 1 & 2)
+        # Row 1: Search input + Navigation + Match count
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel(self.tr("Search:")))
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText(self.tr("Enter search text..."))
+        self.search_input.setClearButtonEnabled(True)
+        search_row.addWidget(self.search_input, stretch=1)
+
+        self.prev_btn = QPushButton("↑")
+        self.prev_btn.setToolTip(self.tr("Previous match (Shift+F3)"))
+        self.prev_btn.setMaximumWidth(40)
+        search_row.addWidget(self.prev_btn)
+
+        self.next_btn = QPushButton("↓")
+        self.next_btn.setToolTip(self.tr("Next match (F3)"))
+        self.next_btn.setMaximumWidth(40)
+        search_row.addWidget(self.next_btn)
+
+        self.match_label = QLabel("0 / 0")
+        self.match_label.setMinimumWidth(60)
+        self.match_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        search_row.addWidget(self.match_label)
+
+        log_layout.addLayout(search_row)
+
+        # Row 2: Options + Clear button
+        options_row = QHBoxLayout()
+
+        self.case_checkbox = QCheckBox(self.tr("Case Sensitive"))
+        options_row.addWidget(self.case_checkbox)
+
+        self.regex_checkbox = QCheckBox(self.tr("Regex"))
+        options_row.addWidget(self.regex_checkbox)
+
+        options_row.addStretch()
+
+        self.clear_log_btn = QPushButton(self.tr("Clear Logs"))
+        options_row.addWidget(self.clear_log_btn)
+
+        log_layout.addLayout(options_row)
+
+        # Log area
         self.log_area = QPlainTextEdit()
         self.log_area.setReadOnly(True)
         log_layout.addWidget(self.log_area)
+
         self.log_group.setLayout(log_layout)
         main_layout.addWidget(self.log_group, stretch=1)
 
@@ -181,6 +235,21 @@ class MainWindow(QMainWindow):
         self.server_manager.log_received.connect(self.append_log)
         self.server_manager.server_error.connect(self.on_server_error)
 
+        # T-005: Search signals (debounced)
+        self.search_input.textChanged.connect(self.on_search_text_changed)
+        self.case_checkbox.stateChanged.connect(self.on_search_option_changed)
+        self.regex_checkbox.stateChanged.connect(self.on_search_option_changed)
+
+        # T-006: Navigation signals
+        self.prev_btn.clicked.connect(lambda: self.navigate_to_match(-1))
+        self.next_btn.clicked.connect(lambda: self.navigate_to_match(1))
+
+        # T-007: Clear logs signal
+        self.clear_log_btn.clicked.connect(self.clear_log_area)
+
+        # T-008: Keyboard shortcuts
+        self.setup_shortcuts()
+
     def load_settings(self):
         last_cwd = self.settings.value("cwd", os.getcwd())
         if last_cwd:
@@ -199,12 +268,18 @@ class MainWindow(QMainWindow):
         else:
             self.log_level_combo.setCurrentText("INFO")
 
+        # T-009: Load search settings
+        self.load_search_settings()
+
     def save_settings(self):
         self.settings.setValue("cwd", self.cwd_input.text())
         host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
         self.settings.setValue("host", host)
         self.settings.setValue("port", self.port_input.value())
         self.settings.setValue("log_level", self.log_level_combo.currentText())
+
+        # T-009: Save search settings
+        self.save_search_settings()
 
     def on_lan_toggled(self, state):
         # We don't need to do much immediately, value is read on save/start
@@ -552,3 +627,305 @@ class MainWindow(QMainWindow):
         if self.is_running:
             self.server_manager.stop_server()
         super().closeEvent(event)
+
+    # ==================== Log Search Feature ====================
+    # T-002: Plain text search engine
+    def find_matches_plain(self, text: str, pattern: str, case_sensitive: bool) -> List[Tuple[int, int]]:
+        """
+        Find all plain text matches.
+
+        Args:
+            text: Text to search in
+            pattern: Search pattern
+            case_sensitive: Case sensitive matching
+
+        Returns:
+            List of (start_pos, length) tuples
+        """
+        if not pattern:
+            return []
+
+        matches = []
+        search_text = text if case_sensitive else text.lower()
+        search_pattern = pattern if case_sensitive else pattern.lower()
+
+        start = 0
+        while True:
+            pos = search_text.find(search_pattern, start)
+            if pos == -1:
+                break
+            matches.append((pos, len(pattern)))
+            start = pos + 1  # Allow overlapping matches
+
+        return matches
+
+    # T-003: Regex search engine
+    def find_matches_regex(self, text: str, pattern: str, case_sensitive: bool) -> List[Tuple[int, int]]:
+        """
+        Find all regex matches.
+
+        Args:
+            text: Text to search in
+            pattern: Regex pattern
+            case_sensitive: Case sensitive matching
+
+        Returns:
+            List of (start_pos, length) tuples
+
+        Raises:
+            ValueError: If regex is invalid
+        """
+        try:
+            flags = 0 if case_sensitive else re.IGNORECASE
+            regex = re.compile(pattern, flags)
+        except re.error as e:
+            raise ValueError(f"Invalid regex: {e}")
+
+        matches = []
+        for match in regex.finditer(text):
+            matches.append((match.start(), match.end() - match.start()))
+
+        return matches
+
+    def validate_regex_safety(self, pattern: str) -> Tuple[bool, str]:
+        """
+        Validate regex safety to prevent ReDoS attacks.
+
+        Args:
+            pattern: Regex pattern to validate
+
+        Returns:
+            Tuple of (is_safe, error_message)
+        """
+        # Detect dangerous nested quantifiers
+        dangerous_patterns = [
+            r'\([^)]*[+*]\)[+*]',  # (x+)+ or (x*)*
+            r'\([^)]*[+*]\)\{',    # (x+){n,m}
+        ]
+
+        for dp in dangerous_patterns:
+            if re.search(dp, pattern):
+                return False, "Potentially dangerous regex (nested quantifiers)"
+
+        return True, ""
+
+    # T-004: Highlight manager
+    def apply_highlights(self):
+        """Apply search highlights to log area."""
+        extra_selections = []
+
+        # Get document length to validate positions
+        doc_length = len(self.log_area.toPlainText())
+
+        for i, (start, length) in enumerate(self._search_matches):
+            # Skip invalid positions
+            if start >= doc_length or start + length > doc_length:
+                continue
+
+            selection = QTextEdit.ExtraSelection()
+
+            # Set cursor position
+            cursor = self.log_area.textCursor()
+            cursor.setPosition(start)
+            cursor.setPosition(start + length, QTextCursor.MoveMode.KeepAnchor)
+            selection.cursor = cursor
+
+            # Set background color
+            format = QTextCharFormat()
+            if i == self._current_match_index:
+                format.setBackground(QColor("#FFA500"))  # Orange (current match)
+            else:
+                format.setBackground(QColor("#FFFF00"))  # Yellow (normal match)
+            selection.format = format
+
+            extra_selections.append(selection)
+
+        self.log_area.setExtraSelections(extra_selections)
+
+    def clear_highlights(self):
+        """Clear all search highlights."""
+        self.log_area.setExtraSelections([])
+        self._search_matches = []
+        self._current_match_index = -1
+
+    # T-005: Debounced search
+    def on_search_text_changed(self, text: str):
+        """Handle search text change with debouncing (300ms)."""
+        if self._search_timer:
+            self._search_timer.stop()
+
+        self._search_timer = QTimer()
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self.perform_search)
+        self._search_timer.start(300)  # 300ms delay
+
+    def on_search_option_changed(self):
+        """Handle search option change (immediate search)."""
+        self.perform_search()
+
+    def perform_search(self):
+        """Execute search and apply highlights."""
+        pattern = self.search_input.text()
+
+        if not pattern:
+            self.clear_highlights()
+            self.match_label.setText("0 / 0")
+            return
+
+        try:
+            # Validate regex if enabled
+            if self.regex_checkbox.isChecked():
+                is_safe, msg = self.validate_regex_safety(pattern)
+                if not is_safe:
+                    self.show_search_error(msg)
+                    return
+
+            # Execute search
+            text = self.log_area.toPlainText()
+            use_regex = self.regex_checkbox.isChecked()
+            case_sensitive = self.case_checkbox.isChecked()
+
+            if use_regex:
+                matches = self.find_matches_regex(text, pattern, case_sensitive)
+            else:
+                matches = self.find_matches_plain(text, pattern, case_sensitive)
+
+            # Limit matches to prevent performance issues
+            if len(matches) > 1000:
+                matches = matches[:1000]
+
+            # Update state
+            self._search_matches = matches
+            self._current_match_index = 0 if matches else -1
+
+            # Apply highlights
+            self.apply_highlights()
+            self.update_match_label()
+
+            # Clear error state
+            self.search_input.setStyleSheet("")
+            self.search_input.setToolTip("")
+
+        except ValueError as e:
+            self.show_search_error(str(e))
+        except Exception as e:
+            self.show_search_error(f"Search error: {e}")
+
+    def show_search_error(self, message: str):
+        """Display search error in UI."""
+        self.search_input.setStyleSheet("border: 1px solid red;")
+        self.search_input.setToolTip(message)
+        self.match_label.setText("Error")
+        self.clear_highlights()
+
+    # T-006: Result navigation
+    def navigate_to_match(self, direction: int):
+        """
+        Navigate to previous/next match.
+
+        Args:
+            direction: -1 for previous, 1 for next
+        """
+        if not self._search_matches:
+            return
+
+        # Update index with wrapping
+        self._current_match_index += direction
+        if self._current_match_index >= len(self._search_matches):
+            self._current_match_index = 0
+        elif self._current_match_index < 0:
+            self._current_match_index = len(self._search_matches) - 1
+
+        # Reapply highlights (updates current match color)
+        self.apply_highlights()
+
+        # Scroll to current match
+        start, length = self._search_matches[self._current_match_index]
+        cursor = self.log_area.textCursor()
+        cursor.setPosition(start)
+        cursor.setPosition(start + length, QTextCursor.MoveMode.KeepAnchor)
+        self.log_area.setTextCursor(cursor)  # Triggers scroll
+
+        # Update match label
+        self.update_match_label()
+
+    def update_match_label(self):
+        """Update match count display."""
+        if not self._search_matches:
+            self.match_label.setText("0 / 0")
+        else:
+            current = self._current_match_index + 1
+            total = len(self._search_matches)
+            if total > 1000:
+                self.match_label.setText(f"{current} / 1000+")
+            else:
+                self.match_label.setText(f"{current} / {total}")
+
+    # T-007: Clear logs
+    def clear_log_area(self):
+        """Clear all log content with confirmation for large logs."""
+        line_count = self.log_area.document().blockCount()
+
+        if line_count > 100:
+            # Show confirmation dialog
+            reply = QMessageBox.question(
+                self,
+                self.tr("Confirm Clear"),
+                self.tr(f"Are you sure you want to clear {line_count} lines of logs?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        # Clear log area
+        self.log_area.clear()
+
+        # Clear search state
+        self.clear_highlights()
+        self.match_label.setText("0 / 0")
+
+    # T-008: Keyboard shortcuts
+    def setup_shortcuts(self):
+        """Setup keyboard shortcuts for search functionality."""
+        # Ctrl+F: Focus search input
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
+            self.search_input.setFocus
+        )
+
+        # Enter / F3: Next match
+        QShortcut(QKeySequence("Return"), self.search_input).activated.connect(
+            lambda: self.navigate_to_match(1)
+        )
+        QShortcut(QKeySequence("F3"), self).activated.connect(
+            lambda: self.navigate_to_match(1)
+        )
+
+        # Shift+Enter / Shift+F3: Previous match
+        QShortcut(QKeySequence("Shift+Return"), self.search_input).activated.connect(
+            lambda: self.navigate_to_match(-1)
+        )
+        QShortcut(QKeySequence("Shift+F3"), self).activated.connect(
+            lambda: self.navigate_to_match(-1)
+        )
+
+        # Esc: Clear search input
+        QShortcut(QKeySequence("Escape"), self.search_input).activated.connect(
+            self.search_input.clear
+        )
+
+    # T-009: Settings persistence
+    def save_search_settings(self):
+        """Save search options to settings."""
+        self.settings.setValue("search/case_sensitive", self.case_checkbox.isChecked())
+        self.settings.setValue("search/use_regex", self.regex_checkbox.isChecked())
+
+    def load_search_settings(self):
+        """Load search options from settings."""
+        case_sensitive = self.settings.value("search/case_sensitive", False, type=bool)
+        use_regex = self.settings.value("search/use_regex", False, type=bool)
+
+        self.case_checkbox.setChecked(case_sensitive)
+        self.regex_checkbox.setChecked(use_regex)
+
