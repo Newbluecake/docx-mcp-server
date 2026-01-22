@@ -91,6 +91,14 @@ class MainWindow(QMainWindow):
         self.port_input.setRange(1024, 65535)
         self.port_input.setValue(8000)
         net_layout.addWidget(self.port_input)
+
+        net_layout.addSpacing(20)
+
+        self.log_level_label = QLabel()
+        net_layout.addWidget(self.log_level_label)
+        self.log_level_combo = QComboBox()
+        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        net_layout.addWidget(self.log_level_combo)
         config_layout.addLayout(net_layout)
 
         self.config_group.setLayout(config_layout)
@@ -142,6 +150,7 @@ class MainWindow(QMainWindow):
         self.lan_checkbox.setText(self.tr("Allow LAN Access"))
         self.lan_checkbox.setToolTip(self.tr("If checked, the server will listen on 0.0.0.0 (accessible from other devices).\nIf unchecked, it listens on 127.0.0.1 (local only)."))
         self.port_label.setText(self.tr("Port:"))
+        self.log_level_label.setText(self.tr("Log Level:"))
 
         # Control
         self.control_group.setTitle(self.tr("Control"))
@@ -183,11 +192,19 @@ class MainWindow(QMainWindow):
         last_port = self.settings.value("port", 8000)
         self.port_input.setValue(int(last_port))
 
+        last_log_level = str(self.settings.value("log_level", "INFO")).upper()
+        index = self.log_level_combo.findText(last_log_level)
+        if index >= 0:
+            self.log_level_combo.setCurrentIndex(index)
+        else:
+            self.log_level_combo.setCurrentText("INFO")
+
     def save_settings(self):
         self.settings.setValue("cwd", self.cwd_input.text())
         host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
         self.settings.setValue("host", host)
         self.settings.setValue("port", self.port_input.value())
+        self.settings.setValue("log_level", self.log_level_combo.currentText())
 
     def on_lan_toggled(self, state):
         # We don't need to do much immediately, value is read on save/start
@@ -288,8 +305,9 @@ class MainWindow(QMainWindow):
                 self.status_label.setText("Status: Starting server...")
                 host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
                 port = self.port_input.value()
+                log_level = self.log_level_combo.currentText() or "INFO"
 
-                self.server_manager.start_server(host, port, normalized_path)
+                self.server_manager.start_server(host, port, normalized_path, log_level=log_level)
 
                 # Wait for start (max 10 seconds)
                 if not self._wait_for_server_start(timeout=10000):
@@ -319,7 +337,8 @@ class MainWindow(QMainWindow):
                 try:
                     host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
                     port = self.port_input.value()
-                    self.server_manager.start_server(host, port, original_cwd)
+                    log_level = self.log_level_combo.currentText() or "INFO"
+                    self.server_manager.start_server(host, port, original_cwd, log_level=log_level)
                 except:
                     pass  # Silent fail on rollback recovery, user already knows error
 
@@ -436,7 +455,8 @@ class MainWindow(QMainWindow):
 
             self.save_settings()
             self.start_btn.setEnabled(False) # Disable until started
-            self.server_manager.start_server(host, port, cwd)
+            log_level = self.log_level_combo.currentText() or "INFO"
+            self.server_manager.start_server(host, port, cwd, log_level=log_level)
         else:
             self.start_btn.setEnabled(False) # Disable until stopped
             self.server_manager.stop_server()

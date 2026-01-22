@@ -5,6 +5,10 @@ import os
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.session import SessionManager
 from docx_mcp_server.tools import register_all_tools
+from docx_mcp_server.utils.logger import (
+    LEVEL_NAMES,
+    set_global_log_level,
+)
 
 # Version constant
 VERSION = "0.1.3"
@@ -43,10 +47,15 @@ from docx_mcp_server.tools.copy_tools import (
     docx_get_element_source, docx_copy_elements_range
 )
 
-# Configure logging
+# Configure logging (default level can be overridden by env/CLI)
+DEFAULT_LOG_LEVEL = os.environ.get("DOCX_MCP_LOG_LEVEL", "INFO").upper()
+
 logging.basicConfig()
 logger = logging.getLogger("docx-mcp-server")
-logger.setLevel(logging.INFO)
+try:
+    set_global_log_level(DEFAULT_LOG_LEVEL)
+except ValueError:
+    set_global_log_level(logging.INFO)
 
 # Initialize SessionManager
 session_manager = SessionManager()
@@ -104,6 +113,14 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--log-level",
+        type=lambda s: s.upper(),
+        choices=list(LEVEL_NAMES.keys()),
+        default=DEFAULT_LOG_LEVEL,
+        help="Logging level (default: INFO, override with DOCX_MCP_LOG_LEVEL)"
+    )
+
+    parser.add_argument(
         "--mount-path", "-m",
         type=str,
         default=os.environ.get("DOCX_MCP_MOUNT_PATH", None),
@@ -118,9 +135,16 @@ Environment Variables:
 
     args = parser.parse_args()
 
+    try:
+        set_global_log_level(args.log_level)
+    except ValueError:
+        logger.warning(f"Invalid log level '{args.log_level}', falling back to INFO")
+        set_global_log_level(logging.INFO)
+
     # Print startup information
     logger.info(f"Starting docx-mcp-server v{VERSION}")
     logger.info(f"Transport: {args.transport}")
+    logger.info(f"Log level: {logging.getLevelName(logging.getLogger().getEffectiveLevel())}")
 
     if args.transport in ["sse", "streamable-http"]:
         logger.info(f"Host: {args.host}")

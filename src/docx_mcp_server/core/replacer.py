@@ -1,52 +1,70 @@
 from typing import List, Tuple
 from docx.text.paragraph import Paragraph
 
+
+def _pos_to_run_offset(run_texts: List[str], pos: int) -> Tuple[int, int]:
+    """Map a flat string position to (run_index, offset_in_run)."""
+    acc = 0
+    for idx, text in enumerate(run_texts):
+        next_acc = acc + len(text)
+        if pos < next_acc:
+            return idx, pos - acc
+        acc = next_acc
+    # If position equals total length, place at end of last run
+    return len(run_texts) - 1, len(run_texts[-1])
+
+
 def replace_text_in_paragraph(paragraph: Paragraph, old_text: str, new_text: str) -> bool:
     """
-    Simple replacement: checks if old_text is in the whole paragraph text.
-    If yes, it attempts to replace it.
+    Replace text in a paragraph while preserving existing run formatting.
 
-    Strategy:
-    1. Check if match exists in full text.
-    2. If it exists strictly within single runs, replace inplace (preserves formatting).
-    3. If it spans runs, we fall back to a safer but destructive approach:
-       - Keep the style of the paragraph.
-       - Clear content.
-       - Add new run with replaced text.
-       (This loses mixed formatting within the paragraph, but guarantees text correctness).
-
-    TODO: A full stitching algorithm that preserves mixed formatting is complex
-    and requires tracking character indices across runs. For this version,
-    we prioritize text correctness and single-run formatting preservation.
+    - If replacements are contained within single runs, replace in place.
+    - If a match spans multiple runs, rewrite only the affected runs' text
+      without recreating runs, so formatting stays with the original runs.
     """
 
-    # 1. Try single run replacement (best case)
+    # 1) Fast path: replace within single runs
     replaced_in_run = False
     for run in paragraph.runs:
         if old_text in run.text:
             run.text = run.text.replace(old_text, new_text)
             replaced_in_run = True
 
-    if replaced_in_run:
-        return True
+    # Continue searching for cross-run matches even if we already replaced some runs
+    run_texts: List[str] = [r.text for r in paragraph.runs]
+    flat = "".join(run_texts)
+    if old_text not in flat:
+        return replaced_in_run
 
-    # 2. Check full text
-    full_text = paragraph.text
-    if old_text not in full_text:
-        return False
+    changed = False
+    search_from = 0
 
-    # 3. Fallback: Replace text but reset runs
-    # We try to preserve the *paragraph* style/alignment but runs are reset.
-    # We could try to copy font from the first run?
+    while True:
+        flat = "".join(run_texts)
+        idx = flat.find(old_text, search_from)
+        if idx == -1:
+            break
 
-    first_run_font = None
-    if paragraph.runs:
-        # Shallow copy font props from first run to apply to new run?
-        # A bit risky if None.
-        pass
+        start_run, start_off = _pos_to_run_offset(run_texts, idx)
+        end_run, end_off = _pos_to_run_offset(run_texts, idx + len(old_text))
 
-    new_full_text = full_text.replace(old_text, new_text)
-    paragraph.clear()
-    run = paragraph.add_run(new_full_text)
+        # Trim text in start and end runs, blank intermediates
+        start_text = run_texts[start_run]
+        end_text = run_texts[end_run]
 
-    return True
+        prefix = start_text[:start_off]
+        suffix = end_text[end_off:] if start_run == end_run else end_text[end_off:]
+
+        run_texts[start_run] = prefix + new_text + suffix
+
+        for i in range(start_run + 1, end_run + 1):
+            run_texts[i] = "" if i != start_run else run_texts[i]
+
+        changed = True
+        search_from = idx + len(new_text)
+
+    if changed:
+        for run, text in zip(paragraph.runs, run_texts):
+            run.text = text
+
+    return replaced_in_run or changed

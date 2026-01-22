@@ -22,7 +22,7 @@ class ServerManager(QObject):
         self.process.finished.connect(self._handle_finished)
         self.process.errorOccurred.connect(self._handle_error)
 
-    def start_server(self, host: str, port: int, cwd: str):
+    def start_server(self, host: str, port: int, cwd: str, log_level: str = "INFO"):
         """
         Start the docx-mcp-server process.
 
@@ -30,10 +30,13 @@ class ServerManager(QObject):
             host: Host interface to bind to (e.g., '127.0.0.1')
             port: Port to listen on (e.g., 8000)
             cwd: Working directory for the server (where it will look for files)
+            log_level: Log level to pass to the server (DEBUG/INFO/WARNING/ERROR/CRITICAL)
         """
         if self.process.state() != QProcess.ProcessState.NotRunning:
             self.log_received.emit("Server is already running.")
             return
+
+        normalized_level = (log_level or "INFO").upper()
 
         # Determine program and args
         if getattr(sys, 'frozen', False):
@@ -43,7 +46,8 @@ class ServerManager(QObject):
                 "--server-mode",
                 "--transport", "sse",
                 "--port", str(port),
-                "--host", host
+                "--host", host,
+                "--log-level", normalized_level,
             ]
         else:
             # Development environment: use current Python interpreter
@@ -52,7 +56,8 @@ class ServerManager(QObject):
                 "-m", "docx_mcp_server.server",
                 "--transport", "sse",
                 "--port", str(port),
-                "--host", host
+                "--host", host,
+                "--log-level", normalized_level,
             ]
 
         self.process.setWorkingDirectory(cwd)
