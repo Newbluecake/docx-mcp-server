@@ -6,6 +6,11 @@ from docx.shared import Inches
 from docx_mcp_server.core.finder import Finder
 from docx_mcp_server.core.copier import clone_table
 from docx_mcp_server.utils.metadata_tools import MetadataTools
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
         cols (int): Number of columns to create (must be >= 1).
 
     Returns:
-        str: Element ID of the new table (format: "table_xxxxx").
+        str: JSON response with element_id and cursor context.
 
     Raises:
         ValueError: If session_id is invalid or rows/cols are less than 1.
@@ -61,29 +66,31 @@ def docx_add_table(session_id: str, rows: int, cols: int) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_table failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    table = session.document.add_table(rows=rows, cols=cols)
-    table.style = 'Table Grid' # Default style
-    t_id = session.register_object(table, "table")
-
-    session.update_context(t_id, action="create")
-
-    # Update cursor to point after the new table
-    session.cursor.element_id = t_id
-    session.cursor.parent_id = "document_body" # Tables usually added to body
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = t_id
     try:
-        context = session.get_cursor_context()
-        result_msg = f"{t_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        table = session.document.add_table(rows=rows, cols=cols)
+        table.style = 'Table Grid' # Default style
+        t_id = session.register_object(table, "table")
 
-    logger.debug(f"docx_add_table success: {t_id}")
-    return result_msg
+        session.update_context(t_id, action="create")
+
+        # Update cursor to point after the new table
+        session.cursor.element_id = t_id
+        session.cursor.parent_id = "document_body"
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_table success: {t_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Table created successfully ({rows}x{cols})",
+            element_id=t_id,
+            rows=rows,
+            cols=cols
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_table failed: {e}")
+        return create_error_response(f"Failed to create table: {str(e)}", error_type="CreationError")
 
 def docx_get_table(session_id: str, index: int) -> str:
     """
@@ -102,7 +109,7 @@ def docx_get_table(session_id: str, index: int) -> str:
         index (int): Zero-based index of the table (0 for first table).
 
     Returns:
-        str: Element ID of the table (format: "table_xxxxx").
+        str: JSON response with element_id.
 
     Raises:
         ValueError: If session_id is invalid.
@@ -138,19 +145,27 @@ def docx_get_table(session_id: str, index: int) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_get_table failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    finder = Finder(session.document)
-    table = finder.get_table_by_index(index)
-    if not table:
-        logger.error(f"docx_get_table failed: Table at index {index} not found")
-        raise ValueError(f"Table at index {index} not found")
+    try:
+        finder = Finder(session.document)
+        table = finder.get_table_by_index(index)
+        if not table:
+            logger.error(f"docx_get_table failed: Table at index {index} not found")
+            return create_error_response(f"Table at index {index} not found", error_type="ElementNotFound")
 
-    t_id = session.register_object(table, "table")
-    session.update_context(t_id, action="access")
+        t_id = session._get_element_id(table, auto_register=True)
+        session.update_context(t_id, action="access")
 
-    logger.debug(f"docx_get_table success: {t_id}")
-    return t_id
+        logger.debug(f"docx_get_table success: {t_id}")
+        return create_success_response(
+            message=f"Table at index {index} retrieved",
+            element_id=t_id,
+            index=index
+        )
+    except Exception as e:
+        logger.exception(f"docx_get_table failed: {e}")
+        return create_error_response(f"Failed to get table: {str(e)}", error_type="RetrievalError")
 
 def docx_find_table(session_id: str, text: str) -> str:
     """
@@ -169,7 +184,7 @@ def docx_find_table(session_id: str, text: str) -> str:
         text (str): Text to search for within table cells (case-insensitive).
 
     Returns:
-        str: Element ID of the found table (format: "table_xxxxx").
+        str: JSON response with element_id of the found table.
 
     Raises:
         ValueError: If session_id is invalid.
@@ -203,20 +218,28 @@ def docx_find_table(session_id: str, text: str) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_find_table failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    finder = Finder(session.document)
-    tables = finder.find_tables_by_text(text)
-    if not tables:
-        logger.error(f"docx_find_table failed: No table found containing text '{text}'")
-        raise ValueError(f"No table found containing text '{text}'")
+    try:
+        finder = Finder(session.document)
+        tables = finder.find_tables_by_text(text)
+        if not tables:
+            logger.error(f"docx_find_table failed: No table found containing text '{text}'")
+            return create_error_response(f"No table found containing text '{text}'", error_type="NotFound")
 
-    # Return the first match
-    t_id = session.register_object(tables[0], "table")
-    session.update_context(t_id, action="access")
+        # Return the first match
+        t_id = session._get_element_id(tables[0], auto_register=True)
+        session.update_context(t_id, action="access")
 
-    logger.debug(f"docx_find_table success: {t_id}")
-    return t_id
+        logger.debug(f"docx_find_table success: {t_id}")
+        return create_success_response(
+            message=f"Table found containing '{text}'",
+            element_id=t_id,
+            search_text=text
+        )
+    except Exception as e:
+        logger.exception(f"docx_find_table failed: {e}")
+        return create_error_response(f"Failed to find table: {str(e)}", error_type="SearchError")
 
 def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
     """
@@ -237,7 +260,7 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
         col (int): Column index (0-based, 0 is first column).
 
     Returns:
-        str: Element ID of the cell (format: "cell_xxxxx").
+        str: JSON response with element_id of the cell.
 
     Raises:
         ValueError: If session_id or table_id is invalid.
@@ -269,23 +292,30 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     table = session.get_object(table_id)
     if not table:
-        raise ValueError(f"Table {table_id} not found")
+        return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
     try:
         cell = table.cell(row, col)
+        c_id = session.register_object(cell, "cell")
+
+        # Update context: accessing/getting a cell
+        session.update_context(c_id, action="access")
+
+        return create_success_response(
+            message=f"Cell ({row}, {col}) retrieved",
+            element_id=c_id,
+            row=row,
+            col=col
+        )
     except IndexError:
-        raise ValueError(f"Cell ({row}, {col}) out of range")
-
-    c_id = session.register_object(cell, "cell")
-
-    # Update context: accessing/getting a cell
-    session.update_context(c_id, action="access")
-
-    return c_id
+        return create_error_response(f"Cell ({row}, {col}) out of range", error_type="IndexError")
+    except Exception as e:
+        logger.exception(f"docx_get_cell failed: {e}")
+        return create_error_response(f"Failed to get cell: {str(e)}", error_type="RetrievalError")
 
 def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
     """
@@ -305,7 +335,7 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
         text (str): Text content for the paragraph.
 
     Returns:
-        str: Element ID of the paragraph (format: "para_xxxxx").
+        str: JSON response with element_id of the paragraph and cursor context.
 
     Raises:
         ValueError: If session_id or cell_id is invalid.
@@ -334,59 +364,52 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     cell = session.get_object(cell_id)
     if not cell:
-        raise ValueError(f"Cell {cell_id} not found")
+        return create_error_response(f"Cell {cell_id} not found", error_type="ElementNotFound")
 
-    # If the cell is empty (just has the default empty paragraph), we might want to use it?
-    # For simplicity/consistency, let's just use the add_paragraph method of the cell.
-    # But usually, user wants to fill the cell.
-    # Check if cell.paragraphs[0] is empty?
-    if len(cell.paragraphs) == 1 and not cell.paragraphs[0].text:
-        p = cell.paragraphs[0]
-        p.text = text
-        p_id = session.register_object(p, "para")
+    try:
+        # If the cell is empty (just has the default empty paragraph), reuse it
+        if len(cell.paragraphs) == 1 and not cell.paragraphs[0].text:
+            p = cell.paragraphs[0]
+            p.text = text
+            p_id = session.register_object(p, "para")
 
-        # Update context: modifying existing paragraph
-        session.update_context(p_id, action="access")
+            # Update context: modifying existing paragraph
+            session.update_context(p_id, action="access")
 
-        # Update cursor
-        session.cursor.element_id = p_id
-        session.cursor.parent_id = cell_id
-        session.cursor.position = "after"
+            # Update cursor
+            session.cursor.element_id = p_id
+            session.cursor.parent_id = cell_id
+            session.cursor.position = "after"
 
-        # Attach cursor context
-        result_msg = p_id
-        try:
-            context = session.get_cursor_context()
-            result_msg = f"{p_id}\n\n{context}"
-        except Exception as e:
-            logger.warning(f"Failed to get cursor context: {e}")
+            return create_context_aware_response(
+                session,
+                message="Cell paragraph updated",
+                element_id=p_id
+            )
+        else:
+            p = cell.add_paragraph(text)
+            p_id = session.register_object(p, "para")
 
-        return result_msg
-    else:
-        p = cell.add_paragraph(text)
-        p_id = session.register_object(p, "para")
+            # Update context: creating new paragraph
+            session.update_context(p_id, action="create")
 
-        # Update context: creating new paragraph
-        session.update_context(p_id, action="create")
+            # Update cursor
+            session.cursor.element_id = p_id
+            session.cursor.parent_id = cell_id
+            session.cursor.position = "after"
 
-        # Update cursor
-        session.cursor.element_id = p_id
-        session.cursor.parent_id = cell_id
-        session.cursor.position = "after"
-
-        # Attach cursor context
-        result_msg = p_id
-        try:
-            context = session.get_cursor_context()
-            result_msg = f"{p_id}\n\n{context}"
-        except Exception as e:
-            logger.warning(f"Failed to get cursor context: {e}")
-
-        return result_msg
+            return create_context_aware_response(
+                session,
+                message="Paragraph added to cell",
+                element_id=p_id
+            )
+    except Exception as e:
+        logger.exception(f"docx_add_paragraph_to_cell failed: {e}")
+        return create_error_response(f"Failed to add paragraph to cell: {str(e)}", error_type="CreationError")
 
 def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     """
@@ -406,7 +429,7 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
             from session context.
 
     Returns:
-        str: Success message confirming row addition.
+        str: JSON response confirming row addition.
 
     Raises:
         ValueError: If session_id or table_id is invalid.
@@ -439,35 +462,37 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_table_row failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if not table_id:
         table_id = session.last_accessed_id
 
+    if not table_id:
+        return create_error_response("No table specified and no context available", error_type="NoContext")
+
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'add_row'):
         logger.error(f"docx_add_table_row failed: Valid table context not found for ID {table_id}")
-        raise ValueError(f"Valid table context not found for ID {table_id}")
+        return create_error_response(f"Valid table context not found for ID {table_id}", error_type="InvalidElementType")
 
-    table.add_row()
-    # We could return the new row's cells IDs but usually just adding row is structural.
-    # Let's keep context on the table.
-    session.update_context(table_id, action="access")
-
-    # Update cursor to point to the table (structural change)
-    session.cursor.element_id = table_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Row added to {table_id}"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        table.add_row()
+        session.update_context(table_id, action="access")
 
-    logger.debug(f"docx_add_table_row success: row added to {table_id}")
-    return result_msg
+        # Update cursor to point to the table (structural change)
+        session.cursor.element_id = table_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_table_row success: row added to {table_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Row added to table",
+            table_id=table_id,
+            new_row_count=len(table.rows)
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_table_row failed: {e}")
+        return create_error_response(f"Failed to add row: {str(e)}", error_type="ModificationError")
 
 def docx_add_table_col(session_id: str, table_id: str = None) -> str:
     """
@@ -486,7 +511,7 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
             from session context.
 
     Returns:
-        str: Success message confirming column addition.
+        str: JSON response confirming column addition.
 
     Raises:
         ValueError: If session_id or table_id is invalid.
@@ -514,35 +539,37 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_table_col failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if not table_id:
         table_id = session.last_accessed_id
 
+    if not table_id:
+        return create_error_response("No table specified and no context available", error_type="NoContext")
+
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'add_column'):
         logger.error(f"docx_add_table_col failed: Valid table context not found for ID {table_id}")
-        raise ValueError(f"Valid table context not found for ID {table_id}")
+        return create_error_response(f"Valid table context not found for ID {table_id}", error_type="InvalidElementType")
 
-    # width is mandatory for add_column in python-docx usually, or defaults?
-    # It requires width. Let's default to 1 inch.
-    table.add_column(width=Inches(1.0))
-    session.update_context(table_id, action="access")
-
-    # Update cursor
-    session.cursor.element_id = table_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Column added to {table_id}"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        table.add_column(width=Inches(1.0))
+        session.update_context(table_id, action="access")
 
-    logger.debug(f"docx_add_table_col success: column added to {table_id}")
-    return result_msg
+        # Update cursor
+        session.cursor.element_id = table_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_table_col success: column added to {table_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Column added to table",
+            table_id=table_id,
+            new_col_count=len(table.columns)
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_table_col failed: {e}")
+        return create_error_response(f"Failed to add column: {str(e)}", error_type="ModificationError")
 
 def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row: int = 0) -> str:
     """
@@ -564,7 +591,7 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
         start_row (int, optional): Row index to start filling from (0-based). Defaults to 0.
 
     Returns:
-        str: Success message with number of rows filled.
+        str: JSON response with number of rows filled.
 
     Raises:
         ValueError: If session_id or table_id is invalid.
@@ -600,65 +627,64 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_fill_table failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if not table_id:
         table_id = session.last_accessed_id
 
+    if not table_id:
+        return create_error_response("No table specified and no context available", error_type="NoContext")
+
     table = session.get_object(table_id)
     if not table or not hasattr(table, 'rows'):
         logger.error(f"docx_fill_table failed: Valid table context not found for ID {table_id}")
-        raise ValueError(f"Valid table context not found for ID {table_id}")
+        return create_error_response(f"Valid table context not found for ID {table_id}", error_type="InvalidElementType")
 
     try:
         rows_data = json.loads(data)
     except json.JSONDecodeError as e:
         logger.error(f"docx_fill_table failed: Invalid JSON data - {e}")
-        raise ValueError("Invalid JSON data")
+        return create_error_response("Invalid JSON data", error_type="JSONDecodeError")
 
     if not isinstance(rows_data, list):
         logger.error(f"docx_fill_table failed: Data must be a list of lists")
-        raise ValueError("Data must be a list of lists")
+        return create_error_response("Data must be a list of lists", error_type="InvalidDataFormat")
 
-    current_row_idx = start_row
-
-    for row_data in rows_data:
-        # Ensure we have enough rows
-        if current_row_idx >= len(table.rows):
-            table.add_row()
-
-        row = table.rows[current_row_idx]
-
-        # Fill cells
-        for col_idx, cell_value in enumerate(row_data):
-            # Ensure we have enough columns?
-            # python-docx doesn't auto-expand cols on row access usually.
-            # We skip if out of bounds or expand?
-            # Requirement says: "If data cols > table cols, auto truncate or ignore" (from requirements doc analysis implicit)
-            # Actually design said: "If data cols > table cols, auto truncate or ignore."
-            if col_idx < len(row.cells):
-                cell = row.cells[col_idx]
-                # We simply set text. If complex formatting needed, use atomic tools.
-                cell.text = str(cell_value) if cell_value is not None else ""
-
-        current_row_idx += 1
-
-    session.update_context(table_id, action="access")
-
-    # Update cursor
-    session.cursor.element_id = table_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Table filled with {len(rows_data)} rows starting at {start_row}"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        current_row_idx = start_row
 
-    logger.debug(f"docx_fill_table success: filled {len(rows_data)} rows starting at {start_row}")
-    return result_msg
+        for row_data in rows_data:
+            # Ensure we have enough rows
+            if current_row_idx >= len(table.rows):
+                table.add_row()
+
+            row = table.rows[current_row_idx]
+
+            # Fill cells
+            for col_idx, cell_value in enumerate(row_data):
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    cell.text = str(cell_value) if cell_value is not None else ""
+
+            current_row_idx += 1
+
+        session.update_context(table_id, action="access")
+
+        # Update cursor
+        session.cursor.element_id = table_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_fill_table success: filled {len(rows_data)} rows starting at {start_row}")
+        return create_context_aware_response(
+            session,
+            message=f"Table filled with {len(rows_data)} rows",
+            table_id=table_id,
+            rows_filled=len(rows_data),
+            start_row=start_row
+        )
+    except Exception as e:
+        logger.exception(f"docx_fill_table failed: {e}")
+        return create_error_response(f"Failed to fill table: {str(e)}", error_type="FillError")
 
 def docx_copy_table(session_id: str, table_id: str) -> str:
     """
@@ -677,7 +703,7 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
         table_id (str): ID of the source table to copy.
 
     Returns:
-        str: Element ID of the new copied table (format: "table_xxxxx").
+        str: JSON response with new element_id and cursor context.
 
     Raises:
         ValueError: If session_id or table_id is invalid.
@@ -708,45 +734,46 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_copy_table failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     table = session.get_object(table_id)
     if not table:
         logger.error(f"docx_copy_table failed: Table {table_id} not found")
-        raise ValueError(f"Table {table_id} not found")
+        return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
     # Check if it is a table
     if not hasattr(table, 'rows'):
         logger.error(f"docx_copy_table failed: Object {table_id} is not a table")
-        raise ValueError(f"Object {table_id} is not a table")
+        return create_error_response(f"Object {table_id} is not a table", error_type="InvalidElementType")
 
-    new_table = clone_table(table)
-
-    # Track lineage metadata using shared utility
-    meta = MetadataTools.create_copy_metadata(
-        source_id=table_id,
-        source_type="table"
-    )
-
-    t_id = session.register_object(new_table, "table", metadata=meta)
-
-    session.update_context(t_id, action="create")
-
-    # Update cursor
-    session.cursor.element_id = t_id
-    session.cursor.parent_id = "document_body"
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = t_id
     try:
-        context = session.get_cursor_context()
-        result_msg = f"{t_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        new_table = clone_table(table)
 
-    logger.debug(f"docx_copy_table success: {t_id}")
-    return result_msg
+        # Track lineage metadata using shared utility
+        meta = MetadataTools.create_copy_metadata(
+            source_id=table_id,
+            source_type="table"
+        )
+
+        t_id = session.register_object(new_table, "table", metadata=meta)
+
+        session.update_context(t_id, action="create")
+
+        # Update cursor
+        session.cursor.element_id = t_id
+        session.cursor.parent_id = "document_body"
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_copy_table success: {t_id}")
+        return create_context_aware_response(
+            session,
+            message="Table copied successfully",
+            element_id=t_id,
+            source_id=table_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_copy_table failed: {e}")
+        return create_error_response(f"Failed to copy table: {str(e)}", error_type="CopyError")
 
 
 def register_tools(mcp: FastMCP):
