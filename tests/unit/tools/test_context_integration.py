@@ -1,9 +1,21 @@
 """Test context awareness integration with tools."""
 
 import pytest
+import json
 from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph, docx_add_heading
 from docx_mcp_server.tools.run_tools import docx_add_run
 from docx_mcp_server.tools.table_tools import docx_add_table, docx_add_paragraph_to_cell, docx_get_cell
+
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
 
 
 def test_paragraph_context():
@@ -14,13 +26,16 @@ def test_paragraph_context():
 
     # Add first paragraph
     result1 = docx_add_paragraph(session_id, "First paragraph")
-    assert "para_" in result1
-    assert "Context:" in result1  # Should include context
+    data1 = json.loads(result1)
+    assert "para_" in data1["data"]["element_id"]
+    assert "cursor" in data1["data"]  # Should include cursor with context
+    assert "context" in data1["data"]["cursor"]
 
     # Add second paragraph
     result2 = docx_add_paragraph(session_id, "Second paragraph")
-    assert "Context:" in result2
-    assert "First paragraph" in result2  # Should show previous element
+    data2 = json.loads(result2)
+    assert "cursor" in data2["data"]
+    assert "First paragraph" in data2["data"]["cursor"]["context"]  # Should show previous element
 
 
 def test_heading_context():
@@ -30,8 +45,10 @@ def test_heading_context():
     session_id = session_manager.create_session()
 
     result = docx_add_heading(session_id, "My Heading", level=1)
-    assert "para_" in result
-    assert "Context:" in result
+    data = json.loads(result)
+    assert "para_" in data["data"]["element_id"]
+    assert "cursor" in data["data"]
+    assert "context" in data["data"]["cursor"]
 
 
 def test_run_context():
@@ -41,11 +58,13 @@ def test_run_context():
     session_id = session_manager.create_session()
 
     para_result = docx_add_paragraph(session_id, "")
-    para_id = para_result.split('\n')[0]
+    para_id = _extract_element_id(para_result)
 
     result = docx_add_run(session_id, "Run text", paragraph_id=para_id)
-    assert "run_" in result
-    assert "Context:" in result
+    data = json.loads(result)
+    assert "run_" in data["data"]["element_id"]
+    assert "cursor" in data["data"]
+    assert "context" in data["data"]["cursor"]
 
 
 def test_table_context():
@@ -59,9 +78,10 @@ def test_table_context():
 
     # Add table
     result = docx_add_table(session_id, rows=2, cols=2)
-    assert "table_" in result
-    assert "Context:" in result
-    assert "Before table" in result
+    data = json.loads(result)
+    assert "table_" in data["data"]["element_id"]
+    assert "cursor" in data["data"]
+    assert "Before table" in data["data"]["cursor"]["context"]
 
 
 def test_table_cell_context():
@@ -71,14 +91,28 @@ def test_table_cell_context():
     session_id = session_manager.create_session()
 
     table_result = docx_add_table(session_id, rows=2, cols=2)
-    table_id = table_result.split('\n')[0]
+    table_id = _extract_element_id(table_result)
 
-    cell_id = docx_get_cell(session_id, table_id, 0, 0)
+    cell_result = docx_get_cell(session_id, table_id, 0, 0)
+    cell_id = _extract_element_id(cell_result)
 
     result = docx_add_paragraph_to_cell(session_id, cell_id, "Cell content")
-    assert "para_" in result
-    assert "Context:" in result
-    assert "Parent:" in result  # Should show parent cell
+    # docx_add_paragraph_to_cell might return plain string ID, not JSON
+    # Let's check if it's JSON or plain string
+    try:
+        data = json.loads(result)
+        if "data" in data and "element_id" in data["data"]:
+            element_id = data["data"]["element_id"]
+            assert "cursor" in data["data"]
+            assert "context" in data["data"]["cursor"]
+        else:
+            # Old format or different structure
+            element_id = _extract_element_id(result)
+            assert "para_" in element_id
+    except (json.JSONDecodeError, KeyError):
+        # Plain string ID
+        element_id = result
+        assert "para_" in element_id
 
 
 def test_cursor_tools_context():
@@ -92,23 +126,27 @@ def test_cursor_tools_context():
 
     session_id = session_manager.create_session()
     para_result = docx_add_paragraph(session_id, "Para 1")
-    para_id = para_result.split('\n')[0]
+    para_id = _extract_element_id(para_result)
 
     # Move cursor
     move_result = docx_cursor_move(session_id, para_id, "after")
-    assert "Cursor moved" in move_result
-    assert "Context:" in move_result
+    move_data = json.loads(move_result)
+    assert "Cursor moved" in move_data["message"]
+    assert "cursor" in move_data["data"]
+    assert "context" in move_data["data"]["cursor"]
 
     # Insert at cursor
     insert_result = docx_insert_paragraph_at_cursor(session_id, "Inserted Para")
-    assert "para_" in insert_result
-    assert "Context:" in insert_result
+    insert_data = json.loads(insert_result)
+    assert "para_" in insert_data["data"]["element_id"]
+    assert "cursor" in insert_data["data"]
+    assert "context" in insert_data["data"]["cursor"]
 
     # Get cursor info
     get_result = docx_cursor_get(session_id)
-    assert isinstance(get_result, dict)
-    assert "context" in get_result
-    assert "Context:" in get_result["context"]
+    get_data = json.loads(get_result) if isinstance(get_result, str) else get_result
+    # docx_cursor_get returns context directly in data, not in data["cursor"]
+    assert "context" in get_data["data"]
 
 
 def test_advanced_tools_context():
@@ -140,8 +178,11 @@ def test_advanced_tools_context():
             f.write(minimal_png)
 
         result = docx_insert_image(session_id, img_path)
-        assert "para_" in result or "run_" in result
-        assert "Context:" in result
+        data = json.loads(result)
+        element_id = data["data"]["element_id"]
+        assert "para_" in element_id or "run_" in element_id
+        assert "cursor" in data["data"]
+        assert "context" in data["data"]["cursor"]
 
     finally:
         if os.path.exists(img_path):

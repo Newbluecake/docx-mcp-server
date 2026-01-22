@@ -2,17 +2,31 @@ import pytest
 import json
 from docx_mcp_server.server import docx_create, docx_add_paragraph, docx_add_run, docx_set_font, docx_copy_paragraph, docx_get_element_source, docx_add_heading
 
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
+
 def test_docx_copy_paragraph_tool():
     """Test the atomic paragraph copy tool via server API."""
     session_id = docx_create()
 
     # Create source paragraph with complex formatting
-    para_id = docx_add_paragraph(session_id, "Source Paragraph")
-    run_id = docx_add_run(session_id, " Bold Part", paragraph_id=para_id)
+    para_response = docx_add_paragraph(session_id, "Source Paragraph")
+    para_id = _extract_element_id(para_response)
+    run_response = docx_add_run(session_id, " Bold Part", paragraph_id=para_id)
+    run_id = _extract_element_id(run_response)
     docx_set_font(session_id, run_id, bold=True, size=14, color_hex="FF0000")
 
     # Copy it
-    new_para_id = docx_copy_paragraph(session_id, para_id)
+    new_para_response = docx_copy_paragraph(session_id, para_id)
+    new_para_id = _extract_element_id(new_para_response)
 
     # Verify IDs are different
     assert new_para_id != para_id
@@ -31,10 +45,12 @@ def test_docx_copy_heading_tool():
     session_id = docx_create()
 
     # Create heading
-    h_id = docx_add_heading(session_id, "My Heading", level=1)
+    h_response = docx_add_heading(session_id, "My Heading", level=1)
+    h_id = _extract_element_id(h_response)
 
     # Copy it
-    new_h_id = docx_copy_paragraph(session_id, h_id)
+    new_h_response = docx_copy_paragraph(session_id, h_id)
+    new_h_id = _extract_element_id(new_h_response)
 
     # Verify metadata
     source_json = docx_get_element_source(session_id, new_h_id)
@@ -43,5 +59,12 @@ def test_docx_copy_heading_tool():
 
 def test_docx_copy_invalid_input():
     session_id = docx_create()
-    with pytest.raises(ValueError):
-        docx_copy_paragraph(session_id, "invalid_id")
+    result = docx_copy_paragraph(session_id, "invalid_id")
+    # Check if it's a JSON error response
+    try:
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower() or "invalid" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        # If not JSON, should raise ValueError
+        pytest.fail("Expected JSON error response or ValueError")
