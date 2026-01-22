@@ -7,6 +7,11 @@ from docx.shared import Inches
 from docx_mcp_server.core.properties import set_properties
 from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.format_template import TemplateManager
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
             - "justify": Distribute text evenly between margins
 
     Returns:
-        str: Success message confirming alignment change.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or paragraph_id is invalid.
@@ -77,20 +82,34 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_set_alignment failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     paragraph = session.get_object(paragraph_id)
     if not paragraph:
         logger.error(f"docx_set_alignment failed: Paragraph {paragraph_id} not found")
-        raise ValueError(f"Paragraph {paragraph_id} not found")
+        return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
     if alignment.lower() not in ALIGNMENT_MAP:
         logger.error(f"docx_set_alignment failed: Invalid alignment {alignment}")
-        raise ValueError(f"Invalid alignment: {alignment}. Must be one of {list(ALIGNMENT_MAP.keys())}")
+        return create_error_response(f"Invalid alignment: {alignment}. Must be one of {list(ALIGNMENT_MAP.keys())}", error_type="ValidationError")
 
-    paragraph.alignment = ALIGNMENT_MAP[alignment.lower()]
-    logger.debug(f"docx_set_alignment success: {paragraph_id}")
-    return f"Alignment set to {alignment} for {paragraph_id}"
+    try:
+        paragraph.alignment = ALIGNMENT_MAP[alignment.lower()]
+
+        # Update cursor to point to this paragraph
+        session.cursor.element_id = paragraph_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_set_alignment success: {paragraph_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Alignment set to {alignment} for {paragraph_id}",
+            element_id=paragraph_id,
+            alignment=alignment
+        )
+    except Exception as e:
+        logger.exception(f"docx_set_alignment failed: {e}")
+        return create_error_response(f"Failed to set alignment: {str(e)}", error_type="UpdateError")
 
 def docx_set_properties(session_id: str, properties: str, element_id: str = None) -> str:
     """
@@ -115,7 +134,7 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
             If None, uses last accessed object from session context.
 
     Returns:
-        str: Success message confirming property update.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or element_id is invalid.
@@ -150,33 +169,45 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_set_properties failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     target_id = element_id
     if not target_id:
         target_id = session.last_accessed_id
         if not target_id:
             logger.error(f"docx_set_properties failed: No element context available")
-            raise ValueError("No element context available. Please specify element_id.")
+            return create_error_response("No element context available. Please specify element_id.", error_type="NoContext")
 
     obj = session.get_object(target_id)
     if not obj:
         logger.error(f"docx_set_properties failed: Object {target_id} not found")
-        raise ValueError(f"Object {target_id} not found")
+        return create_error_response(f"Object {target_id} not found", error_type="ElementNotFound")
 
     try:
         props_dict = json.loads(properties)
     except json.JSONDecodeError as e:
         logger.error(f"docx_set_properties failed: Invalid JSON - {e}")
-        raise ValueError("Invalid JSON string in properties")
+        return create_error_response("Invalid JSON string in properties", error_type="JSONDecodeError")
 
-    set_properties(obj, props_dict)
+    try:
+        set_properties(obj, props_dict)
 
-    # Update context: we accessed/modified this object
-    session.update_context(target_id, action="access")
+        # Update context: we accessed/modified this object
+        session.update_context(target_id, action="access")
 
-    logger.debug(f"docx_set_properties success: {target_id}")
-    return f"Properties updated for {target_id}"
+        # Update cursor
+        session.cursor.element_id = target_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_set_properties success: {target_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Properties updated for {target_id}",
+            element_id=target_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_set_properties failed: {e}")
+        return create_error_response(f"Failed to set properties: {str(e)}", error_type="UpdateError")
 
 def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
     """
@@ -196,7 +227,7 @@ def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
         target_id (str): ID of target element to apply formatting to.
 
     Returns:
-        str: Success message confirming format copy.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id, source_id, or target_id is invalid.
@@ -234,30 +265,39 @@ def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_format_copy failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     source = session.get_object(source_id)
     if not source:
         logger.error(f"docx_format_copy failed: Source object {source_id} not found")
-        raise ValueError(f"Source object {source_id} not found")
+        return create_error_response(f"Source object {source_id} not found", error_type="ElementNotFound")
 
     target = session.get_object(target_id)
     if not target:
         logger.error(f"docx_format_copy failed: Target object {target_id} not found")
-        raise ValueError(f"Target object {target_id} not found")
+        return create_error_response(f"Target object {target_id} not found", error_type="ElementNotFound")
 
     painter = FormatPainter()
     try:
         painter.copy_format(source, target)
+
+        # Update context: we modified the target
+        session.update_context(target_id, action="access")
+
+        # Update cursor
+        session.cursor.element_id = target_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_format_copy success: {source_id} -> {target_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Format copied from {source_id} to {target_id}",
+            element_id=target_id,
+            source_id=source_id
+        )
     except Exception as e:
-        logger.error(f"docx_format_copy failed: {e}")
-        raise
-
-    # Update context: we modified the target
-    session.update_context(target_id, action="access")
-
-    logger.debug(f"docx_format_copy success: {source_id} -> {target_id}")
-    return f"Format copied from {source_id} to {target_id}"
+        logger.exception(f"docx_format_copy failed: {e}")
+        return create_error_response(f"Failed to copy format: {str(e)}", error_type="CopyError")
 
 def docx_set_margins(
     session_id: str,
@@ -285,7 +325,7 @@ def docx_set_margins(
         right (float, optional): Right margin in inches.
 
     Returns:
-        str: Success message confirming margin update.
+        str: JSON response with success message.
 
     Raises:
         ValueError: If session_id is invalid or session has expired.
@@ -317,23 +357,31 @@ def docx_set_margins(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_set_margins failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    # For simplicity, apply to the last section (usually where we are working)
-    # or all sections? Let's apply to the last section for now as a default "current" context.
-    section = session.document.sections[-1]
+    try:
+        # For simplicity, apply to the last section (usually where we are working)
+        section = session.document.sections[-1]
 
-    if top is not None:
-        section.top_margin = Inches(top)
-    if bottom is not None:
-        section.bottom_margin = Inches(bottom)
-    if left is not None:
-        section.left_margin = Inches(left)
-    if right is not None:
-        section.right_margin = Inches(right)
+        if top is not None:
+            section.top_margin = Inches(top)
+        if bottom is not None:
+            section.bottom_margin = Inches(bottom)
+        if left is not None:
+            section.left_margin = Inches(left)
+        if right is not None:
+            section.right_margin = Inches(right)
 
-    logger.debug(f"docx_set_margins success")
-    return "Margins updated"
+        logger.debug(f"docx_set_margins success")
+        return create_context_aware_response(
+            session,
+            message="Margins updated successfully",
+            include_cursor=False,
+            margins={"top": top, "bottom": bottom, "left": left, "right": right}
+        )
+    except Exception as e:
+        logger.exception(f"docx_set_margins failed: {e}")
+        return create_error_response(f"Failed to set margins: {str(e)}", error_type="UpdateError")
 
 def docx_extract_format_template(session_id: str, element_id: str) -> str:
     """
@@ -352,7 +400,7 @@ def docx_extract_format_template(session_id: str, element_id: str) -> str:
         element_id (str): ID of the element to extract format from.
 
     Returns:
-        str: JSON string containing the format template.
+        str: JSON response containing the format template.
 
     Raises:
         ValueError: If element not found or type unsupported.
@@ -364,22 +412,32 @@ def docx_extract_format_template(session_id: str, element_id: str) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_extract_format_template failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     element = session.get_object(element_id)
     if not element:
         logger.error(f"docx_extract_format_template failed: Element {element_id} not found")
-        raise ValueError(f"Element {element_id} not found")
+        return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")
 
     manager = TemplateManager()
     try:
         template = manager.extract_template(element)
-        result = manager.to_json(template)
+        template_str = manager.to_json(template)
+
         logger.debug(f"docx_extract_format_template success: {element_id}")
-        return result
+        # We return the raw JSON string as the main result for compatibility?
+        # No, we promised structured JSON.
+        # But wait, the return type annotation is `str`.
+        # If we return a JSON string that contains the template JSON string inside it, or as an object?
+        # Ideally as an object in 'data'.
+        return create_success_response(
+            message=f"Template extracted from {element_id}",
+            template=json.loads(template_str),
+            source_id=element_id
+        )
     except Exception as e:
-        logger.error(f"docx_extract_format_template failed: {e}")
-        raise ValueError(f"Failed to extract template: {str(e)}")
+        logger.exception(f"docx_extract_format_template failed: {e}")
+        return create_error_response(f"Failed to extract template: {str(e)}", error_type="ExtractionError")
 
 
 def docx_apply_format_template(session_id: str, element_id: str, template_json: str) -> str:
@@ -400,7 +458,7 @@ def docx_apply_format_template(session_id: str, element_id: str, template_json: 
         template_json (str): JSON string returned by docx_extract_format_template.
 
     Returns:
-        str: Success message.
+        str: JSON response with success message.
     """
     from docx_mcp_server.server import session_manager
 
@@ -409,22 +467,34 @@ def docx_apply_format_template(session_id: str, element_id: str, template_json: 
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_apply_format_template failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     element = session.get_object(element_id)
     if not element:
         logger.error(f"docx_apply_format_template failed: Element {element_id} not found")
-        raise ValueError(f"Element {element_id} not found")
+        return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")
 
     manager = TemplateManager()
     try:
         template = manager.from_json(template_json)
         manager.apply_template(element, template)
+
+        # Update context
+        session.update_context(element_id, action="access")
+
+        # Update cursor
+        session.cursor.element_id = element_id
+        session.cursor.position = "after"
+
         logger.debug(f"docx_apply_format_template success: {element_id}")
-        return f"Template applied to {element_id}"
+        return create_context_aware_response(
+            session,
+            message=f"Template applied to {element_id}",
+            element_id=element_id
+        )
     except Exception as e:
-        logger.error(f"docx_apply_format_template failed: {e}")
-        raise ValueError(f"Failed to apply template: {str(e)}")
+        logger.exception(f"docx_apply_format_template failed: {e}")
+        return create_error_response(f"Failed to apply template: {str(e)}", error_type="ApplicationError")
 
 
 def register_tools(mcp: FastMCP):

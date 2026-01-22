@@ -2,6 +2,11 @@
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Pt, RGBColor
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,7 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
             the last created paragraph from session context.
 
     Returns:
-        str: Element ID of the new run (format: "run_xxxxx").
+        str: JSON response with element_id and cursor context.
 
     Raises:
         ValueError: If session_id is invalid or paragraph_id not found.
@@ -75,47 +80,47 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_run failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if paragraph_id is None:
         # Implicit context
         if not session.last_created_id:
             logger.error(f"docx_add_run failed: No paragraph context available")
-            raise ValueError("No paragraph context available. Please specify paragraph_id.")
+            return create_error_response("No paragraph context available. Please specify paragraph_id.", error_type="NoContext")
         paragraph_id = session.last_created_id
 
     paragraph = session.get_object(paragraph_id)
     if not paragraph:
         logger.error(f"docx_add_run failed: Paragraph {paragraph_id} not found")
-        raise ValueError(f"Paragraph {paragraph_id} not found")
+        return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
     # Simple type check
     if not hasattr(paragraph, 'add_run'):
          # If the last_created_id was a table or something else, we might have an issue
          logger.error(f"docx_add_run failed: Object {paragraph_id} is not a paragraph")
-         raise ValueError(f"Object {paragraph_id} is not a paragraph (cannot add run)")
+         return create_error_response(f"Object {paragraph_id} is not a paragraph (cannot add run)", error_type="InvalidElementType")
 
-    run = paragraph.add_run(text)
-    r_id = session.register_object(run, "run")
-
-    # Update context: this is a creation action
-    session.update_context(r_id, action="create")
-
-    # Update cursor to point after the new run
-    session.cursor.element_id = r_id
-    session.cursor.parent_id = paragraph_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = r_id
     try:
-        context = session.get_cursor_context()
-        result_msg = f"{r_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        run = paragraph.add_run(text)
+        r_id = session.register_object(run, "run")
 
-    logger.debug(f"docx_add_run success: {r_id}")
-    return result_msg
+        # Update context: this is a creation action
+        session.update_context(r_id, action="create")
+
+        # Update cursor to point after the new run
+        session.cursor.element_id = r_id
+        session.cursor.parent_id = paragraph_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_run success: {r_id}")
+        return create_context_aware_response(
+            session,
+            message="Run added successfully",
+            element_id=r_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_run failed: {e}")
+        return create_error_response(f"Failed to add run: {str(e)}", error_type="CreationError")
 
 def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     """
@@ -135,7 +140,7 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
         new_text (str): New text content to replace existing text.
 
     Returns:
-        str: Success message confirming the update.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or run_id is invalid.
@@ -167,34 +172,35 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_update_run_text failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     run = session.get_object(run_id)
     if not run:
         logger.error(f"docx_update_run_text failed: Run {run_id} not found")
-        raise ValueError(f"Run {run_id} not found")
+        return create_error_response(f"Run {run_id} not found", error_type="ElementNotFound")
 
     if not hasattr(run, 'text'):
         logger.error(f"docx_update_run_text failed: Object {run_id} is not a run")
-        raise ValueError(f"Object {run_id} is not a run")
+        return create_error_response(f"Object {run_id} is not a run", error_type="InvalidElementType")
 
-    # Update text while preserving formatting
-    run.text = new_text
-
-    # Update cursor
-    session.cursor.element_id = run_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Run {run_id} updated successfully"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        # Update text while preserving formatting
+        run.text = new_text
 
-    logger.debug(f"docx_update_run_text success: {run_id}")
-    return result_msg
+        # Update cursor
+        session.cursor.element_id = run_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_update_run_text success: {run_id}")
+        return create_context_aware_response(
+            session,
+            message="Run text updated successfully",
+            element_id=run_id,
+            changed_fields=["text"]
+        )
+    except Exception as e:
+        logger.exception(f"docx_update_run_text failed: {e}")
+        return create_error_response(f"Failed to update run text: {str(e)}", error_type="UpdateError")
 
 def docx_set_font(
     session_id: str,
@@ -225,7 +231,7 @@ def docx_set_font(
             "0000FF" for blue). Must be 6 characters (RRGGBB format).
 
     Returns:
-        str: Success message confirming font update.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or run_id is invalid.
@@ -263,45 +269,51 @@ def docx_set_font(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_set_font failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     run = session.get_object(run_id)
     if not run:
         logger.error(f"docx_set_font failed: Run {run_id} not found")
-        raise ValueError(f"Run {run_id} not found")
+        return create_error_response(f"Run {run_id} not found", error_type="ElementNotFound")
 
-    font = run.font
-    if size is not None:
-        font.size = Pt(size)
-    if bold is not None:
-        font.bold = bold
-    if italic is not None:
-        font.italic = italic
-    if color_hex:
-        # Parse hex string "RRGGBB"
-        try:
-            r = int(color_hex[0:2], 16)
-            g = int(color_hex[2:4], 16)
-            b = int(color_hex[4:6], 16)
-            font.color.rgb = RGBColor(r, g, b)
-        except ValueError as e:
-            logger.error(f"docx_set_font failed: Invalid hex color {color_hex}")
-            raise ValueError(f"Invalid hex color: {color_hex}")
-
-    # Update cursor to point to this run
-    session.cursor.element_id = run_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Font updated for {run_id}"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        font = run.font
+        changed = []
+        if size is not None:
+            font.size = Pt(size)
+            changed.append("size")
+        if bold is not None:
+            font.bold = bold
+            changed.append("bold")
+        if italic is not None:
+            font.italic = italic
+            changed.append("italic")
+        if color_hex:
+            # Parse hex string "RRGGBB"
+            try:
+                r = int(color_hex[0:2], 16)
+                g = int(color_hex[2:4], 16)
+                b = int(color_hex[4:6], 16)
+                font.color.rgb = RGBColor(r, g, b)
+                changed.append("color")
+            except ValueError:
+                logger.error(f"docx_set_font failed: Invalid hex color {color_hex}")
+                return create_error_response(f"Invalid hex color: {color_hex}", error_type="ValidationError")
 
-    logger.debug(f"docx_set_font success: {run_id}")
-    return result_msg
+        # Update cursor to point to this run
+        session.cursor.element_id = run_id
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_set_font success: {run_id}")
+        return create_context_aware_response(
+            session,
+            message="Font updated successfully",
+            element_id=run_id,
+            changed_properties=changed
+        )
+    except Exception as e:
+        logger.exception(f"docx_set_font failed: {e}")
+        return create_error_response(f"Failed to update font: {str(e)}", error_type="UpdateError")
 
 
 def register_tools(mcp: FastMCP):
