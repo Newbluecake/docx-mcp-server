@@ -164,7 +164,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         scope_id=scope_id
     )
 
-def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, position: str) -> str:
+def docx_insert_image(session_id: str, image_path: str, position: str, width: float = None, height: float = None) -> str:
     """
     Insert an image into the document.
 
@@ -179,10 +179,10 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     Args:
         session_id (str): Active session ID returned by docx_create().
         image_path (str): Absolute or relative path to the image file (PNG, JPG, etc.).
-        width (float, optional): Image width in inches. If None, uses original size.
-        height (float, optional): Image height in inches. If None, uses original size.
         position (str): Insertion position string (e.g., "after:para_123").
             If used, creates a new paragraph for the image at that location.
+        width (float, optional): Image width in inches. If None, uses original size.
+        height (float, optional): Image height in inches. If None, uses original size.
 
     Returns:
         str: JSON response with element ID of the container paragraph or run.
