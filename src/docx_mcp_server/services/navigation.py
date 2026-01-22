@@ -246,13 +246,20 @@ class ContextBuilder:
         # Default to concise mode (range=1)
         visual = self.visualizer.generate_tree_view(element, sibling_range=1)
 
+        # Get position from session if available
+        position = "after"
+        if hasattr(self.session, 'cursor'):
+             position = self.session.cursor.position
+
         return {
             "element_id": element_id,
             "cursor": {
                 "element_id": element_id,
                 "parent_id": parent_id,
+                "position": position,
                 "path": path,
-                "visual": visual
+                "visual": visual,
+                "context": visual  # Alias visual as context for compatibility
             }
         }
 
