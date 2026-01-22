@@ -12,6 +12,7 @@ from docx_mcp_server.utils.logger import (
     LEVEL_NAMES,
     set_global_log_level,
 )
+from docx_mcp_server.utils.logging_config import setup_file_logging
 
 # Version constant
 VERSION = "0.1.3"
@@ -157,6 +158,41 @@ Environment Variables:
         help="Logging level (default: INFO, override with DOCX_MCP_LOG_LEVEL)"
     )
 
+    # File logging arguments
+    log_file_group = parser.add_mutually_exclusive_group()
+    log_file_group.add_argument(
+        "--log-file",
+        action="store_true",
+        default=True,
+        help="Enable file logging (default: enabled)"
+    )
+    log_file_group.add_argument(
+        "--no-log-file",
+        action="store_true",
+        help="Disable file logging"
+    )
+
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        default="./logs",
+        help="Directory for log files (default: ./logs)"
+    )
+
+    parser.add_argument(
+        "--log-max-bytes",
+        type=int,
+        default=10485760,  # 10MB
+        help="Maximum size of each log file in bytes (default: 10MB)"
+    )
+
+    parser.add_argument(
+        "--log-backup-count",
+        type=int,
+        default=5,
+        help="Number of backup log files to keep (default: 5)"
+    )
+
     parser.add_argument(
         "--mount-path", "-m",
         type=str,
@@ -177,6 +213,23 @@ Environment Variables:
     except ValueError:
         logger.warning(f"Invalid log level '{args.log_level}', falling back to INFO")
         set_global_log_level(logging.INFO)
+
+    # Setup file logging if enabled
+    file_logging_enabled = not args.no_log_file
+    if file_logging_enabled:
+        success = setup_file_logging(
+            log_dir=args.log_dir,
+            max_bytes=args.log_max_bytes,
+            backup_count=args.log_backup_count,
+            log_level=logging.getLogger().getEffectiveLevel()
+        )
+        if success:
+            logger.info(f"File logging enabled: {args.log_dir}/docx-mcp-server.log")
+            logger.info(f"Log rotation: {args.log_max_bytes} bytes, {args.log_backup_count} backups")
+        else:
+            logger.warning("File logging failed to initialize, using console only")
+    else:
+        logger.info("File logging disabled")
 
     # Print startup information
     logger.info(f"Starting docx-mcp-server v{VERSION}")
