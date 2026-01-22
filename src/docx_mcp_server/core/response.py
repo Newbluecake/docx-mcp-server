@@ -75,7 +75,13 @@ def create_success_response(
         data["element_id"] = element_id
 
     if cursor:
-        data["cursor"] = cursor.to_dict()
+        if isinstance(cursor, dict):
+            data["cursor"] = cursor
+        elif hasattr(cursor, 'to_dict'):
+            data["cursor"] = cursor.to_dict()
+        else:
+            # Fallback or raise? Let's just use as is or try __dict__
+            data["cursor"] = getattr(cursor, '__dict__', str(cursor))
 
     # Add any extra data fields
     data.update(extra_data)

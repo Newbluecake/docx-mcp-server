@@ -12,6 +12,9 @@ from docx_mcp_server.core.response import (
     create_success_response
 )
 
+from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
+from docx_mcp_server.core.xml_util import ElementManipulator
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,7 +164,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         scope_id=scope_id
     )
 
-def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None) -> str:
+def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None, position: str = None) -> str:
     """
     Insert an image into the document.
 
@@ -179,6 +182,8 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         width (float, optional): Image width in inches. If None, uses original size.
         height (float, optional): Image height in inches. If None, uses original size.
         parent_id (str, optional): ID of parent paragraph. If None, creates new paragraph.
+        position (str, optional): Insertion position string (e.g., "after:para_123").
+            If used, creates a new paragraph for the image at that location.
 
     Returns:
         str: JSON response with element ID of the container paragraph or run.
@@ -199,6 +204,9 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         >>> para_id = docx_add_paragraph(session_id, "See image: ")
         >>> docx_insert_image(session_id, "./diagram.png", width=2.0, parent_id=para_id)
 
+        Insert at specific position:
+        >>> docx_insert_image(session_id, "./logo.png", position="start:document_body")
+
     Notes:
         - Supported formats: PNG, JPG, GIF, BMP
         - Size is in inches (1 inch = 2.54 cm)
@@ -210,7 +218,7 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, parent_id={parent_id}")
+    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, parent_id={parent_id}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -221,59 +229,96 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         logger.error(f"docx_insert_image failed: Image file not found - {image_path}")
         return create_error_response(f"Image file not found: {image_path}", error_type="FileNotFound")
 
-    # Determine parent
-    parent = session.document
-    if parent_id:
-        parent_obj = session.get_object(parent_id)
-        if parent_obj:
-            # If parent is a paragraph, we can add a run with picture?
-            # python-docx: run.add_picture()
-            if hasattr(parent_obj, "add_run"):
-                 # It's a paragraph
-                 run = parent_obj.add_run()
-                 run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
-                 r_id = session.register_object(run, "run")
-                 session.update_context(r_id, action="create")
+    # Resolve Target Parent and Position
+    target_parent = session.document
+    ref_element = None
+    mode = "append"
 
-                 # Update cursor
-                 session.cursor.element_id = r_id
-                 session.cursor.position = "after"
+    try:
+        if position:
+            resolver = PositionResolver(session)
+            # If position is specified, we generally expect to create a NEW paragraph for the image
+            # unless the position resolves to "inside" a paragraph, which is rare for this resolver.
+            # Default parent is document body.
+            target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+        else:
+            if parent_id:
+                obj = session.get_object(parent_id)
+                if obj:
+                    target_parent = obj
 
-                 logger.debug(f"docx_insert_image success: created run {r_id} in paragraph {parent_id}")
-                 return create_context_aware_response(
-                     session,
-                     message="Image inserted into paragraph successfully",
-                     element_id=r_id,
-                     parent_id=parent_id,
-                     image_path=image_path
-                 )
-            elif hasattr(parent_obj, "add_picture"):
-                 # Maybe it's a run already? No, runs don't have add_picture, they ARE the container
-                 # Actually run.add_picture exists.
-                 pass
+            mode = "append"
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
 
-    # Default: Add new paragraph then run with picture
-    paragraph = session.document.add_paragraph()
-    run = paragraph.add_run()
-    run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
+    # Case 1: Target is a Paragraph -> Add Run with Picture
+    if hasattr(target_parent, "add_run"):
+        try:
+            run = target_parent.add_run()
+            run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
 
-    # Register the run as the object of interest? Or the paragraph?
-    # Let's register the paragraph as the structural element.
-    p_id = session.register_object(paragraph, "para")
-    session.update_context(p_id, action="create")
+            r_id = session.register_object(run, "run")
+            session.update_context(r_id, action="create")
 
-    # Update cursor
-    session.cursor.element_id = p_id
-    session.cursor.parent_id = "document_body"
-    session.cursor.position = "after"
+            session.cursor.element_id = r_id
+            session.cursor.position = "after"
 
-    logger.debug(f"docx_insert_image success: created paragraph {p_id}")
-    return create_context_aware_response(
-        session,
-        message="Image inserted successfully",
-        element_id=p_id,
-        image_path=image_path
-    )
+            # Context for Run
+            builder = ContextBuilder(session)
+            data = builder.build_response_data(run, r_id)
+
+            return create_success_response(
+                message="Image inserted into paragraph successfully",
+                image_path=image_path,
+                **data
+            )
+        except Exception as e:
+            logger.exception(f"docx_insert_image failed (add run): {e}")
+            return create_error_response(f"Failed to add image to paragraph: {str(e)}", error_type="CreationError")
+
+    # Case 2: Target is a Document/Body -> Create New Paragraph with Picture
+    elif hasattr(target_parent, "add_paragraph"):
+        try:
+            # Create paragraph
+            paragraph = target_parent.add_paragraph()
+            run = paragraph.add_run()
+            run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
+
+            # Move if necessary
+            if mode != "append":
+                if mode == "before" and ref_element:
+                    ElementManipulator.insert_xml_before(ref_element._element, paragraph._element)
+                elif mode == "after" and ref_element:
+                    ElementManipulator.insert_xml_after(ref_element._element, paragraph._element)
+                elif mode == "start":
+                    container_xml = target_parent._element
+                    if hasattr(target_parent, '_body'):
+                        container_xml = target_parent._body._element
+                    ElementManipulator.insert_at_index(container_xml, paragraph._element, 0)
+
+            # Register Paragraph
+            p_id = session.register_object(paragraph, "para")
+            session.update_context(p_id, action="create")
+
+            session.cursor.element_id = p_id
+            session.cursor.position = "after"
+
+            # Context
+            builder = ContextBuilder(session)
+            data = builder.build_response_data(paragraph, p_id)
+
+            return create_success_response(
+                message="Image inserted successfully",
+                image_path=image_path,
+                **data
+            )
+        except Exception as e:
+            logger.exception(f"docx_insert_image failed (new para): {e}")
+            return create_error_response(f"Failed to insert image: {str(e)}", error_type="CreationError")
+
+    else:
+        return create_error_response(f"Target object {type(target_parent).__name__} cannot contain images", error_type="InvalidParent")
+
 
 
 def register_tools(mcp: FastMCP):

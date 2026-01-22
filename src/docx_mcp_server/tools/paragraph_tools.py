@@ -1,175 +1,196 @@
 """Paragraph manipulation tools"""
 import logging
+from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
     create_context_aware_response,
     create_error_response,
+    create_success_response,
     CursorInfo
 )
+from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
+from docx_mcp_server.core.xml_util import ElementManipulator
 
 logger = logging.getLogger(__name__)
 
 
-def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id: str = None) -> str:
+def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id: str = None, position: str = None) -> str:
     """
     Add a new paragraph to the document or a specific parent container.
 
-    Creates a paragraph with the specified text content. Paragraphs are the fundamental
-    building blocks for text content in Word documents.
+    Creates a paragraph with the specified text content. Supports precise positioning
+    via the 'position' parameter (e.g., "after:para_123").
 
     Typical Use Cases:
         - Add body text to a document
+        - Insert text at specific locations (after/before existing elements)
         - Add content to table cells
-        - Create structured content with specific styles
 
     Args:
         session_id (str): Active session ID returned by docx_create().
         text (str): Text content for the paragraph. Can be empty string.
         style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text').
             Defaults to None (Normal style).
-        parent_id (str, optional): ID of parent container (e.g., cell_id from docx_get_cell).
-            If None, adds to document body.
+        parent_id (str, optional): ID of parent container. If None, defaults to document body.
+            Ignored if 'position' implies a different parent.
+        position (str, optional): Insertion position string.
+            Format: "mode:target_id". Modes: after, before, inside, start, end.
+            Example: "after:para_123" (insert after para_123).
 
     Returns:
-        str: JSON response with element_id and cursor context.
-
-    Raises:
-        ValueError: If session_id is invalid or parent_id not found.
-        ValueError: If parent object cannot contain paragraphs.
-
-    Examples:
-        Add paragraph to document:
-        >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "Hello World")
-        >>> print(para_id)
-        'para_a1b2c3d4'
-
-        Add styled paragraph:
-        >>> para_id = docx_add_paragraph(session_id, "Item 1", style="List Bullet")
-
-        Add paragraph to table cell:
-        >>> table_id = docx_add_table(session_id, 2, 2)
-        >>> cell_id = docx_get_cell(session_id, table_id, 0, 0)
-        >>> para_id = docx_add_paragraph(session_id, "Cell content", parent_id=cell_id)
-
-    Notes:
-        - Returns element_id for use in subsequent operations (e.g., adding runs)
-        - Sets session context to this paragraph for implicit operations
-        - Empty text is valid - use for formatting-only paragraphs
-
-    See Also:
-        - docx_add_run: Add formatted text to paragraph
-        - docx_add_heading: Add heading instead of paragraph
-        - docx_update_paragraph_text: Modify existing paragraph
+        str: JSON response with element_id, visual context tree, and cursor info.
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_paragraph called: session_id={session_id}, parent_id={parent_id}")
+    logger.debug(f"docx_add_paragraph called: session_id={session_id}, parent_id={parent_id}, position={position}")
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_paragraph failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    parent = session.document
-    if parent_id:
-        parent = session.get_object(parent_id)
-        if not parent:
-            logger.error(f"docx_add_paragraph failed: Parent {parent_id} not found")
-            return create_error_response(f"Parent object {parent_id} not found", error_type="ParentNotFound")
-        if not hasattr(parent, 'add_paragraph'):
-            logger.error(f"docx_add_paragraph failed: Parent {parent_id} cannot contain paragraphs")
-            return create_error_response(f"Object {parent_id} cannot contain paragraphs", error_type="InvalidParent")
+    # Resolve Target Parent and Position
+    target_parent = None
+    ref_element = None
+    mode = "append"
 
     try:
-        paragraph = parent.add_paragraph(text, style=style)
+        if position:
+            resolver = PositionResolver(session)
+            # Use parent_id as hint if provided, otherwise document root
+            default_p = session.get_object(parent_id) if parent_id else session.document
+            target_parent, ref_element, mode = resolver.resolve(position, default_parent=default_p)
+        else:
+            # Legacy behavior
+            if parent_id:
+                target_parent = session.get_object(parent_id)
+                if not target_parent:
+                    return create_error_response(f"Parent object {parent_id} not found", error_type="ParentNotFound")
+            else:
+                target_parent = session.document
+            mode = "append"
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
+
+    if not hasattr(target_parent, 'add_paragraph'):
+         return create_error_response(f"Object {type(target_parent).__name__} cannot contain paragraphs", error_type="InvalidParent")
+
+    try:
+        # Create Paragraph (always appended first by python-docx)
+        paragraph = target_parent.add_paragraph(text, style=style)
+
+        # Move if necessary
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, paragraph._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, paragraph._element)
+            elif mode == "start":
+                 # Determine correct container element
+                 container_xml = target_parent._element
+                 # If target is Document, we want to insert into its body
+                 if hasattr(target_parent, '_body'):
+                     container_xml = target_parent._body._element
+
+                 ElementManipulator.insert_at_index(container_xml, paragraph._element, 0)
+            # "inside" usually implies append (handled by default) or start (handled above)
+
+        # Register
         p_id = session.register_object(paragraph, "para")
 
-        # Update context: this is a creation action
+        # Update context
         session.update_context(p_id, action="create")
 
-        # Update cursor to point after the new paragraph
+        # Update session cursor state for consistency
         session.cursor.element_id = p_id
-        session.cursor.parent_id = parent_id if parent_id else "document_body"
         session.cursor.position = "after"
+        # Try to set parent_id for cursor if possible (ContextBuilder handles response, but session state matters too)
+        # We leave strict session cursor management to the specific tools or implicit updates
 
-        logger.debug(f"docx_add_paragraph success: {p_id}")
-        return create_context_aware_response(
-            session,
+        # Build Enhanced Response
+        builder = ContextBuilder(session)
+        data = builder.build_response_data(paragraph, p_id)
+
+        return create_success_response(
             message="Paragraph created successfully",
-            element_id=p_id
+            **data # Unpacks element_id, cursor (with visual tree)
         )
+
     except Exception as e:
         logger.exception(f"docx_add_paragraph failed: {e}")
         return create_error_response(f"Failed to create paragraph: {str(e)}", error_type="CreationError")
 
-def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
+def docx_add_heading(session_id: str, text: str, level: int = 1, position: str = None) -> str:
     """
     Add a heading to the document.
 
-    Creates a heading paragraph with the specified level. Headings provide document
-    structure and are used for navigation and table of contents generation.
-
-    Typical Use Cases:
-        - Create document sections and chapters
-        - Structure reports and articles
-        - Generate navigable document outlines
+    Creates a heading paragraph with the specified level. Supports positioning.
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
+        session_id (str): Active session ID.
         text (str): Heading text content.
-        level (int, optional): Heading level from 0-9. Level 0 is Title style,
-            levels 1-9 are Heading 1-9 styles. Defaults to 1.
+        level (int): Heading level (0-9).
+        position (str, optional): Insertion position (e.g., "before:para_123").
 
     Returns:
-        str: JSON response with element_id and cursor context.
-
-    Raises:
-        ValueError: If session_id is invalid or level is out of range.
-
-    Examples:
-        Add main heading:
-        >>> session_id = docx_create()
-        >>> h1_id = docx_add_heading(session_id, "Chapter 1", level=1)
-
-        Add title and subheadings:
-        >>> title_id = docx_add_heading(session_id, "Report Title", level=0)
-        >>> h2_id = docx_add_heading(session_id, "Introduction", level=2)
-
-    Notes:
-        - Level 0 applies Title style (larger, centered)
-        - Levels 1-9 apply Heading 1-9 styles
-        - Headings are paragraphs with special styling
-
-    See Also:
-        - docx_add_paragraph: Add regular paragraph
+        str: JSON response with element_id and visual context.
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_heading called: session_id={session_id}, text='{text}', level={level}")
-
+    logger.debug(f"docx_add_heading called: session_id={session_id}, level={level}, position={position}")
     session = session_manager.get_session(session_id)
     if not session:
-        logger.error(f"docx_add_heading failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    try:
-        heading = session.document.add_heading(text, level=level)
-        h_id = session.register_object(heading, "para")
+    # Resolve Position
+    # Headings are usually added to Body, but can be in cells too (though rare for main structure)
+    # We assume default parent is Document Body
+    target_parent = session.document
+    ref_element = None
+    mode = "append"
 
-        # Update context: this is a creation action
+    try:
+        if position:
+            resolver = PositionResolver(session)
+            target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+        else:
+            mode = "append"
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
+
+    try:
+        # Create Heading
+        # Note: _Body objects (returned by resolver for main document content) do not have add_heading,
+        # but they do have add_paragraph. Document objects have both.
+        if hasattr(target_parent, 'add_heading'):
+            heading = target_parent.add_heading(text, level=level)
+        elif hasattr(target_parent, 'add_paragraph'):
+            # Fallback: create paragraph with heading style
+            # Level 0 is 'Title', 1-9 is 'Heading X'
+            style = "Title" if level == 0 else f"Heading {level}"
+            heading = target_parent.add_paragraph(text, style=style)
+        else:
+            return create_error_response(f"Object {type(target_parent).__name__} cannot contain headings", error_type="InvalidParent")
+
+        # Move if necessary
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, heading._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, heading._element)
+            elif mode == "start":
+                 ElementManipulator.insert_at_index(target_parent._element, heading._element, 0)
+
+        h_id = session.register_object(heading, "para") # Headings are paragraphs
+
         session.update_context(h_id, action="create")
 
-        # Update cursor to point after the new heading
-        session.cursor.element_id = h_id
-        session.cursor.parent_id = "document_body"
-        session.cursor.position = "after"
+        builder = ContextBuilder(session)
+        data = builder.build_response_data(heading, h_id)
 
-        logger.debug(f"docx_add_heading success: {h_id}")
-        return create_context_aware_response(
-            session,
+        return create_success_response(
             message=f"Heading level {level} created successfully",
-            element_id=h_id
+            **data
         )
     except Exception as e:
         logger.exception(f"docx_add_heading failed: {e}")
@@ -182,11 +203,6 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
     Clears all existing runs in the paragraph and replaces with a single run
     containing the new text. All previous formatting within the paragraph is lost.
 
-    Typical Use Cases:
-        - Update placeholder text in templates
-        - Replace entire paragraph content
-        - Reset paragraph to plain text
-
     Args:
         session_id (str): Active session ID returned by docx_create().
         paragraph_id (str): ID of the paragraph to update.
@@ -194,33 +210,6 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
 
     Returns:
         str: JSON response with success message and cursor context.
-
-    Raises:
-        ValueError: If session_id or paragraph_id is invalid.
-        ValueError: If specified object is not a paragraph.
-
-    Examples:
-        Update paragraph text:
-        >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "Old text")
-        >>> result = docx_update_paragraph_text(session_id, para_id, "New text")
-        >>> print(result)
-        'Paragraph para_xxx updated successfully'
-
-        Update template placeholder:
-        >>> session_id = docx_create(file_path="./template.docx")
-        >>> matches = docx_find_paragraphs(session_id, "{{NAME}}")
-        >>> para_id = json.loads(matches)[0]["id"]
-        >>> docx_update_paragraph_text(session_id, para_id, "John Doe")
-
-    Notes:
-        - Removes all existing runs and their formatting
-        - Creates a single new run with the new text
-        - To preserve formatting, use docx_update_run_text() on individual runs
-
-    See Also:
-        - docx_update_run_text: Update run while preserving formatting
-        - docx_find_paragraphs: Find paragraphs to update
     """
     from docx_mcp_server.server import session_manager
 
@@ -244,11 +233,15 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         session.cursor.element_id = paragraph_id
         session.cursor.position = "after"
 
-        return create_context_aware_response(
-            session,
+        # Use enhanced builder for consistency?
+        # Yes, let's upgrade this too to show the new state
+        builder = ContextBuilder(session)
+        data = builder.build_response_data(paragraph, paragraph_id)
+
+        return create_success_response(
             message=f"Paragraph {paragraph_id} updated successfully",
-            element_id=paragraph_id,
-            changed_fields=["text"]
+            changed_fields=["text"],
+            **data
         )
     except Exception as e:
         logger.exception(f"docx_update_paragraph_text failed: {e}")
@@ -257,43 +250,6 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
 def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
     """
     Create a deep copy of a paragraph with all formatting and runs.
-
-    Duplicates a paragraph including its style, alignment, and all text runs with
-    their individual formatting. The new paragraph is appended to the document.
-
-    Typical Use Cases:
-        - Duplicate formatted content
-        - Replicate paragraph templates
-        - Copy complex formatted text
-
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        paragraph_id (str): ID of the paragraph to copy.
-
-    Returns:
-        str: JSON response with new element_id and cursor context.
-
-    Raises:
-        ValueError: If session_id or paragraph_id is invalid.
-        ValueError: If specified object is not a paragraph.
-
-    Examples:
-        Copy a paragraph:
-        >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Formatted", paragraph_id=para_id)
-        >>> docx_set_font(session_id, run_id, bold=True, size=14)
-        >>> new_para_id = docx_copy_paragraph(session_id, para_id)
-
-    Notes:
-        - Preserves paragraph style and alignment
-        - Copies all runs with their formatting (bold, italic, size, color)
-        - New paragraph is appended to document end
-        - Original paragraph is unchanged
-
-    See Also:
-        - docx_copy_table: Copy tables
-        - docx_add_paragraph: Create new paragraph
     """
     from docx_mcp_server.server import session_manager
 
@@ -345,11 +301,14 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
         session.cursor.parent_id = "document_body"
         session.cursor.position = "after"
 
-        return create_context_aware_response(
-            session,
+        # Use Builder
+        builder = ContextBuilder(session)
+        data = builder.build_response_data(new_para, new_para_id)
+
+        return create_success_response(
             message="Paragraph copied successfully",
-            element_id=new_para_id,
-            source_id=paragraph_id
+            source_id=paragraph_id,
+            **data
         )
     except Exception as e:
         logger.exception(f"docx_copy_paragraph failed: {e}")
@@ -358,53 +317,6 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
 def docx_delete(session_id: str, element_id: str = None) -> str:
     """
     Delete an element from the document.
-
-    Removes a paragraph or table from the document. Note that deletion in python-docx
-    is complex due to XML structure; primarily supports paragraphs and tables.
-
-    Typical Use Cases:
-        - Remove unwanted content
-        - Clean up template placeholders
-        - Delete empty or obsolete elements
-
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        element_id (str, optional): ID of element to delete (paragraph or table).
-            If None, uses last accessed element from context.
-
-    Returns:
-        str: JSON response with success message and cursor context.
-
-    Raises:
-        ValueError: If session_id or element_id is invalid.
-        ValueError: If no element context available when element_id is None.
-        ValueError: If element cannot be deleted (no parent or unsupported type).
-
-    Examples:
-        Delete specific paragraph:
-        >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "Temporary")
-        >>> docx_delete(session_id, para_id)
-        'Deleted para_xxx'
-
-        Delete using context:
-        >>> para_id = docx_add_paragraph(session_id, "Remove me")
-        >>> docx_delete(session_id)
-
-        Delete found paragraph:
-        >>> matches = docx_find_paragraphs(session_id, "{{REMOVE}}")
-        >>> for match in json.loads(matches):
-        ...     docx_delete(session_id, match["id"])
-
-    Notes:
-        - Primarily supports paragraphs and tables
-        - Element is removed from object registry
-        - Context is reset if deleted element was in context
-        - Cannot delete runs independently (delete parent paragraph instead)
-
-    See Also:
-        - docx_find_paragraphs: Find paragraphs to delete
-        - docx_replace_text: Alternative to deletion for text changes
     """
     from docx_mcp_server.server import session_manager
 
@@ -423,10 +335,11 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
         return create_error_response(f"Object {element_id} not found", error_type="ElementNotFound")
 
     # Try to delete
-    # Strategy: get the XML element and remove it from its parent
     try:
         if hasattr(obj, "_element") and obj._element.getparent() is not None:
-            obj._element.getparent().remove(obj._element)
+            parent = obj._element.getparent()
+            parent.remove(obj._element)
+
             # Remove from registry
             if element_id in session.object_registry:
                 del session.object_registry[element_id]
@@ -440,6 +353,10 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
             # Update cursor to parent container since element is gone
             session.cursor.element_id = None
             session.cursor.position = "inside_end"
+
+            # For deletion, we can't show the element anymore.
+            # Maybe show the parent's context?
+            # Let's keep it simple for now, deletion response doesn't strictly need the visual tree of the deleted item.
 
             return create_context_aware_response(
                 session,
@@ -455,39 +372,6 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
 def docx_add_page_break(session_id: str) -> str:
     """
     Insert a page break at the current position in the document.
-
-    Forces content after the break to start on a new page. Useful for separating
-    sections or chapters in a document.
-
-    Typical Use Cases:
-        - Separate chapters or major sections
-        - Start new content on a fresh page
-        - Control pagination in reports
-
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-
-    Returns:
-        str: JSON response confirming page break insertion.
-
-    Raises:
-        ValueError: If session_id is invalid or session has expired.
-
-    Examples:
-        Add page break between sections:
-        >>> session_id = docx_create()
-        >>> docx_add_heading(session_id, "Chapter 1", level=1)
-        >>> docx_add_paragraph(session_id, "Content of chapter 1...")
-        >>> docx_add_page_break(session_id)
-        >>> docx_add_heading(session_id, "Chapter 2", level=1)
-
-    Notes:
-        - Page break is inserted at the end of the document
-        - Content added after this call will appear on the new page
-        - Does not return an element_id (structural operation)
-
-    See Also:
-        - docx_add_heading: Add section headings
     """
     from docx_mcp_server.server import session_manager
 
