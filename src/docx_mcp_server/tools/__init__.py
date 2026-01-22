@@ -14,6 +14,10 @@ def register_all_tools(mcp: FastMCP):
     from . import system_tools
     from . import cursor_tools
     from . import copy_tools
+    from . import composite_tools
+
+    # Register composite tools first (high-level, commonly used)
+    composite_tools.register_tools(mcp)
 
     # Register each module's tools
     session_tools.register_tools(mcp)

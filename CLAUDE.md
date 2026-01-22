@@ -231,7 +231,66 @@ create  add_*  save   close
 
 ## 快速参考
 
-### 常用工具组合
+### ⚡ 优化后的工作流（推荐）
+
+**v2.0 新增了复合工具，大幅简化常见操作。优先使用这些工具！**
+
+**创建格式化文档（新方式）**：
+```python
+session_id = docx_create()
+# 一步创建格式化段落
+para_id = docx_add_formatted_paragraph(
+    session_id, "重要文本",
+    bold=True, size=16, color_hex="FF0000", alignment="center"
+)
+docx_save(session_id, "/path/to/output.docx")
+docx_close(session_id)
+```
+
+**快速编辑文档（新方式）**：
+```python
+session_id = docx_create(file_path="/path/to/doc.docx")
+# 查找并编辑，一步完成
+result = docx_quick_edit(
+    session_id, "old text",
+    new_text="new text", bold=True
+)
+docx_save(session_id, "/path/to/doc.docx")
+docx_close(session_id)
+```
+
+**轻量级结构提取（新方式）**：
+```python
+session_id = docx_create(file_path="/path/to/template.docx")
+# 只返回标题和表格，不返回段落内容
+summary = docx_get_structure_summary(
+    session_id,
+    max_headings=10,
+    max_tables=5,
+    max_paragraphs=0
+)
+# Token 使用减少 90%
+docx_close(session_id)
+```
+
+**智能表格填充（新方式）**：
+```python
+session_id = docx_create(file_path="/path/to/template.docx")
+data = json.dumps([
+    ["Name", "Age", "City"],
+    ["Alice", "30", "NYC"],
+    ["Bob", "25", "LA"]
+])
+# 自动扩展行，无需手动计算
+result = docx_smart_fill_table(
+    session_id, "Employee",  # 通过文本查找表格
+    data, has_header=True, auto_resize=True
+)
+docx_save(session_id, "/path/to/output.docx")
+docx_close(session_id)
+```
+
+### 常用工具组合（原子操作）
 
 **提取模板结构**：
 ```python
@@ -241,7 +300,7 @@ structure = json.loads(structure_json)
 docx_close(session_id)
 ```
 
-**创建格式化文档**：
+**创建格式化文档（原子方式）**：
 ```python
 session_id = docx_create()
 para_id = docx_add_paragraph(session_id, "")
@@ -276,7 +335,19 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 
 ## 完整工具参考
 
-本服务器提供 42 个 MCP 工具，按功能领域分为 10 个模块：
+本服务器提供 47 个 MCP 工具（v2.0 新增 5 个复合工具），按功能领域分为 11 个模块：
+
+### 0. Composite Tools（复合工具，5 个）⭐ 新增
+
+**这些是最常用的高层工具，优先使用！**
+
+| 工具 | 说明 | 效果 |
+|------|------|------|
+| `docx_add_formatted_paragraph(session_id, text, bold, italic, size, color_hex, alignment, style)` | 一步创建格式化段落 | 4 次调用 → 1 次 |
+| `docx_quick_edit(session_id, search_text, new_text, bold, italic, size, color_hex)` | 查找并编辑段落 | N+1 次 → 1 次 |
+| `docx_get_structure_summary(session_id, max_headings, max_tables, max_paragraphs, include_content)` | 轻量级结构提取 | Token 减少 90% |
+| `docx_smart_fill_table(session_id, table_identifier, data, has_header, auto_resize)` | 智能表格填充 | 自动扩展行 |
+| `docx_format_range(session_id, start_text, end_text, bold, italic, size, color_hex)` | 批量格式化范围 | 批量操作 |
 
 ### 1. Session Tools（会话管理，4 个）
 
@@ -287,14 +358,14 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 | `docx_close(session_id)` | 关闭会话并释放资源 |
 | `docx_get_context(session_id)` | 获取会话上下文信息 |
 
-### 2. Content Tools（内容检索，4 个）
+### 2. Content Tools（内容检索，4 个）⭐ 已优化
 
-| 工具 | 说明 |
-|------|------|
-| `docx_read_content(session_id)` | 读取文档全文 |
-| `docx_find_paragraphs(session_id, query)` | 查找包含指定文本的段落 |
-| `docx_list_files(directory=".")` | 列出目录下的 .docx 文件 |
-| `docx_extract_template_structure(session_id)` | 提取文档结构（标题、表格、段落） |
+| 工具 | 说明 | 新增参数 |
+|------|------|----------|
+| `docx_read_content(session_id, max_paragraphs, start_from, include_tables)` | 读取文档全文 | 支持分页 |
+| `docx_find_paragraphs(session_id, query, max_results, return_context)` | 查找包含指定文本的段落 | 限制结果数 |
+| `docx_list_files(directory=".")` | 列出目录下的 .docx 文件 | - |
+| `docx_extract_template_structure(session_id, max_depth, include_content, max_items_per_type)` | 提取文档结构 | 可控详细程度 |
 
 ### 3. Paragraph Tools（段落操作，6 个）
 

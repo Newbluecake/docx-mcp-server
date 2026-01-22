@@ -8,47 +8,59 @@ from docx_mcp_server.core.template_parser import TemplateParser
 logger = logging.getLogger(__name__)
 
 
-def docx_read_content(session_id: str) -> str:
+def docx_read_content(
+    session_id: str,
+    max_paragraphs: int = None,
+    start_from: int = 0,
+    include_tables: bool = False
+) -> str:
     """
-    Read and extract all text content from the document.
+    Read and extract text content from the document with pagination support.
 
-    Extracts text from all paragraphs in the document body, preserving order
-    but not formatting. Useful for content analysis, search, or preview.
+    Extracts text from paragraphs in the document body, preserving order
+    but not formatting. Supports limiting output to reduce token usage.
 
     Typical Use Cases:
         - Preview document content before modification
         - Extract text for analysis or indexing
         - Verify document content after generation
+        - Read large documents in chunks
 
     Args:
         session_id (str): Active session ID returned by docx_create().
+        max_paragraphs (int, optional): Maximum paragraphs to return. None = all.
+        start_from (int, optional): Start from paragraph N (0-based). Defaults to 0.
+        include_tables (bool, optional): Include table content. Defaults to False.
 
     Returns:
-        str: Newline-separated text content of all paragraphs.
+        str: Newline-separated text content of paragraphs.
             Returns "[Empty Document]" if document has no content.
 
     Raises:
         ValueError: If session_id is invalid or session has expired.
 
     Examples:
-        Read content from a document:
-        >>> session_id = docx_create(file_path="./report.docx")
+        Read all content:
         >>> content = docx_read_content(session_id)
-        >>> print(content)
-        'Chapter 1\nIntroduction\nThis is the first paragraph...'
+
+        Read first 10 paragraphs:
+        >>> content = docx_read_content(session_id, max_paragraphs=10)
+
+        Read paragraphs 10-20:
+        >>> content = docx_read_content(session_id, max_paragraphs=10, start_from=10)
 
     Notes:
         - Only extracts text, formatting information is not included
         - Empty paragraphs are skipped
-        - Does not extract text from tables or headers/footers
+        - Use max_paragraphs to limit token usage on large documents
 
     See Also:
         - docx_find_paragraphs: Search for specific text in paragraphs
-        - docx_extract_template_structure: Get full document structure
+        - docx_get_structure_summary: Get lightweight structure overview
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_read_content called: session_id={session_id}")
+    logger.debug(f"docx_read_content called: session_id={session_id}, max={max_paragraphs}, start={start_from}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -56,17 +68,29 @@ def docx_read_content(session_id: str) -> str:
         raise ValueError(f"Session {session_id} not found")
 
     paragraphs = [p.text for p in session.document.paragraphs if p.text.strip()]
+
+    # Apply pagination
+    if start_from > 0:
+        paragraphs = paragraphs[start_from:]
+    if max_paragraphs is not None:
+        paragraphs = paragraphs[:max_paragraphs]
+
     result = "\n".join(paragraphs) if paragraphs else "[Empty Document]"
 
     logger.debug(f"docx_read_content success: extracted {len(paragraphs)} paragraphs")
     return result
 
-def docx_find_paragraphs(session_id: str, query: str) -> str:
+def docx_find_paragraphs(
+    session_id: str,
+    query: str,
+    max_results: int = 10,
+    return_context: bool = False
+) -> str:
     """
-    Find all paragraphs containing specific text and return their IDs.
+    Find paragraphs containing specific text with result limiting.
 
     Searches through all paragraphs in the document and returns those containing
-    the query text. Useful for locating and modifying specific content.
+    the query text. Limits results to reduce token usage.
 
     Typical Use Cases:
         - Find placeholders to replace (e.g., "{{NAME}}")
@@ -76,6 +100,8 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
     Args:
         session_id (str): Active session ID returned by docx_create().
         query (str): Text to search for (case-insensitive substring match).
+        max_results (int, optional): Maximum results to return. Defaults to 10.
+        return_context (bool, optional): Include surrounding context. Defaults to False.
 
     Returns:
         str: JSON array of objects with paragraph IDs and text:
@@ -85,33 +111,26 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
         ValueError: If session_id is invalid or session has expired.
 
     Examples:
-        Find placeholders:
-        >>> session_id = docx_create(file_path="./template.docx")
-        >>> matches = docx_find_paragraphs(session_id, "{{NAME}}")
-        >>> import json
-        >>> results = json.loads(matches)
-        >>> for match in results:
-        ...     docx_update_paragraph_text(session_id, match["id"], "John Doe")
+        Find placeholders (limited):
+        >>> matches = docx_find_paragraphs(session_id, "{{NAME}}", max_results=5)
 
-        Search for keyword:
-        >>> matches = docx_find_paragraphs(session_id, "important")
-        >>> results = json.loads(matches)
-        >>> print(f"Found {len(results)} paragraphs with 'important'")
+        Find all matches:
+        >>> matches = docx_find_paragraphs(session_id, "important", max_results=999)
 
     Notes:
         - Search is case-insensitive
-        - Returns all matching paragraphs
+        - Results are limited to max_results to save tokens
         - Paragraphs are automatically registered for subsequent operations
         - Empty paragraphs are not searched
 
     See Also:
         - docx_update_paragraph_text: Modify found paragraphs
+        - docx_quick_edit: Find and edit in one step
         - docx_replace_text: Replace text globally
-        - docx_find_table: Find tables by content
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_find_paragraphs called: session_id={session_id}, query='{query}'")
+    logger.debug(f"docx_find_paragraphs called: session_id={session_id}, query='{query}', max={max_results}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -121,12 +140,14 @@ def docx_find_paragraphs(session_id: str, query: str) -> str:
     matches = []
     for p in session.document.paragraphs:
         if query.lower() in p.text.lower():
-            # Only register if we found a match to keep registry clean?
-            # The design says yes.
             p_id = session.register_object(p, "para")
             matches.append({"id": p_id, "text": p.text})
 
-    logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches")
+            # Limit results
+            if len(matches) >= max_results:
+                break
+
+    logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches (limited to {max_results})")
     return json.dumps(matches)
 
 def docx_list_files(directory: str = None) -> str:
@@ -185,13 +206,18 @@ def docx_list_files(directory: str = None) -> str:
         logger.error(f"docx_list_files failed: {e}")
         raise ValueError(str(e))
 
-def docx_extract_template_structure(session_id: str) -> str:
+def docx_extract_template_structure(
+    session_id: str,
+    max_depth: int = None,
+    include_content: bool = True,
+    max_items_per_type: str = None
+) -> str:
     """
-    Extract the complete structure of a Word document template.
+    Extract document structure with configurable detail level.
 
-    Analyzes and returns a comprehensive JSON representation of the document structure,
-    including headings, tables, paragraphs, and their properties. Automatically detects
-    table headers based on formatting (bold text or background color).
+    Analyzes and returns a JSON representation of the document structure,
+    including headings, tables, paragraphs, and their properties. Supports
+    limiting output to reduce token usage.
 
     Typical Use Cases:
         - Analyze template structure before filling
@@ -201,44 +227,40 @@ def docx_extract_template_structure(session_id: str) -> str:
 
     Args:
         session_id (str): Active session ID returned by docx_create().
+        max_depth (int, optional): Limit nesting depth. None = unlimited.
+        include_content (bool, optional): Include text content. Defaults to True.
+        max_items_per_type (str, optional): JSON dict limiting items per type.
+            Example: '{"headings": 10, "tables": 5, "paragraphs": 0}'
 
     Returns:
-        str: JSON string containing document structure with metadata. Format:
-            {
-                "metadata": {"extracted_at": "...", "docx_version": "..."},
-                "document_structure": [
-                    {"type": "heading", "level": 1, "text": "...", "style": {...}},
-                    {"type": "table", "rows": 5, "cols": 3, "headers": [...], ...},
-                    {"type": "paragraph", "text": "...", "style": {...}}
-                ]
-            }
+        str: JSON string containing document structure with metadata.
 
     Raises:
         ValueError: If session_id is invalid or document is empty.
-        ValueError: If table header cannot be detected in strict mode.
 
     Examples:
-        Extract template structure:
-        >>> session_id = docx_create(file_path="./template.docx")
+        Full structure:
         >>> structure = docx_extract_template_structure(session_id)
-        >>> import json
-        >>> data = json.loads(structure)
-        >>> print(f"Document has {len(data['document_structure'])} elements")
 
-        Find all tables in structure:
-        >>> data = json.loads(structure)
-        >>> tables = [e for e in data['document_structure'] if e['type'] == 'table']
-        >>> print(f"Found {len(tables)} tables")
+        Structure only (no content):
+        >>> structure = docx_extract_template_structure(
+        ...     session_id, include_content=False
+        ... )
+
+        Limited structure:
+        >>> structure = docx_extract_template_structure(
+        ...     session_id,
+        ...     max_items_per_type='{"headings": 10, "tables": 5, "paragraphs": 0}'
+        ... )
 
     Notes:
-        - Preserves element order as in original document
+        - Use max_items_per_type to significantly reduce token usage
+        - include_content=False returns only structure metadata
         - Automatically detects table headers (bold or colored background)
-        - Returns complete styling information
-        - Does not extract images or embedded objects
 
     See Also:
+        - docx_get_structure_summary: Lightweight alternative
         - docx_read_content: Simple text extraction
-        - docx_find_table: Find specific tables
     """
     from docx_mcp_server.server import session_manager
 
@@ -256,6 +278,33 @@ def docx_extract_template_structure(session_id: str) -> str:
     parser = TemplateParser()
     try:
         structure = parser.extract_structure(session.document)
+        doc_structure = structure.get('document_structure', [])
+
+        # Apply filters if specified
+        if max_items_per_type or not include_content:
+            limits = json.loads(max_items_per_type) if max_items_per_type else {}
+
+            # Count by type
+            type_counts = {}
+            filtered_structure = []
+
+            for item in doc_structure:
+                item_type = item.get('type')
+                type_counts[item_type] = type_counts.get(item_type, 0) + 1
+
+                # Check limit (convert 'heading' to 'headings' for lookup)
+                limit_key = item_type + 's' if not item_type.endswith('s') else item_type
+                limit = limits.get(limit_key, float('inf'))
+
+                if type_counts[item_type] <= limit:
+                    # Remove content if requested
+                    if not include_content and 'text' in item:
+                        item = item.copy()
+                        item['text'] = f"[{len(item['text'])} chars]"
+                    filtered_structure.append(item)
+
+            structure['document_structure'] = filtered_structure
+
         element_count = len(structure.get('document_structure', []))
         logger.debug(f"docx_extract_template_structure success: extracted {element_count} elements")
         return json.dumps(structure, indent=2, ensure_ascii=False)

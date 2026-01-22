@@ -32,6 +32,9 @@ class Session:
     auto_save: bool = False
     cursor: Cursor = field(default_factory=Cursor)
 
+    # Context stack for nested operations
+    context_stack: List[str] = field(default_factory=list)
+
     # Reverse ID mapping cache: id(element._element) -> element_id
     _element_id_cache: Dict[int, str] = field(default_factory=dict)
 
@@ -77,6 +80,23 @@ class Session:
     def get_metadata(self, obj_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve metadata for a registered object."""
         return self.element_metadata.get(obj_id)
+
+    def push_context(self, element_id: str):
+        """Push element ID onto context stack for nested operations."""
+        self.context_stack.append(element_id)
+        logger.debug(f"Context pushed: {element_id}, stack depth: {len(self.context_stack)}")
+
+    def pop_context(self) -> Optional[str]:
+        """Pop element ID from context stack."""
+        if self.context_stack:
+            element_id = self.context_stack.pop()
+            logger.debug(f"Context popped: {element_id}, stack depth: {len(self.context_stack)}")
+            return element_id
+        return None
+
+    def get_current_context(self) -> Optional[str]:
+        """Get current context without popping."""
+        return self.context_stack[-1] if self.context_stack else None
 
     def get_object(self, obj_id: str) -> Optional[Any]:
         if not obj_id or not isinstance(obj_id, str):
