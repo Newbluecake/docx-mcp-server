@@ -71,6 +71,140 @@ docx_set_font(session_id, run_id, bold=True, size=14)
 docx_set_alignment(session_id, para_id, "center")
 ```
 
+### 4. 标准化 JSON 响应格式 ⭐ 新增
+
+**v2.1 重大更新**：所有工具现在返回标准化的 JSON 响应，而非纯字符串或抛出异常。这使得 Agent 工作流能够更好地解析结果、处理错误和获取上下文信息。
+
+#### 响应结构
+
+所有工具返回以下 JSON 格式：
+
+```json
+{
+  "status": "success",  // 或 "error"
+  "message": "操作成功的描述",
+  "data": {
+    "element_id": "para_abc123",  // 创建/修改的元素 ID
+    "cursor": {  // 光标位置信息（如适用）
+      "element_id": "para_abc123",
+      "position": "after",
+      "parent_id": "document_body",
+      "context": "Cursor: after paragraph 'Hello World' (para_abc123)"
+    },
+    // 其他操作特定的数据字段
+  }
+}
+```
+
+#### 成功响应示例
+
+```python
+# 创建段落
+result = docx_add_paragraph(session_id, "Hello World")
+data = json.loads(result)
+# {
+#   "status": "success",
+#   "message": "Paragraph created successfully",
+#   "data": {
+#     "element_id": "para_abc123",
+#     "cursor": {
+#       "element_id": "para_abc123",
+#       "position": "after",
+#       "parent_id": "document_body",
+#       "context": "Cursor: after paragraph 'Hello World' (para_abc123)"
+#     }
+#   }
+# }
+
+para_id = data["data"]["element_id"]  # 提取元素 ID
+```
+
+#### 错误响应示例
+
+```python
+# 尝试获取不存在的元素
+result = docx_update_paragraph_text(session_id, "para_nonexistent", "New text")
+data = json.loads(result)
+# {
+#   "status": "error",
+#   "message": "Paragraph para_nonexistent not found",
+#   "data": {
+#     "error_type": "ElementNotFound"
+#   }
+# }
+
+if data["status"] == "error":
+    error_type = data["data"].get("error_type")
+    # 根据错误类型处理
+```
+
+#### 错误类型分类
+
+| 错误类型 | 说明 | 示例 |
+|---------|------|------|
+| `SessionNotFound` | 会话不存在或已过期 | 无效的 session_id |
+| `ElementNotFound` | 元素 ID 不存在 | 引用已删除的段落 |
+| `InvalidElementType` | 元素类型不匹配 | 对表格调用段落操作 |
+| `ValidationError` | 参数验证失败 | 无效的对齐方式、颜色格式 |
+| `FileNotFound` | 文件不存在 | 图片路径错误 |
+| `CreationError` | 创建元素失败 | 内部错误 |
+| `UpdateError` | 更新元素失败 | 内部错误 |
+
+#### Agent 使用模式
+
+```python
+import json
+
+# 1. 解析响应
+result = docx_add_paragraph(session_id, "Text")
+data = json.loads(result)
+
+# 2. 检查状态
+if data["status"] == "success":
+    element_id = data["data"]["element_id"]
+    # 继续操作
+else:
+    error_msg = data["message"]
+    error_type = data["data"].get("error_type")
+    # 错误处理逻辑
+
+# 3. 获取光标上下文（如适用）
+if "cursor" in data["data"]:
+    cursor_context = data["data"]["cursor"]["context"]
+    # 显示给用户或用于决策
+```
+
+#### 迁移指南
+
+**旧代码（v2.0 及之前）**：
+```python
+try:
+    para_id = docx_add_paragraph(session_id, "Text")  # 返回纯字符串
+    # para_id = "para_abc123\n\nCursor: ..."
+except ValueError as e:
+    # 处理异常
+    print(f"Error: {e}")
+```
+
+**新代码（v2.1+）**：
+```python
+result = docx_add_paragraph(session_id, "Text")  # 返回 JSON
+data = json.loads(result)
+
+if data["status"] == "success":
+    para_id = data["data"]["element_id"]  # 干净的 ID
+    cursor_context = data["data"]["cursor"]["context"]  # 分离的上下文
+else:
+    error_msg = data["message"]
+    error_type = data["data"]["error_type"]
+```
+
+**关键变化**：
+1. **不再抛出异常**：所有错误通过 JSON 响应返回
+2. **结构化数据**：element_id 和 cursor 信息分离，易于解析
+3. **错误分类**：error_type 字段便于自动化错误处理
+4. **上下文感知**：cursor.context 提供人类可读的位置描述
+
 ## 开发指南
 
 ### 环境配置与运行
@@ -111,6 +245,12 @@ uv run docx-server-launcher
    （如 `paragraph_tools.py`，或新建模块）
 
 ```python
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response
+)
+
 def docx_new_feature(session_id: str, param: str) -> str:
     """
     工具描述（Claude 会读取这个）
@@ -120,15 +260,54 @@ def docx_new_feature(session_id: str, param: str) -> str:
         param: 参数说明
 
     Returns:
-        str: 返回值说明
+        str: JSON 响应字符串
     """
     from docx_mcp_server.server import session_manager
+
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(
+            f"Session {session_id} not found",
+            error_type="SessionNotFound"
+        )
 
-    # 实现逻辑
-    # ...
+    try:
+        # 实现逻辑
+        result_obj = do_something()
+        element_id = session.register_object(result_obj, "prefix")
+
+        # 更新上下文
+        session.update_context(element_id, action="create")
+
+        # 返回标准化响应
+        return create_context_aware_response(
+            session,
+            message="Operation completed successfully",
+            element_id=element_id,
+            # 可选：添加其他数据字段
+            custom_field="value"
+        )
+    except Exception as e:
+        logger.exception(f"Operation failed: {e}")
+        return create_error_response(
+            f"Operation failed: {str(e)}",
+            error_type="CreationError"
+        )
+```
+
+**响应格式化工具**：
+
+| 函数 | 用途 | 返回 |
+|------|------|------|
+| `create_success_response(message, element_id=None, cursor=None, **extra)` | 创建成功响应 | JSON 字符串 |
+| `create_error_response(message, error_type=None)` | 创建错误响应 | JSON 字符串 |
+| `create_context_aware_response(session, message, element_id=None, **extra)` | 创建带光标上下文的响应 | JSON 字符串 |
+
+**最佳实践**：
+- 优先使用 `create_context_aware_response`（自动包含光标信息）
+- 所有错误通过 `create_error_response` 返回，不要抛出异常
+- 使用明确的 `error_type` 便于自动化处理
+- 在 `extra_data` 中添加操作特定的字段（如 `changed_fields`、`replacements` 等）
 ```
 
 2. **注册工具**
@@ -447,9 +626,17 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 2. **ID 映射系统**：所有对象通过稳定 ID 引用
 3. **混合上下文**：支持显式 ID 和隐式上下文
 4. **格式保留**：高级操作保留原始格式
+5. **标准化响应**：所有工具返回 JSON 格式，包含状态、消息和数据 ⭐ 新增
 
 详细参数和示例请参考 [README.md](../README.md) 的工具列表部分。
 
 ---
 
-**最后更新**：2026-01-21
+**最后更新**：2026-01-22
+
+**v2.1 更新日志**：
+- 所有工具现在返回标准化 JSON 响应（`{status, message, data}`）
+- 错误通过 JSON 返回，不再抛出异常
+- 自动包含光标上下文信息（`cursor.context`）
+- 新增响应格式化工具（`create_context_aware_response` 等）
+- 错误类型分类（`SessionNotFound`、`ElementNotFound` 等）
