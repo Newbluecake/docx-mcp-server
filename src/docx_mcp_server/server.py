@@ -2,6 +2,9 @@
 import logging
 import argparse
 import os
+import json
+import types
+from functools import wraps
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.session import SessionManager
 from docx_mcp_server.tools import register_all_tools
@@ -57,11 +60,38 @@ try:
 except ValueError:
     set_global_log_level(logging.INFO)
 
+
+def _patch_tool_logging(mcp_instance: FastMCP, log: logging.Logger):
+    """Wrap mcp.tool decorator to log tool outputs, pretty-printing JSON if possible."""
+    original_tool = mcp_instance.tool
+
+    def tool_with_logging(self, *targs, **tkwargs):
+        decorator = original_tool(*targs, **tkwargs)
+
+        def registrar(func):
+            @wraps(func)
+            def wrapped(*fargs, **fkwargs):
+                result = func(*fargs, **fkwargs)
+                try:
+                    parsed = json.loads(result)
+                    pretty = json.dumps(parsed, ensure_ascii=False, indent=2)
+                    log.info("Tool %s result:\n%s", func.__name__, pretty)
+                except Exception:
+                    log.info("Tool %s result: %s", func.__name__, result)
+                return result
+
+            return decorator(wrapped)
+
+        return registrar
+
+    mcp_instance.tool = types.MethodType(tool_with_logging, mcp_instance)
+
 # Initialize SessionManager
 session_manager = SessionManager()
 
 # Create MCP Server (without host/port to avoid network init during import)
 mcp = FastMCP("docx-mcp-server")
+_patch_tool_logging(mcp, logger)
 
 # Register all tools
 register_all_tools(mcp)
@@ -163,6 +193,7 @@ Environment Variables:
             host=args.host,
             port=args.port
         )
+        _patch_tool_logging(custom_mcp, logger)
         # Re-register all tools to the new instance
         register_all_tools(custom_mcp)
         server_instance = custom_mcp
