@@ -314,7 +314,8 @@ class SessionManager:
         backup_suffix: Optional[str] = None,
     ) -> str:
         """Create a new session, optionally loading a file."""
-        session_id = str(uuid.uuid4())
+        # Shortened session id for usability while retaining randomness
+        session_id = uuid.uuid4().hex[:12]
 
         if file_path:
             # 1. Validate cross-OS path safety
