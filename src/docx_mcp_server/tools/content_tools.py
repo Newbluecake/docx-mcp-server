@@ -15,7 +15,7 @@ def docx_read_content(
     start_from: int = 0,
     include_tables: bool = False,
     return_json: bool = False,
-    include_ids: bool = False,
+    include_ids: bool = True,
     start_element_id: Optional[str] = None,
     max_tables: Optional[int] = None,
     table_mode: str = "text",
@@ -388,7 +388,7 @@ def docx_extract_template_structure(
 
     parser = TemplateParser()
     try:
-        structure = parser.extract_structure(session.document)
+        structure = parser.extract_structure(session.document, session=session)
         doc_structure = structure.get('document_structure', [])
 
         # Apply filters if specified

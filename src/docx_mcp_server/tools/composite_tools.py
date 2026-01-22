@@ -250,7 +250,8 @@ def docx_get_structure_summary(
                     if heading_count < max_headings:
                         heading_info = {
                             "level": int(para.style.name.split()[-1]) if para.style.name.split()[-1].isdigit() else 1,
-                            "style": para.style.name
+                            "style": para.style.name,
+                            "element_id": session._get_element_id(para, auto_register=True)
                         }
                         if include_content:
                             heading_info["text"] = para.text
@@ -259,7 +260,10 @@ def docx_get_structure_summary(
 
                 # Process regular paragraphs
                 elif para and max_paragraphs > 0 and para_count < max_paragraphs:
-                    para_info = {"style": para.style.name}
+                    para_info = {
+                        "style": para.style.name,
+                        "element_id": session._get_element_id(para, auto_register=True)
+                    }
                     if include_content:
                         para_info["text"] = para.text[:100]  # Truncate long text
                     structure["paragraphs"].append(para_info)
@@ -271,7 +275,8 @@ def docx_get_structure_summary(
                 if table:
                     table_info = {
                         "rows": len(table.rows),
-                        "cols": len(table.columns)
+                        "cols": len(table.columns),
+                        "element_id": session._get_element_id(table, auto_register=True)
                     }
                     if include_content:
                         # Include first row as header sample
