@@ -53,7 +53,7 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
     if not logger.handlers:
         # MCP servers communicate via stdout, so logs MUST go to stderr
-        handler = logging.StreamHandler(sys.stderr)
+        handler = logging.StreamHandler(sys.stderr, encoding="utf-8")
         formatter = StackTraceFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
