@@ -1,11 +1,14 @@
 """Template structure extraction module for docx-mcp-server."""
 
 import time
+import logging
 from typing import Dict, List, Any, Optional
 from docx.document import Document as DocumentType
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateParser:
@@ -15,12 +18,13 @@ class TemplateParser:
         """Initialize the TemplateParser."""
         pass
 
-    def extract_structure(self, document: DocumentType) -> Dict[str, Any]:
+    def extract_structure(self, document: DocumentType, session: Optional[Any] = None) -> Dict[str, Any]:
         """
         Extract the complete structure of a Word document.
 
         Args:
             document: The python-docx Document object to parse.
+            session: Optional Session object for element ID registration.
 
         Returns:
             dict: Structured representation with metadata and document_structure.
@@ -43,14 +47,14 @@ class TemplateParser:
                 para = Paragraph(element, document)
                 # Check if it's a heading
                 if para.style and para.style.name and 'Heading' in para.style.name:
-                    result["document_structure"].append(self.extract_heading_structure(para))
+                    result["document_structure"].append(self.extract_heading_structure(para, session=session))
                 elif para.text.strip():  # Only add non-empty paragraphs
-                    result["document_structure"].append(self.extract_paragraph_structure(para))
+                    result["document_structure"].append(self.extract_paragraph_structure(para, session=session))
 
             elif tag == 'tbl':  # Table
                 table = Table(element, document)
                 try:
-                    result["document_structure"].append(self.extract_table_structure(table))
+                    result["document_structure"].append(self.extract_table_structure(table, session=session))
                 except ValueError:
                     # Skip tables without detectable headers
                     pass
@@ -118,15 +122,16 @@ class TemplateParser:
         except Exception:
             return False
 
-    def extract_heading_structure(self, paragraph: Paragraph) -> Dict[str, Any]:
+    def extract_heading_structure(self, paragraph: Paragraph, session: Optional[Any] = None) -> Dict[str, Any]:
         """
         Extract heading structure from a paragraph.
 
         Args:
             paragraph: Paragraph with Heading style.
+            session: Optional Session object for element ID registration.
 
         Returns:
-            dict: Heading structure with type, level, text, and style.
+            dict: Heading structure with type, level, text, style, and optionally element_id.
         """
         # Extract level from style name (e.g., "Heading 1" -> 1)
         style_name = paragraph.style.name
@@ -153,22 +158,34 @@ class TemplateParser:
                 "color": color_hex
             }
 
-        return {
+        result = {
             "type": "heading",
             "level": level,
             "text": text,
             "style": style
         }
 
-    def extract_paragraph_structure(self, paragraph: Paragraph) -> Dict[str, Any]:
+        # Add element_id if session is provided
+        if session is not None:
+            try:
+                element_id = session._get_element_id(paragraph, auto_register=True)
+                if element_id:
+                    result["element_id"] = element_id
+            except Exception as e:
+                logger.warning(f"Failed to generate element_id for heading: {e}")
+
+        return result
+
+    def extract_paragraph_structure(self, paragraph: Paragraph, session: Optional[Any] = None) -> Dict[str, Any]:
         """
         Extract paragraph structure.
 
         Args:
             paragraph: Paragraph to extract.
+            session: Optional Session object for element ID registration.
 
         Returns:
-            dict: Paragraph structure with type, text, and style.
+            dict: Paragraph structure with type, text, style, and optionally element_id.
         """
         text = paragraph.text
 
@@ -216,21 +233,33 @@ class TemplateParser:
         if paragraph.paragraph_format.first_line_indent:
             style["first_line_indent"] = paragraph.paragraph_format.first_line_indent.inches
 
-        return {
+        result = {
             "type": "paragraph",
             "text": text,
             "style": style
         }
 
-    def extract_table_structure(self, table: Table) -> Dict[str, Any]:
+        # Add element_id if session is provided
+        if session is not None:
+            try:
+                element_id = session._get_element_id(paragraph, auto_register=True)
+                if element_id:
+                    result["element_id"] = element_id
+            except Exception as e:
+                logger.warning(f"Failed to generate element_id for paragraph: {e}")
+
+        return result
+
+    def extract_table_structure(self, table: Table, session: Optional[Any] = None) -> Dict[str, Any]:
         """
         Extract table structure including headers and styling.
 
         Args:
             table: Table to extract.
+            session: Optional Session object for element ID registration.
 
         Returns:
-            dict: Table structure with type, dimensions, headers, and style.
+            dict: Table structure with type, dimensions, headers, style, and optionally element_id.
 
         Raises:
             ValueError: If header row cannot be detected.
@@ -262,7 +291,7 @@ class TemplateParser:
                 style["cell_style"]["font"] = run.font.name or "默认"
                 style["cell_style"]["size"] = run.font.size.pt if run.font.size else 12
 
-        return {
+        result = {
             "type": "table",
             "rows": rows,
             "cols": cols,
@@ -270,3 +299,14 @@ class TemplateParser:
             "headers": headers,
             "style": style
         }
+
+        # Add element_id if session is provided
+        if session is not None:
+            try:
+                element_id = session._get_element_id(table, auto_register=True)
+                if element_id:
+                    result["element_id"] = element_id
+            except Exception as e:
+                logger.warning(f"Failed to generate element_id for table: {e}")
+
+        return result
