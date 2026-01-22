@@ -47,7 +47,7 @@ version: 1
 - **THEN** 处理边界情况（第一个/最后一个元素）。
 
 #### R-002: 默认返回上下文
-- **WHEN** 调用 `docx_add_paragraph`, `docx_quick_edit`, `docx_find_paragraphs` 等工具。
+- **WHEN** 调用 `docx_insert_paragraph`, `docx_quick_edit`, `docx_find_paragraphs` 等工具。
 - **THEN** 返回值中包含 `<this>` 元素及其前后邻居信息。
 
 #### R-004: 格式化输出
@@ -61,7 +61,7 @@ version: 1
 | ID | 功能点 | 验收步骤 | 优先级 | 关联需求 | 通过 |
 |----|--------|----------|--------|----------|------|
 | F-001 | `get_element_context` 核心方法 | 1. 单元测试：首元素、中间元素、尾元素 2. 验证返回 ID 和描述正确 | P0 | R-001 | ☐ |
-| F-002 | `docx_add_paragraph` 增强 | 1. 添加段落 2. 检查返回值包含 prev/next | P0 | R-002 | ☐ |
+| F-002 | `docx_insert_paragraph` 增强 | 1. 添加段落 2. 检查返回值包含 prev/next | P0 | R-002 | ☐ |
 | F-003 | `docx_find_paragraphs` 增强 | 1. 查找文本 2. 检查每个匹配项包含上下文 | P0 | R-002 | ☐ |
 | F-004 | `docx_quick_edit` 增强 | 1. 编辑段落 2. 检查返回值包含上下文 | P0 | R-002 | ☐ |
 | F-005 | 关闭参数支持 | 1. 调用工具带 `return_context=False` 2. 验证仅返回 ID | P1 | R-003 | ☐ |
@@ -76,8 +76,8 @@ version: 1
 
 ### 4.2 涉及工具范围
 需要修改以下模块中的局部操作工具：
-- `paragraph_tools.py`: `add_paragraph`, `update_paragraph_text`, `delete`
-- `run_tools.py`: `add_run`, `update_run_text`
+- `paragraph_tools.py`: `insert_paragraph`, `update_paragraph_text`, `delete`
+- `run_tools.py`: `insert_run`, `update_run_text`
 - `table_tools.py`: `add_table`, `add_row` (可选)
 - `composite_tools.py`: `quick_edit`, `add_formatted_paragraph`
 - `content_tools.py`: `find_paragraphs` (已部分支持，需统一格式)

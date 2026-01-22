@@ -95,8 +95,8 @@ class MetadataTools:
                 - created_at (float): Unix timestamp of the creation
 
         Examples:
-            >>> meta = MetadataTools.create_creation_metadata(created_by="docx_add_paragraph")
-            >>> # Result: {"created_at": 1234567890.0, "created_by": "docx_add_paragraph"}
+            >>> meta = MetadataTools.create_creation_metadata(created_by="docx_insert_paragraph")
+            >>> # Result: {"created_at": 1234567890.0, "created_by": "docx_insert_paragraph"}
         """
         metadata = {
             "created_at": time.time()

@@ -37,12 +37,12 @@ status: needs-revision
 **示例场景**：
 ```python
 # 步骤1: 创建段落 -> last_created_id = para_1
-para_id = docx_add_paragraph(session_id, "Hello")
+para_id = docx_insert_paragraph(session_id, "Hello", position="end:document_body")
 # 步骤2: 读取另一个表格 -> last_accessed_id = table_1
 table_info = docx_get_table(session_id, index=0)
 # 步骤3: 添加 run，不传 parent_id
 # 问题: 应该用 last_created_id (para_1) 还是 last_accessed_id (table_1)?
-run_id = docx_add_run(session_id, text="World")  # 设计说用 last_created_id
+run_id = docx_insert_run(session_id, text="World", position=f"inside:{para_id}")  # 设计说用 last_created_id
 ```
 
 **建议方案**：
@@ -55,7 +55,7 @@ run_id = docx_add_run(session_id, text="World")  # 设计说用 last_created_id
 
 #### [问题 A-2] 类型安全检查不足 - 低风险
 
-**问题描述**：设计文档提到 "需类型检查"，但未详细说明检查机制。当 `last_created_id` 指向 Table 而调用 `docx_add_run()` 时，如何处理？
+**问题描述**：设计文档提到 "需类型检查"，但未详细说明检查机制。当 `last_created_id` 指向 Table 而调用 `docx_insert_run()` 时，如何处理？
 
 **建议方案**：
 在 `Session` 类中增加类型元数据：
@@ -366,7 +366,7 @@ def replace_text_in_paragraph(paragraph, old_text, new_text):
 
 **场景描述**：用户需要在模板表格的特定行后插入新行并填充数据。
 
-**当前支持**：R-005 提到 `docx_add_table_row/col`，但未详细设计。
+**当前支持**：R-005 提到 `docx_insert_table_row/col`，但未详细设计。
 
 **建议补充**：
 - `docx_insert_row(session_id, table_id, after_row_index)` - 在指定行后插入
@@ -377,7 +377,7 @@ def replace_text_in_paragraph(paragraph, old_text, new_text):
 
 **场景描述**：用户经常需要将多行数据一次性填入表格，而非逐个单元格操作。
 
-**当前问题**：填充一个 5x5 表格需要调用 25 次 `docx_add_paragraph_to_cell`，效率极低。
+**当前问题**：填充一个 5x5 表格需要调用 25 次 `docx_insert_paragraph_to_cell`，效率极低。
 
 **建议新增工具**：
 ```python

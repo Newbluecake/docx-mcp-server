@@ -4,14 +4,15 @@ from mcp.server.fastmcp import FastMCP
 from docx.shared import Pt, RGBColor
 from docx_mcp_server.core.response import (
     create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_error_response
 )
+from docx_mcp_server.services.navigation import PositionResolver
+from docx_mcp_server.core.xml_util import ElementManipulator
 
 logger = logging.getLogger(__name__)
 
 
-def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
+def docx_insert_run(session_id: str, text: str, position: str) -> str:
     """
     Add a text run to a paragraph with independent formatting.
 
@@ -26,82 +27,73 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
     Args:
         session_id (str): Active session ID returned by docx_create().
         text (str): Text content for the run.
-        paragraph_id (str, optional): ID of the parent paragraph. If None, uses
-            the last created paragraph from session context.
+        position (str): Insertion position string.
+            Format: "mode:target_id". Modes: after, before, inside, start, end.
+            Example: "inside:para_123" (insert run into paragraph).
 
     Returns:
         str: JSON response with element_id and cursor context.
 
     Raises:
-        ValueError: If session_id is invalid or paragraph_id not found.
-        ValueError: If no paragraph context available when paragraph_id is None.
-        ValueError: If specified object is not a paragraph.
+        ValueError: If session_id is invalid.
+        ValueError: If position is invalid or target element not found.
+        ValueError: If target element cannot contain runs.
 
     Examples:
         Add run to specific paragraph:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Hello ", paragraph_id=para_id)
-        >>> run_id2 = docx_add_run(session_id, "World", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run_id = docx_insert_run(session_id, "Hello ", position=f"inside:{para_id}")
+        >>> run_id2 = docx_insert_run(session_id, "World", position=f"inside:{para_id}")
 
-        Use implicit context:
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Implicit context")
+        Insert into a paragraph by position:
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run_id = docx_insert_run(session_id, "Explicit insert", position=f"inside:{para_id}")
 
         Build formatted paragraph:
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run1 = docx_add_run(session_id, "Normal ", paragraph_id=para_id)
-        >>> run2 = docx_add_run(session_id, "Bold", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run1 = docx_insert_run(session_id, "Normal ", position=f"inside:{para_id}")
+        >>> run2 = docx_insert_run(session_id, "Bold", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run2, bold=True)
 
     Notes:
-        - Supports legacy signature: docx_add_run(sid, para_id, text) for compatibility
-        - Context mechanism allows omitting paragraph_id for sequential operations
+        - Runs are inserted relative to paragraph/run targets.
         - Use docx_set_font() to apply formatting after creation
 
     See Also:
-        - docx_add_paragraph: Create parent paragraph
+        - docx_insert_paragraph: Create parent paragraph
         - docx_set_font: Format the run
         - docx_update_run_text: Modify existing run
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_run called: session_id={session_id}, text_len={len(text)}, paragraph_id={paragraph_id}")
-
-    # Compatibility shim for legacy calls: docx_add_run(sid, para_id, text)
-    # If 'text' looks like a para_id and 'paragraph_id' is present (and doesn't look like a para_id)
-    if text and text.startswith("para_") and paragraph_id and not paragraph_id.startswith("para_"):
-        # Swap arguments
-        real_para_id = text
-        real_text = paragraph_id
-        text = real_text
-        paragraph_id = real_para_id
+    logger.debug(f"docx_insert_run called: session_id={session_id}, text_len={len(text)}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
-        logger.error(f"docx_add_run failed: Session {session_id} not found")
+        logger.error(f"docx_insert_run failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    if paragraph_id is None:
-        # Implicit context
-        if not session.last_created_id:
-            logger.error(f"docx_add_run failed: No paragraph context available")
-            return create_error_response("No paragraph context available. Please specify paragraph_id.", error_type="NoContext")
-        paragraph_id = session.last_created_id
+    try:
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
 
-    paragraph = session.get_object(paragraph_id)
-    if not paragraph:
-        logger.error(f"docx_add_run failed: Paragraph {paragraph_id} not found")
-        return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
-
-    # Simple type check
-    if not hasattr(paragraph, 'add_run'):
-         # If the last_created_id was a table or something else, we might have an issue
-         logger.error(f"docx_add_run failed: Object {paragraph_id} is not a paragraph")
-         return create_error_response(f"Object {paragraph_id} is not a paragraph (cannot add run)", error_type="InvalidElementType")
+    if not hasattr(target_parent, 'add_run'):
+        logger.error(f"docx_insert_run failed: Object {type(target_parent).__name__} cannot contain runs")
+        return create_error_response(f"Object {type(target_parent).__name__} cannot contain runs", error_type="InvalidElementType")
 
     try:
-        run = paragraph.add_run(text)
+        run = target_parent.add_run(text)
+
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, run._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, run._element)
+            elif mode == "start":
+                ElementManipulator.insert_at_index(target_parent._element, run._element, 0)
         r_id = session.register_object(run, "run")
 
         # Update context: this is a creation action
@@ -109,17 +101,19 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
 
         # Update cursor to point after the new run
         session.cursor.element_id = r_id
-        session.cursor.parent_id = paragraph_id
+        # parent may be paragraph
+        if hasattr(target_parent, '_element'):
+            session.cursor.parent_id = session._get_element_id(target_parent, auto_register=True)
         session.cursor.position = "after"
 
-        logger.debug(f"docx_add_run success: {r_id}")
+        logger.debug(f"docx_insert_run success: {r_id}")
         return create_context_aware_response(
             session,
             message="Run added successfully",
             element_id=r_id
         )
     except Exception as e:
-        logger.exception(f"docx_add_run failed: {e}")
+        logger.exception(f"docx_insert_run failed: {e}")
         return create_error_response(f"Failed to add run: {str(e)}", error_type="CreationError")
 
 def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
@@ -149,8 +143,8 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
     Examples:
         Update run text:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Old", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run_id = docx_insert_run(session_id, "Old", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run_id, bold=True, size=14)
         >>> result = docx_update_run_text(session_id, run_id, "New")
         >>> print(result)
@@ -240,16 +234,16 @@ def docx_set_font(
     Examples:
         Basic formatting:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Important", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run_id = docx_insert_run(session_id, "Important", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run_id, size=14, bold=True)
 
         Apply color:
-        >>> run_id = docx_add_run(session_id, "Red text", paragraph_id=para_id)
+        >>> run_id = docx_insert_run(session_id, "Red text", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run_id, color_hex="FF0000")
 
         Multiple properties:
-        >>> run_id = docx_add_run(session_id, "Styled", paragraph_id=para_id)
+        >>> run_id = docx_insert_run(session_id, "Styled", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run_id, size=16, bold=True, italic=True, color_hex="0000FF")
 
     Notes:
@@ -259,7 +253,7 @@ def docx_set_font(
         - Setting bold/italic to False explicitly removes the formatting
 
     See Also:
-        - docx_add_run: Create run to format
+        - docx_insert_run: Create run to format
         - docx_set_properties: Advanced formatting options
     """
     from docx_mcp_server.server import session_manager
@@ -318,6 +312,6 @@ def docx_set_font(
 
 def register_tools(mcp: FastMCP):
     """Register text run (formatting) tools"""
-    mcp.tool()(docx_add_run)
+    mcp.tool()(docx_insert_run)
     mcp.tool()(docx_update_run_text)
     mcp.tool()(docx_set_font)

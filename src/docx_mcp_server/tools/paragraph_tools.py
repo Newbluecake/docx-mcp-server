@@ -1,13 +1,11 @@
 """Paragraph manipulation tools"""
 import logging
-from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
     create_context_aware_response,
     create_error_response,
-    create_success_response,
-    CursorInfo
+    create_success_response
 )
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
 from docx_mcp_server.core.xml_util import ElementManipulator
@@ -15,7 +13,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id: str = None, position: str = None) -> str:
+def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
     """
     Add a new paragraph to the document or a specific parent container.
 
@@ -30,23 +28,21 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     Args:
         session_id (str): Active session ID returned by docx_create().
         text (str): Text content for the paragraph. Can be empty string.
-        style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text').
-            Defaults to None (Normal style).
-        parent_id (str, optional): ID of parent container. If None, defaults to document body.
-            Ignored if 'position' implies a different parent.
-        position (str, optional): Insertion position string.
+        position (str): Insertion position string.
             Format: "mode:target_id". Modes: after, before, inside, start, end.
             Example: "after:para_123" (insert after para_123).
+        style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text').
+            Defaults to None (Normal style).
 
     Returns:
         str: JSON response with element_id, visual context tree, and cursor info.
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_paragraph called: session_id={session_id}, parent_id={parent_id}, position={position}")
+    logger.debug(f"docx_insert_paragraph called: session_id={session_id}, position={position}")
     session = session_manager.get_session(session_id)
     if not session:
-        logger.error(f"docx_add_paragraph failed: Session {session_id} not found")
+        logger.error(f"docx_insert_paragraph failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Resolve Target Parent and Position
@@ -55,20 +51,8 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     mode = "append"
 
     try:
-        if position:
-            resolver = PositionResolver(session)
-            # Use parent_id as hint if provided, otherwise document root
-            default_p = session.get_object(parent_id) if parent_id else session.document
-            target_parent, ref_element, mode = resolver.resolve(position, default_parent=default_p)
-        else:
-            # Legacy behavior
-            if parent_id:
-                target_parent = session.get_object(parent_id)
-                if not target_parent:
-                    return create_error_response(f"Parent object {parent_id} not found", error_type="ParentNotFound")
-            else:
-                target_parent = session.document
-            mode = "append"
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
     except ValueError as e:
         return create_error_response(str(e), error_type="ValidationError")
 
@@ -117,10 +101,10 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
         )
 
     except Exception as e:
-        logger.exception(f"docx_add_paragraph failed: {e}")
+        logger.exception(f"docx_insert_paragraph failed: {e}")
         return create_error_response(f"Failed to create paragraph: {str(e)}", error_type="CreationError")
 
-def docx_add_heading(session_id: str, text: str, level: int = 1, position: str = None) -> str:
+def docx_insert_heading(session_id: str, text: str, position: str, level: int = 1) -> str:
     """
     Add a heading to the document.
 
@@ -129,15 +113,15 @@ def docx_add_heading(session_id: str, text: str, level: int = 1, position: str =
     Args:
         session_id (str): Active session ID.
         text (str): Heading text content.
+        position (str): Insertion position (e.g., "before:para_123").
         level (int): Heading level (0-9).
-        position (str, optional): Insertion position (e.g., "before:para_123").
 
     Returns:
         str: JSON response with element_id and visual context.
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_heading called: session_id={session_id}, level={level}, position={position}")
+    logger.debug(f"docx_insert_heading called: session_id={session_id}, level={level}, position={position}")
     session = session_manager.get_session(session_id)
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
@@ -150,11 +134,8 @@ def docx_add_heading(session_id: str, text: str, level: int = 1, position: str =
     mode = "append"
 
     try:
-        if position:
-            resolver = PositionResolver(session)
-            target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
-        else:
-            mode = "append"
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
     except ValueError as e:
         return create_error_response(str(e), error_type="ValidationError")
 
@@ -193,7 +174,7 @@ def docx_add_heading(session_id: str, text: str, level: int = 1, position: str =
             **data
         )
     except Exception as e:
-        logger.exception(f"docx_add_heading failed: {e}")
+        logger.exception(f"docx_insert_heading failed: {e}")
         return create_error_response(f"Failed to create heading: {str(e)}", error_type="CreationError")
 
 def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
@@ -247,9 +228,14 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         logger.exception(f"docx_update_paragraph_text failed: {e}")
         return create_error_response(f"Failed to update paragraph: {str(e)}", error_type="UpdateError")
 
-def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
+def docx_copy_paragraph(session_id: str, paragraph_id: str, position: str) -> str:
     """
     Create a deep copy of a paragraph with all formatting and runs.
+
+    Args:
+        session_id (str): Active session ID.
+        paragraph_id (str): ID of the paragraph to copy.
+        position (str): Insertion position string (e.g., "after:para_123").
     """
     from docx_mcp_server.server import session_manager
 
@@ -265,8 +251,15 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
         return create_error_response(f"Object {paragraph_id} is not a paragraph", error_type="InvalidElementType")
 
     try:
+        # Resolve target position
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+
+        if not hasattr(target_parent, 'add_paragraph'):
+            return create_error_response(f"Object {type(target_parent).__name__} cannot contain paragraphs", error_type="InvalidParent")
+
         # Create new paragraph with same style
-        new_para = session.document.add_paragraph(style=source_para.style)
+        new_para = target_parent.add_paragraph(style=source_para.style)
 
         # Copy paragraph-level formatting
         if source_para.alignment is not None:
@@ -293,6 +286,18 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
             source_id=paragraph_id,
             source_type="paragraph"
         )
+
+        # Move if necessary
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, new_para._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, new_para._element)
+            elif mode == "start":
+                container_xml = target_parent._element
+                if hasattr(target_parent, '_body'):
+                    container_xml = target_parent._body._element
+                ElementManipulator.insert_at_index(container_xml, new_para._element, 0)
 
         new_para_id = session.register_object(new_para, "para", metadata=meta)
 
@@ -369,33 +374,61 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
         logger.exception(f"docx_delete failed: {e}")
         return create_error_response(f"Failed to delete {element_id}: {str(e)}", error_type="DeletionError")
 
-def docx_add_page_break(session_id: str) -> str:
+def docx_insert_page_break(session_id: str, position: str) -> str:
     """
-    Insert a page break at the current position in the document.
+    Insert a page break at the specified position in the document.
+
+    Args:
+        session_id (str): Active session ID.
+        position (str): Insertion position string (e.g., "after:para_123").
     """
     from docx_mcp_server.server import session_manager
+    from docx.enum.text import WD_BREAK
 
     session = session_manager.get_session(session_id)
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     try:
-        session.document.add_page_break()
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+
+        if not hasattr(target_parent, 'add_paragraph'):
+            return create_error_response(f"Object {type(target_parent).__name__} cannot contain paragraphs", error_type="InvalidParent")
+
+        paragraph = target_parent.add_paragraph()
+        run = paragraph.add_run()
+        run.add_break(WD_BREAK.PAGE)
+
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, paragraph._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, paragraph._element)
+            elif mode == "start":
+                container_xml = target_parent._element
+                if hasattr(target_parent, '_body'):
+                    container_xml = target_parent._body._element
+                ElementManipulator.insert_at_index(container_xml, paragraph._element, 0)
+
+        p_id = session.register_object(paragraph, "para")
+        session.update_context(p_id, action="create")
+
         return create_context_aware_response(
             session,
-            message="Page break added",
-            include_cursor=False
+            message="Page break inserted",
+            element_id=p_id
         )
     except Exception as e:
-        logger.exception(f"docx_add_page_break failed: {e}")
-        return create_error_response(f"Failed to add page break: {str(e)}", error_type="CreationError")
+        logger.exception(f"docx_insert_page_break failed: {e}")
+        return create_error_response(f"Failed to insert page break: {str(e)}", error_type="CreationError")
 
 
 def register_tools(mcp: FastMCP):
     """Register paragraph manipulation tools"""
-    mcp.tool()(docx_add_paragraph)
-    mcp.tool()(docx_add_heading)
+    mcp.tool()(docx_insert_paragraph)
+    mcp.tool()(docx_insert_heading)
     mcp.tool()(docx_update_paragraph_text)
     mcp.tool()(docx_copy_paragraph)
     mcp.tool()(docx_delete)
-    mcp.tool()(docx_add_page_break)
+    mcp.tool()(docx_insert_page_break)

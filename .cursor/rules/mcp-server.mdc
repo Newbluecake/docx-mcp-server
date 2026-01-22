@@ -68,10 +68,10 @@ class Session:
 session_id = docx_create()
 
 # 添加段落（返回段落 ID）
-para_id = docx_add_paragraph(session_id, "Hello")
+para_id = docx_insert_paragraph(session_id, "Hello", position="end:document_body")
 
 # 添加 Run（返回 Run ID）
-run_id = docx_add_run(para_id, " World")
+run_id = docx_insert_run(session_id, " World", position=f"inside:{para_id}")
 
 # 设置样式
 docx_set_font(run_id, size=14, bold=True)
@@ -130,8 +130,8 @@ def test_complete_workflow():
     session_id = docx_create()
 
     # 构建文档
-    docx_add_heading(session_id, "Report", level=1)
-    para_id = docx_add_paragraph(session_id, "Content")
+    docx_insert_heading(session_id, "Report", level=1, position="end:document_body")
+    para_id = docx_insert_paragraph(session_id, "Content", position="end:document_body")
 
     # 保存并验证
     docx_save(session_id, "test.docx")

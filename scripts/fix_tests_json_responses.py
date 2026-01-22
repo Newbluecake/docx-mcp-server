@@ -47,11 +47,11 @@ def add_helper_function(content):
 
 def wrap_tool_calls(content):
     """Wrap tool calls that return element IDs with _extract_element_id."""
-    # Pattern: variable = docx_add_paragraph(...) or similar
+    # Pattern: variable = docx_insert_paragraph(...) or similar
     patterns = [
-        (r'(\w+_id)\s*=\s*(docx_add_paragraph\([^)]+\))', r'\1 = _extract_element_id(\2)'),
-        (r'(\w+_id)\s*=\s*(docx_add_run\([^)]+\))', r'\1 = _extract_element_id(\2)'),
-        (r'(\w+_id)\s*=\s*(docx_add_table\([^)]+\))', r'\1 = _extract_element_id(\2)'),
+        (r'(\w+_id)\s*=\s*(docx_insert_paragraph\([^)]+\))', r'\1 = _extract_element_id(\2)'),
+        (r'(\w+_id)\s*=\s*(docx_insert_run\([^)]+\))', r'\1 = _extract_element_id(\2)'),
+        (r'(\w+_id)\s*=\s*(docx_insert_table\([^)]+\))', r'\1 = _extract_element_id(\2)'),
         (r'(\w+_id)\s*=\s*(docx_get_cell\([^)]+\))', r'\1 = _extract_element_id(\2)'),
         (r'(\w+_id)\s*=\s*(docx_get_table\([^)]+\))', r'\1 = _extract_element_id(\2)'),
         (r'(\w+_id)\s*=\s*(docx_find_table\([^)]+\))', r'\1 = _extract_element_id(\2)'),

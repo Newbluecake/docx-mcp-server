@@ -40,18 +40,16 @@ class Session:
 
 1. **Move Cursor**: User calls `docx_cursor_move(target_id, position)`.
 2. **Update State**: Session updates `cursor` object.
-3. **Insert Content**: User calls `docx_insert_paragraph("text")` (new tool).
-4. **Resolution**: Tool checks `cursor`.
-   - If `position="after"`, finds `target_id`'s element and calls `addnext()`.
-   - If `position="before"`, calls `addprevious()` or `insert_paragraph_before()`.
+3. **Insert Content**: User calls `docx_insert_paragraph("text", position="after:para_123")`.
+4. **Resolution**: Tool parses `position` and inserts relative to target.
+    - If `position="after:..."`, finds `target_id`'s element and calls `addnext()`.
+    - If `position="before:..."`, calls `addprevious()` or `insert_paragraph_before()`.
 
 ### 3.3. New Tools (`src/docx_mcp_server/tools/cursor_tools.py`)
 
 - `docx_cursor_get()`: Returns current cursor location.
 - `docx_cursor_move(element_id, position)`: Moves cursor relative to an element.
 - `docx_cursor_select(element_id)`: Selects an element (equivalent to "inside_end").
-- `docx_insert_paragraph_at_cursor(text, style)`: Inserts paragraph at cursor.
-- `docx_insert_table_at_cursor(rows, cols)`: Inserts table at cursor.
 
 ## 4. Implementation Details
 
@@ -64,9 +62,7 @@ Since `python-docx` doesn't natively support arbitrary insertion well (mostly "a
 
 ### 4.2. Backward Compatibility
 
-Existing tools (`docx_add_paragraph`, `docx_add_table`) will continue to function as "append" operations. The new cursor-based insertion will be handled by specific `docx_insert_*` tools or by adding a `use_cursor=True` flag to existing tools (preferred: new specific tools to keep "add" vs "insert" semantics clear).
-
-For this iteration, we will implement **new tools** for cursor-based insertion to avoid breaking changes.
+Insert tools (`docx_insert_*`) require explicit `position` strings for placement. Cursor tools remain navigation-only and do not perform insertion.
 
 ## 5. Security & Safety
 

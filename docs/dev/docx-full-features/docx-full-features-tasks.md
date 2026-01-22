@@ -23,9 +23,9 @@ status: pending
 ## 分组 2: 核心工具重构
 > 升级现有工具以支持上下文和新属性引擎。
 
-- [ ] **T-003: 重构 docx_create 和 docx_add_paragraph/run**
+- [ ] **T-003: 重构 docx_create 和 docx_insert_paragraph/run**
   - 更新 `docx_create` 支持 `auto_save` 参数。
-  - 更新 `add_paragraph`, `add_run` 支持可选 `parent_id` (使用上下文)。
+  - 更新 `insert_paragraph`, `insert_run` 使用 `position` 参数定位。
   - 集成 `auto_save` 逻辑。
   - 验证: 连续调用无需 ID。
 
@@ -49,7 +49,7 @@ status: pending
   - 集成上下文：新复制的表格成为当前上下文。
 
 - [ ] **T-009: 实现表格行/列操作与批量填充**
-  - 实现 `docx_add_table_row/col`。
+  - 实现 `docx_insert_table_row/col`。
   - 实现 `docx_fill_table(data, start_row)`: 支持二维数组批量填充。
 
 ## 分组 4: 高级功能与收尾

@@ -164,7 +164,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         scope_id=scope_id
     )
 
-def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None, position: str = None) -> str:
+def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, position: str) -> str:
     """
     Insert an image into the document.
 
@@ -181,8 +181,7 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         image_path (str): Absolute or relative path to the image file (PNG, JPG, etc.).
         width (float, optional): Image width in inches. If None, uses original size.
         height (float, optional): Image height in inches. If None, uses original size.
-        parent_id (str, optional): ID of parent paragraph. If None, creates new paragraph.
-        position (str, optional): Insertion position string (e.g., "after:para_123").
+        position (str): Insertion position string (e.g., "after:para_123").
             If used, creates a new paragraph for the image at that location.
 
     Returns:
@@ -195,14 +194,14 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     Examples:
         Insert image with default size:
         >>> session_id = docx_create()
-        >>> para_id = docx_insert_image(session_id, "./logo.png")
+        >>> para_id = docx_insert_image(session_id, "./logo.png", position="end:document_body")
 
         Insert with specific dimensions:
-        >>> para_id = docx_insert_image(session_id, "./chart.png", width=4.0, height=3.0)
+        >>> para_id = docx_insert_image(session_id, "./chart.png", width=4.0, height=3.0, position="end:document_body")
 
         Insert into existing paragraph:
-        >>> para_id = docx_add_paragraph(session_id, "See image: ")
-        >>> docx_insert_image(session_id, "./diagram.png", width=2.0, parent_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "See image: ", position="end:document_body")
+        >>> docx_insert_image(session_id, "./diagram.png", width=2.0, position=f"inside:{para_id}")
 
         Insert at specific position:
         >>> docx_insert_image(session_id, "./logo.png", position="start:document_body")
@@ -214,11 +213,11 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         - Image is embedded in document (increases file size)
 
     See Also:
-        - docx_add_paragraph: Create container paragraph
+        - docx_insert_paragraph: Create container paragraph
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, parent_id={parent_id}, position={position}")
+    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -235,19 +234,8 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     mode = "append"
 
     try:
-        if position:
-            resolver = PositionResolver(session)
-            # If position is specified, we generally expect to create a NEW paragraph for the image
-            # unless the position resolves to "inside" a paragraph, which is rare for this resolver.
-            # Default parent is document body.
-            target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
-        else:
-            if parent_id:
-                obj = session.get_object(parent_id)
-                if obj:
-                    target_parent = obj
-
-            mode = "append"
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
     except ValueError as e:
         return create_error_response(str(e), error_type="ValidationError")
 
@@ -256,6 +244,14 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         try:
             run = target_parent.add_run()
             run.add_picture(image_path, width=Inches(width) if width else None, height=Inches(height) if height else None)
+
+            if mode != "append":
+                if mode == "before" and ref_element:
+                    ElementManipulator.insert_xml_before(ref_element._element, run._element)
+                elif mode == "after" and ref_element:
+                    ElementManipulator.insert_xml_after(ref_element._element, run._element)
+                elif mode == "start":
+                    ElementManipulator.insert_at_index(target_parent._element, run._element, 0)
 
             r_id = session.register_object(run, "run")
             session.update_context(r_id, action="create")

@@ -14,17 +14,17 @@
 
 **错误代码**:
 ```python
-run_id = docx_add_run(session_id, para_id, "World")
+run_id = docx_insert_run(session_id, "World", position=f"inside:{para_id}")
 ```
 
 **正确代码**:
 ```python
-run_id = docx_add_run(session_id, "World", paragraph_id=para_id)
+run_id = docx_insert_run(session_id, "World", position=f"inside:{para_id}")
 ```
 
 **实际函数签名**:
 ```python
-def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
+def docx_insert_run(session_id: str, text: str, position: str) -> str:
 ```
 
 **影响**: 用户按照文档示例编写代码会导致运行时错误。
@@ -40,8 +40,8 @@ def docx_add_run(session_id: str, text: str, paragraph_id: str = None) -> str:
 **缺失工具**:
 1. `docx_cursor_get(session_id)` - 获取光标位置
 2. `docx_cursor_move(session_id, element_id, position)` - 移动光标
-3. `docx_insert_paragraph_at_cursor(session_id, text, style)` - 在光标处插入段落
-4. `docx_insert_table_at_cursor(session_id, rows, cols)` - 在光标处插入表格
+3. `docx_insert_paragraph(session_id, text, position)` - 按 position 插入段落
+4. `docx_insert_table(session_id, rows, cols, position)` - 按 position 插入表格
 
 **建议**: 在 README.md 的"MCP 工具列表"章节添加"Cursor 定位系统"小节。
 
@@ -181,7 +181,7 @@ docx-mcp-server/
 ## ✅ 修复建议优先级
 
 ### P0（立即修复）
-1. 修复 `CLAUDE.md:69` 的 `docx_add_run` 调用签名错误
+1. 修复 `CLAUDE.md:69` 的 `docx_insert_run` 调用签名错误
 2. 修复 `README.md` 的示例编号重复问题
 
 ### P1（本周修复）

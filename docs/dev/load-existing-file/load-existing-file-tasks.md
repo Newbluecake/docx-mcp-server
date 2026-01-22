@@ -50,7 +50,7 @@ The implementation is divided into 2 groups:
   - Iterate paragraphs.
   - If text contains query (case-insensitive), register object in session.
   - Return list of `{element_id, text}`.
-- **Verification**: Unit test finding a specific paragraph and verifying the returned ID can be used with `docx_add_run`.
+- **Verification**: Unit test finding a specific paragraph and verifying the returned ID can be used with `docx_insert_run` (position-based).
 
 ### T-004: E2E Verification
 - **Goal**: Verify the full workflow.

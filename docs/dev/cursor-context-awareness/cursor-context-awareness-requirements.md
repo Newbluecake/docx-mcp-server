@@ -86,8 +86,8 @@ version: 1
 
 | ID | 功能点 | 验收步骤 | 优先级 | 关联需求 | 通过 |
 |----|--------|----------|--------|----------|------|
-| F-001 | 基础上下文显示 | 1. 调用 `docx_add_paragraph()` 2. 检查返回消息包含 "Cursor: after Paragraph para_xxx" 3. 检查包含前后元素概要 | P0 | R-001, R-002, R-003 | ☐ |
-| F-002 | 文档开头边界 | 1. 创建新文档 2. 调用 `docx_add_paragraph()` 3. 检查显示 "[Document Start]" | P1 | R-004 | ☐ |
+| F-001 | 基础上下文显示 | 1. 调用 `docx_insert_paragraph()` 2. 检查返回消息包含 "Cursor: after Paragraph para_xxx" 3. 检查包含前后元素概要 | P0 | R-001, R-002, R-003 | ☐ |
+| F-002 | 文档开头边界 | 1. 创建新文档 2. 调用 `docx_insert_paragraph()` 3. 检查显示 "[Document Start]" | P1 | R-004 | ☐ |
 | F-003 | 文档结尾边界 | 1. 在文档末尾添加段落 2. 检查显示 "[Document End]" | P1 | R-004 | ☐ |
 | F-004 | 内容截断 | 1. 添加超过 50 字符的段落 2. 检查内容被截断为 "Long text content..." | P1 | R-005 | ☐ |
 | F-005 | 表格内 cursor | 1. 在表格单元格内添加段落 2. 检查显示单元格内的上下文，而非表格外 | P1 | R-006 | ☐ |
@@ -255,13 +255,14 @@ def _format_element_summary(self, element) -> str:
 
 ```python
 # 在每个工具的返回消息中附加上下文
-def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id: str = None) -> str:
+def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         raise ValueError(f"Session {session_id} not found")
 
-    # 原有逻辑
-    paragraph = session.document.add_paragraph(text, style)
+    # 原有逻辑（按 position 插入）
+    target_parent, ref_element, mode = PositionResolver(session).resolve(position, default_parent=session.document)
+    paragraph = target_parent.add_paragraph(text, style)
     para_id = session.register_object(paragraph, "para")
 
     # 更新 cursor

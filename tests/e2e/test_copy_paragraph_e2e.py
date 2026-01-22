@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_run,
     docx_set_font,
     docx_set_alignment,
     docx_copy_paragraph,
@@ -36,29 +36,29 @@ def test_copy_paragraph_e2e():
         session_id = docx_create()
 
         # Create original paragraph with formatting
-        p1_resp = docx_add_paragraph(session_id, "")
+        p1_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
         para1_id = _extract(p1_resp)["element_id"]
 
-        docx_add_run(session_id, "This is ", paragraph_id=para1_id)
+        docx_insert_run(session_id, "This is ", position=f"inside:{para1_id}")
 
-        r2_resp = docx_add_run(session_id, "formatted ", paragraph_id=para1_id)
+        r2_resp = docx_insert_run(session_id, "formatted ", position=f"inside:{para1_id}")
         run2_id = _extract(r2_resp)["element_id"]
 
         docx_set_font(session_id, run2_id, bold=True, color_hex="FF0000")
-        docx_add_run(session_id, "text", paragraph_id=para1_id)
+        docx_insert_run(session_id, "text", position=f"inside:{para1_id}")
 
         docx_set_alignment(session_id, para1_id, "center")
 
         # Copy the paragraph
-        cp_resp = docx_copy_paragraph(session_id, para1_id)
+        cp_resp = docx_copy_paragraph(session_id, para1_id, position="end:document_body")
         _extract(cp_resp) # verify success
 
         # Add another paragraph
-        p3_resp = docx_add_paragraph(session_id, "Normal paragraph")
+        p3_resp = docx_insert_paragraph(session_id, "Normal paragraph", position="end:document_body")
         para3_id = _extract(p3_resp)["element_id"]
 
         # Copy it too
-        cp2_resp = docx_copy_paragraph(session_id, para3_id)
+        cp2_resp = docx_copy_paragraph(session_id, para3_id, position="end:document_body")
         _extract(cp2_resp)
 
         # Save

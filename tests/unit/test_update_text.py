@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_run,
     docx_set_font,
     docx_update_paragraph_text,
     docx_update_run_text,
@@ -32,7 +32,7 @@ def test_update_paragraph_text():
     session_id = docx_create()
 
     # Create paragraph
-    para_response = docx_add_paragraph(session_id, "Original text")
+    para_response = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
     para_id = _extract_element_id(para_response)
 
     # Update it
@@ -53,9 +53,9 @@ def test_update_run_text():
     session_id = docx_create()
 
     # Create formatted run
-    para_response = docx_add_paragraph(session_id, "")
+    para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
     para_id = _extract_element_id(para_response)
-    run_response = docx_add_run(session_id, para_id, "Original")
+    run_response = docx_insert_run(session_id, "Original", position=f"inside:{para_id}")
     run_id = _extract_element_id(run_response)
     docx_set_font(session_id, run_id, bold=True, size=16)
 
@@ -76,10 +76,10 @@ def test_update_paragraph_with_multiple_runs():
     session_id = docx_create()
 
     # Create paragraph with multiple runs
-    para_response = docx_add_paragraph(session_id, "")
+    para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
     para_id = _extract_element_id(para_response)
-    docx_add_run(session_id, para_id, "Part 1 ")
-    docx_add_run(session_id, para_id, "Part 2")
+    docx_insert_run(session_id, "Part 1 ", position=f"inside:{para_id}")
+    docx_insert_run(session_id, "Part 2", position=f"inside:{para_id}")
 
     # Update paragraph (should replace all runs)
     docx_update_paragraph_text(session_id, para_id, "New single text")

@@ -49,9 +49,9 @@ server.py 文件包含 2,234 行代码和 33 个 MCP 工具定义，违反了单
 |--------|----------|----------|
 | **会话管理** | 4 | `docx_create`, `docx_close`, `docx_save`, `docx_get_context` |
 | **内容读取** | 4 | `docx_read_content`, `docx_find_paragraphs`, `docx_list_files`, `docx_extract_template_structure` |
-| **段落操作** | 6 | `docx_add_paragraph`, `docx_add_heading`, `docx_update_paragraph_text`, `docx_copy_paragraph`, `docx_delete`, `docx_add_page_break` |
-| **文本块操作** | 3 | `docx_add_run`, `docx_update_run_text`, `docx_set_font` |
-| **表格操作** | 9 | `docx_add_table`, `docx_get_table`, `docx_find_table`, `docx_get_cell`, `docx_add_paragraph_to_cell`, `docx_add_table_row`, `docx_add_table_col`, `docx_fill_table`, `docx_copy_table` |
+| **段落操作** | 6 | `docx_insert_paragraph`, `docx_insert_heading`, `docx_update_paragraph_text`, `docx_copy_paragraph`, `docx_delete`, `docx_insert_page_break` |
+| **文本块操作** | 3 | `docx_insert_run`, `docx_update_run_text`, `docx_set_font` |
+| **表格操作** | 9 | `docx_insert_table`, `docx_get_table`, `docx_find_table`, `docx_get_cell`, `docx_insert_paragraph_to_cell`, `docx_insert_table_row`, `docx_insert_table_col`, `docx_fill_table`, `docx_copy_table` |
 | **格式化** | 4 | `docx_set_alignment`, `docx_set_properties`, `docx_format_copy`, `docx_set_margins` |
 | **高级操作** | 2 | `docx_replace_text`, `docx_insert_image` |
 | **系统工具** | 1 | `docx_server_status` |
@@ -441,7 +441,7 @@ if __name__ == "__main__":
 
 4. **手动测试**
    - 启动服务器: `uv run mcp-server-docx`
-   - 测试关键工具: `docx_create`, `docx_add_paragraph`, `docx_save`
+    - 测试关键工具: `docx_create`, `docx_insert_paragraph`, `docx_save`
 
 5. **性能对比**
    - 启动时间: 应无明显变化
@@ -613,26 +613,26 @@ git commit -m "revert: rollback [problem_module] due to [reason]"
 4. `docx_extract_template_structure` - 提取模板结构
 
 #### 段落操作工具（6 个）
-1. `docx_add_paragraph` - 添加段落
-2. `docx_add_heading` - 添加标题
+1. `docx_insert_paragraph` - 添加段落
+2. `docx_insert_heading` - 添加标题
 3. `docx_update_paragraph_text` - 更新段落文本
 4. `docx_copy_paragraph` - 复制段落
 5. `docx_delete` - 删除元素
-6. `docx_add_page_break` - 添加分页符
+6. `docx_insert_page_break` - 添加分页符
 
 #### 文本块操作工具（3 个）
-1. `docx_add_run` - 添加文本块
+1. `docx_insert_run` - 添加文本块
 2. `docx_update_run_text` - 更新文本块
 3. `docx_set_font` - 设置字体
 
 #### 表格操作工具（9 个）
-1. `docx_add_table` - 创建表格
+1. `docx_insert_table` - 创建表格
 2. `docx_get_table` - 获取表格
 3. `docx_find_table` - 查找表格
 4. `docx_get_cell` - 获取单元格
-5. `docx_add_paragraph_to_cell` - 单元格添加段落
-6. `docx_add_table_row` - 添加行
-7. `docx_add_table_col` - 添加列
+5. `docx_insert_paragraph_to_cell` - 单元格添加段落
+6. `docx_insert_table_row` - 添加行
+7. `docx_insert_table_col` - 添加列
 8. `docx_fill_table` - 批量填充表格
 9. `docx_copy_table` - 复制表格
 

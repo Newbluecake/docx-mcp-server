@@ -4,6 +4,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.copy_engine import CopyEngine
 from docx_mcp_server.utils.metadata_tools import MetadataTools
+from docx_mcp_server.services.navigation import PositionResolver
+from docx_mcp_server.core.xml_util import ElementManipulator
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ def docx_get_element_source(session_id: str, element_id: str) -> str:
     return json.dumps(metadata)
 
 
-def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target_parent_id: str = None) -> str:
+def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, position: str) -> str:
     """
     Copy a range of elements (e.g., from one heading to another) to a target location.
 
@@ -56,8 +58,7 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
         session_id (str): Active session ID.
         start_id (str): ID of the first element in the range.
         end_id (str): ID of the last element in the range.
-        target_parent_id (str, optional): ID of the container to insert into (e.g., document body).
-            If None, appends to the end of the document.
+        position (str): Insertion position string (e.g., "after:para_123").
 
     Returns:
         str: JSON array of new element IDs mapped to their original source IDs.
@@ -68,7 +69,7 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_copy_elements_range called: session_id={session_id}, start_id={start_id}, end_id={end_id}, target_parent_id={target_parent_id}")
+    logger.debug(f"docx_copy_elements_range called: session_id={session_id}, start_id={start_id}, end_id={end_id}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -82,20 +83,31 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, target
         logger.error(f"docx_copy_elements_range failed: Start or end element not found")
         raise ValueError("Start or end element not found")
 
-    # Determine target parent
-    if target_parent_id:
-        target_parent = session.get_object(target_parent_id)
-        if not target_parent:
-            logger.error(f"docx_copy_elements_range failed: Target parent {target_parent_id} not found")
-            raise ValueError(f"Target parent {target_parent_id} not found")
-    else:
-        target_parent = session.document
+    try:
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+    except ValueError as e:
+        raise ValueError(str(e))
 
     engine = CopyEngine()
     try:
         # Perform range copy
         # We append to target_parent
-        new_objects = engine.copy_range(start_el, end_el, target_parent)
+        ref_xml = None
+        if mode == "after" and ref_element:
+            ref_xml = ref_element._element
+        elif mode == "before" and ref_element:
+            ref_xml = ref_element._element.getprevious()
+
+        new_objects = engine.copy_range(start_el, end_el, target_parent, ref_element_xml=ref_xml)
+
+        if mode in ["start", "before"] and ref_xml is None:
+            container_xml = target_parent._element
+            if hasattr(target_parent, '_body'):
+                container_xml = target_parent._body._element
+            for obj in reversed(new_objects):
+                obj._element.getparent().remove(obj._element)
+                ElementManipulator.insert_at_index(container_xml, obj._element, 0)
 
         # Register all new objects
         result_map = []

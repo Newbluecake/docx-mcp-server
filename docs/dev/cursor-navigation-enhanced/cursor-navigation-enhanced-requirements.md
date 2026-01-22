@@ -56,8 +56,8 @@ version: 1
       ```
 
 #### R-002: 工具支持显式 Position 参数
-- **WHEN** 调用 `docx_add_paragraph(..., position="after:para_123")`, **THEN** 插入到指定段落后。
-- **WHEN** 调用 `docx_add_paragraph(..., position="inside:cell_abc")` (或类似语义), **THEN** 追加到单元格内容末尾。
+- **WHEN** 调用 `docx_insert_paragraph(..., position="after:para_123")`, **THEN** 插入到指定段落后。
+- **WHEN** 调用 `docx_insert_paragraph(..., position="inside:cell_abc")` (或类似语义), **THEN** 追加到单元格内容末尾。
 - **WHEN** 引用不存在的 ID, **THEN** 返回明确的 `ElementNotFound` 错误。
 
 #### R-003: 按需获取详细上下文
@@ -70,8 +70,8 @@ version: 1
 
 | ID | 功能点 | 验收步骤 | 优先级 | 关联需求 | 通过 |
 |----|--------|----------|--------|----------|------|
-| F-001 | Cursor 结构增强 | 1. 调用 `docx_add_paragraph` 2. 检查返回 JSON 包含 parent/sibling ID | P0 | R-001 | ☐ |
-| F-002 | Position 参数支持 | 1. 创建段落 A 2. 调用 `docx_add_paragraph(..., position="before:para_A")` 3. 验证新段落位于 A 之前 | P0 | R-002 | ☐ |
+| F-001 | Cursor 结构增强 | 1. 调用 `docx_insert_paragraph` 2. 检查返回 JSON 包含 parent/sibling ID | P0 | R-001 | ☐ |
+| F-002 | Position 参数支持 | 1. 创建段落 A 2. 调用 `docx_insert_paragraph(..., position="before:para_A")` 3. 验证新段落位于 A 之前 | P0 | R-002 | ☐ |
 | F-003 | 路径信息返回 | 1. 在表格单元格内创建内容 2. 检查返回的 path 字段是否正确反映层级 | P1 | R-001 | ☐ |
 
 ---
@@ -83,7 +83,7 @@ version: 1
 - **响应速度**：计算上下文（特别是兄弟节点和路径）不应显著增加工具调用的延迟。
 
 ### 4.2 兼容性
-- **向后兼容**：必须保证现有的工具调用方式（不带 position 参数）继续正常工作。
+- **向后兼容**：插入类工具统一要求传入 `position`，示例与测试需同步更新。
 - **JSON 结构**：保持 v2.1 引入的 `{"status":..., "data":...}` 结构，增强内容应放在 `data` 或 `data.cursor` 中。
 
 ---

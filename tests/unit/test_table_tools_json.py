@@ -3,13 +3,13 @@
 import json
 import pytest
 from docx_mcp_server.tools.table_tools import (
-    docx_add_table,
+    docx_insert_table,
     docx_get_table,
     docx_find_table,
     docx_get_cell,
-    docx_add_paragraph_to_cell,
-    docx_add_table_row,
-    docx_add_table_col,
+    docx_insert_paragraph_to_cell,
+    docx_insert_table_row,
+    docx_insert_table_col,
     docx_fill_table,
     docx_copy_table
 )
@@ -17,9 +17,9 @@ from docx_mcp_server.tools.session_tools import docx_create, docx_close
 
 
 def test_add_table_returns_json():
-    """Test that docx_add_table returns valid JSON."""
+    """Test that docx_insert_table returns valid JSON."""
     session_id = docx_create()
-    result = docx_add_table(session_id, rows=2, cols=3)
+    result = docx_insert_table(session_id, rows=2, cols=3, position="end:document_body")
 
     data = json.loads(result)
     assert data["status"] == "success"
@@ -35,7 +35,7 @@ def test_add_table_returns_json():
 def test_get_table_returns_json():
     """Test that docx_get_table returns valid JSON."""
     session_id = docx_create()
-    docx_add_table(session_id, 2, 2)
+    docx_insert_table(session_id, 2, 2, position="end:document_body")
 
     result = docx_get_table(session_id, 0)
     data = json.loads(result)
@@ -52,9 +52,9 @@ def test_find_table_returns_json():
     session_id = docx_create()
 
     # Create table with specific text
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
     cell_id = json.loads(docx_get_cell(session_id, table_id, 0, 0))["data"]["element_id"]
-    docx_add_paragraph_to_cell(session_id, cell_id, "UniqueHeader")
+    docx_insert_paragraph_to_cell(session_id, "UniqueHeader", position=f"inside:{cell_id}")
 
     # Find it
     result = docx_find_table(session_id, "UniqueHeader")
@@ -70,7 +70,7 @@ def test_find_table_returns_json():
 def test_get_cell_returns_json():
     """Test that docx_get_cell returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
 
     result = docx_get_cell(session_id, table_id, 0, 1)
     data = json.loads(result)
@@ -85,12 +85,12 @@ def test_get_cell_returns_json():
 
 
 def test_add_paragraph_to_cell_returns_json():
-    """Test that docx_add_paragraph_to_cell returns valid JSON."""
+    """Test that docx_insert_paragraph_to_cell returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
     cell_id = json.loads(docx_get_cell(session_id, table_id, 0, 0))["data"]["element_id"]
 
-    result = docx_add_paragraph_to_cell(session_id, cell_id, "Cell Text")
+    result = docx_insert_paragraph_to_cell(session_id, "Cell Text", position=f"inside:{cell_id}")
     data = json.loads(result)
 
     assert data["status"] == "success"
@@ -101,11 +101,11 @@ def test_add_paragraph_to_cell_returns_json():
 
 
 def test_add_table_row_returns_json():
-    """Test that docx_add_table_row returns valid JSON."""
+    """Test that docx_insert_table_row returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
 
-    result = docx_add_table_row(session_id, table_id)
+    result = docx_insert_table_row(session_id, position=f"inside:{table_id}")
     data = json.loads(result)
 
     assert data["status"] == "success"
@@ -116,11 +116,11 @@ def test_add_table_row_returns_json():
 
 
 def test_add_table_col_returns_json():
-    """Test that docx_add_table_col returns valid JSON."""
+    """Test that docx_insert_table_col returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
 
-    result = docx_add_table_col(session_id, table_id)
+    result = docx_insert_table_col(session_id, position=f"inside:{table_id}")
     data = json.loads(result)
 
     assert data["status"] == "success"
@@ -133,7 +133,7 @@ def test_add_table_col_returns_json():
 def test_fill_table_returns_json():
     """Test that docx_fill_table returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
 
     data_json = json.dumps([["A1", "B1"], ["A2", "B2"]])
     result = docx_fill_table(session_id, data_json, table_id)
@@ -149,9 +149,9 @@ def test_fill_table_returns_json():
 def test_copy_table_returns_json():
     """Test that docx_copy_table returns valid JSON."""
     session_id = docx_create()
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
 
-    result = docx_copy_table(session_id, table_id)
+    result = docx_copy_table(session_id, table_id, position="end:document_body")
     data = json.loads(result)
 
     assert data["status"] == "success"
@@ -178,7 +178,7 @@ def test_table_error_handling():
     assert data["status"] == "error"
 
     # Invalid JSON for fill_table
-    table_id = json.loads(docx_add_table(session_id, 2, 2))["data"]["element_id"]
+    table_id = json.loads(docx_insert_table(session_id, 2, 2, position="end:document_body"))["data"]["element_id"]
     result = docx_fill_table(session_id, "invalid_json", table_id)
     data = json.loads(result)
     assert data["status"] == "error"

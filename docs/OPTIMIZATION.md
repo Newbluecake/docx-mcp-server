@@ -14,22 +14,23 @@
 
 5 个新的高层工具，将多步操作合并为一步：
 
-#### 📝 `docx_add_formatted_paragraph`
+#### 📝 `docx_insert_formatted_paragraph`
 一步创建带格式的段落
 
 **之前**:
 ```python
-para_id = docx_add_paragraph(session_id, "")
-run_id = docx_add_run(session_id, "Important!", paragraph_id=para_id)
+para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+run_id = docx_insert_run(session_id, "Important!", position=f"inside:{para_id}")
 docx_set_font(session_id, run_id, bold=True, size=14, color_hex="FF0000")
 docx_set_alignment(session_id, para_id, "center")
 ```
 
 **现在**:
 ```python
-para_id = docx_add_formatted_paragraph(
-    session_id, "Important!",
-    bold=True, size=14, color_hex="FF0000", alignment="center"
+para_id = docx_insert_formatted_paragraph(
+  session_id, "Important!",
+  position="end:document_body",
+  bold=True, size=14, color_hex="FF0000", alignment="center"
 )
 ```
 
@@ -80,7 +81,7 @@ summary = docx_get_structure_summary(
 table_id = docx_find_table(session_id, "Employee")
 # 手动检查行数，添加行
 for i in range(rows_needed - existing_rows):
-    docx_add_table_row(session_id, table_id)
+  docx_insert_table_row(session_id, position=f"inside:{table_id}")
 docx_fill_table(session_id, data, table_id)
 ```
 
@@ -192,9 +193,9 @@ element_id = session.pop_context()
   - docx_find_paragraphs
 
 ✨ 创建内容
-  - docx_add_formatted_paragraph (新)
-  - docx_add_heading
-  - docx_add_table
+  - docx_insert_formatted_paragraph (新)
+  - docx_insert_heading
+  - docx_insert_table
   - docx_smart_fill_table (新)
 
 🔍 文档分析
@@ -208,7 +209,7 @@ element_id = session.pop_context()
   - docx_format_copy
 
 ⚙️ 高级操作 (原子工具)
-  - docx_add_run
+  - docx_insert_run
   - docx_get_cell
   - docx_cursor_move
   ...
@@ -216,7 +217,7 @@ element_id = session.pop_context()
 
 ## 🔄 向后兼容
 
-所有现有工具保持不变，新增的参数都是可选的：
+插入类工具统一要求传入 `position`，其它工具保持不变：
 
 ```python
 # 旧代码仍然有效
@@ -230,7 +231,7 @@ content = docx_read_content(session_id, max_paragraphs=10)
 
 ### 对于 Claude
 
-1. **优先使用复合工具** - 对于常见场景，使用 `docx_add_formatted_paragraph`、`docx_quick_edit` 等
+1. **优先使用复合工具** - 对于常见场景，使用 `docx_insert_formatted_paragraph`、`docx_quick_edit` 等
 2. **控制返回信息** - 使用 `max_paragraphs`、`max_results` 等参数限制返回量
 3. **按需提取结构** - 使用 `docx_get_structure_summary` 而非 `docx_extract_template_structure`
 

@@ -3,10 +3,10 @@ import os
 import json
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_run,
     docx_set_properties,
-    docx_add_table,
+    docx_insert_table,
     docx_fill_table,
     docx_find_table,
     docx_copy_table,
@@ -31,16 +31,16 @@ def test_full_workflow(tmp_path):
     sid = docx_create(auto_save=False)
 
     # 2. Add Title
-    title_resp = docx_add_paragraph(sid, "Monthly Report", style="Heading 1")
+    title_resp = docx_insert_paragraph(sid, "Monthly Report", position="end:document_body", style="Heading 1")
     title_id = _extract(title_resp)["element_id"]
     docx_set_properties(sid, json.dumps({"paragraph_format": {"alignment": "center"}}), title_id)
 
     # 3. Add Intro text
-    para_resp = docx_add_paragraph(sid, "This report covers the period: {{period}}.")
+    para_resp = docx_insert_paragraph(sid, "This report covers the period: {{period}}.", position="end:document_body")
     para_id = _extract(para_resp)["element_id"]
 
     # 4. Create Data Table
-    table_resp = docx_add_table(sid, rows=1, cols=3)
+    table_resp = docx_insert_table(sid, rows=1, cols=3, position="end:document_body")
     table_id = _extract(table_resp)["element_id"]
 
     # 5. Fill Table Headers & Data
@@ -58,7 +58,7 @@ def test_full_workflow(tmp_path):
     # IDs might differ if re-registered, but logic holds.
 
     # 7. Copy Table (Template usage)
-    copy_resp = docx_copy_table(sid, found_id)
+    copy_resp = docx_copy_table(sid, found_id, position="end:document_body")
     copy_id = _extract(copy_resp)["element_id"]
 
     # 8. Modify Copy (Fill with different data)

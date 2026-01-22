@@ -62,11 +62,11 @@ paragraph = session.get_object("para_a1b2c3d4")
 
 ```python
 # 不好的设计（过于复杂）
-docx_add_formatted_paragraph(session_id, text, bold=True, size=14, alignment="center")
+docx_insert_formatted_paragraph(session_id, text, position="end:document_body", bold=True, size=14, alignment="center")
 
 # 好的设计（原子化）
-para_id = docx_add_paragraph(session_id, "Hello")
-run_id = docx_add_run(session_id, text="World", paragraph_id=para_id)
+para_id = docx_insert_paragraph(session_id, "Hello", position="end:document_body")
+run_id = docx_insert_run(session_id, text="World", position=f"inside:{para_id}")
 docx_set_font(session_id, run_id, bold=True, size=14)
 docx_set_alignment(session_id, para_id, "center")
 ```
@@ -100,7 +100,7 @@ docx_set_alignment(session_id, para_id, "center")
 
 ```python
 # 创建段落
-result = docx_add_paragraph(session_id, "Hello World")
+result = docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
 data = json.loads(result)
 # {
 #   "status": "success",
@@ -156,7 +156,7 @@ if data["status"] == "error":
 import json
 
 # 1. 解析响应
-result = docx_add_paragraph(session_id, "Text")
+result = docx_insert_paragraph(session_id, "Text", position="end:document_body")
 data = json.loads(result)
 
 # 2. 检查状态
@@ -179,7 +179,7 @@ if "cursor" in data["data"]:
 **旧代码（v2.0 及之前）**：
 ```python
 try:
-    para_id = docx_add_paragraph(session_id, "Text")  # 返回纯字符串
+    para_id = docx_insert_paragraph(session_id, "Text", position="end:document_body")  # 返回纯字符串
     # para_id = "para_abc123\n\nCursor: ..."
 except ValueError as e:
     # 处理异常
@@ -188,7 +188,7 @@ except ValueError as e:
 
 **新代码（v2.1+）**：
 ```python
-result = docx_add_paragraph(session_id, "Text")  # 返回 JSON
+result = docx_insert_paragraph(session_id, "Text", position="end:document_body")  # 返回 JSON
 data = json.loads(result)
 
 if data["status"] == "success":
@@ -383,7 +383,7 @@ def docx_debug_session(session_id: str) -> str:
 
 - 使用 `docx_` 前缀，避免与其他 MCP 服务器冲突
 - 使用动词开头：`add`、`set`、`get`
-- 保持简洁：`docx_add_paragraph` 而非 `docx_add_paragraph_to_document`
+- 保持简洁：`docx_insert_paragraph` 而非 `docx_insert_paragraph_to_document`
 
 ### 2. 错误处理
 
@@ -418,8 +418,8 @@ create  add_*  save   close
 ```python
 session_id = docx_create()
 # 一步创建格式化段落
-para_id = docx_add_formatted_paragraph(
-    session_id, "重要文本",
+para_id = docx_insert_formatted_paragraph(
+    session_id, "重要文本", position="end:document_body",
     bold=True, size=16, color_hex="FF0000", alignment="center"
 )
 docx_save(session_id, "/path/to/output.docx")
@@ -482,8 +482,8 @@ docx_close(session_id)
 **创建格式化文档（原子方式）**：
 ```python
 session_id = docx_create()
-para_id = docx_add_paragraph(session_id, "")
-run_id = docx_add_run(session_id, para_id, "重要文本")
+para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+run_id = docx_insert_run(session_id, "重要文本", position=f"inside:{para_id}")
 docx_set_font(session_id, run_id, bold=True, size=16, color_hex="FF0000")
 docx_save(session_id, "/path/to/output.docx")
 docx_close(session_id)
@@ -494,9 +494,9 @@ docx_close(session_id)
 # 1. 移动光标到指定元素之后
 docx_cursor_move(session_id, element_id="para_123", position="after")
 
-# 2. 在光标处插入内容（而非追加到末尾）
-docx_insert_paragraph_at_cursor(session_id, "这是插入在中间的段落")
-docx_insert_table_at_cursor(session_id, rows=3, cols=2)
+# 2. 使用 position 进行插入（不再依赖 cursor）
+docx_insert_paragraph(session_id, "这是插入在中间的段落", position="after:para_123")
+docx_insert_table(session_id, rows=3, cols=2, position="after:para_123")
 ```
 
 **格式刷（Format Painter）**：
@@ -507,9 +507,9 @@ docx_format_copy(session_id, source_id="run_src", target_id="run_target")
 
 **创建表格**：
 ```python
-table_id = docx_add_table(session_id, rows=3, cols=2)
+table_id = docx_insert_table(session_id, rows=3, cols=2, position="end:document_body")
 cell_id = docx_get_cell(session_id, table_id, row=0, col=0)
-docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
+docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{cell_id}")
 ```
 
 ## 完整工具参考
@@ -522,7 +522,7 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 
 | 工具 | 说明 | 效果 |
 |------|------|------|
-| `docx_add_formatted_paragraph(session_id, text, bold, italic, size, color_hex, alignment, style)` | 一步创建格式化段落 | 4 次调用 → 1 次 |
+| `docx_insert_formatted_paragraph(session_id, text, position, bold, italic, size, color_hex, alignment, style)` | 一步创建格式化段落 | 4 次调用 → 1 次 |
 | `docx_quick_edit(session_id, search_text, new_text, bold, italic, size, color_hex)` | 查找并编辑段落 | N+1 次 → 1 次 |
 | `docx_get_structure_summary(session_id, max_headings, max_tables, max_paragraphs, include_content)` | 轻量级结构提取 | Token 减少 90% |
 | `docx_smart_fill_table(session_id, table_identifier, data, has_header, auto_resize)` | 智能表格填充 | 自动扩展行 |
@@ -550,18 +550,18 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 
 | 工具 | 说明 |
 |------|------|
-| `docx_add_paragraph(session_id, text, style=None, parent_id=None)` | 添加段落 |
-| `docx_add_heading(session_id, text, level=1)` | 添加标题 |
+| `docx_insert_paragraph(session_id, text, position, style=None)` | 添加段落（position 必选） |
+| `docx_insert_heading(session_id, text, position, level=1)` | 添加标题（position 必选） |
 | `docx_update_paragraph_text(session_id, paragraph_id, new_text)` | 更新段落文本 |
-| `docx_copy_paragraph(session_id, paragraph_id)` | 深拷贝段落（保留格式） |
+| `docx_copy_paragraph(session_id, paragraph_id, position)` | 深拷贝段落（保留格式） |
 | `docx_delete(session_id, element_id=None)` | 删除元素 |
-| `docx_add_page_break(session_id)` | 插入分页符 |
+| `docx_insert_page_break(session_id, position)` | 插入分页符（position 必选） |
 
 ### 4. Run Tools（文本块操作，3 个）
 
 | 工具 | 说明 |
 |------|------|
-| `docx_add_run(session_id, text, paragraph_id=None)` | 向段落添加文本块 |
+| `docx_insert_run(session_id, text, position)` | 向段落添加文本块（position 必选） |
 | `docx_update_run_text(session_id, run_id, new_text)` | 更新 Run 文本 |
 | `docx_set_font(session_id, run_id, size=None, bold=None, italic=None, color_hex=None)` | 设置字体属性 |
 
@@ -569,15 +569,15 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 
 | 工具 | 说明 |
 |------|------|
-| `docx_add_table(session_id, rows, cols)` | 创建表格 |
+| `docx_insert_table(session_id, rows, cols, position)` | 创建表格（position 必选） |
 | `docx_get_table(session_id, index)` | 按索引获取表格 |
 | `docx_find_table(session_id, text)` | 查找包含指定文本的表格 |
 | `docx_get_cell(session_id, table_id, row, col)` | 获取单元格 |
-| `docx_add_paragraph_to_cell(session_id, cell_id, text)` | 向单元格添加段落 |
-| `docx_add_table_row(session_id, table_id=None)` | 添加行 |
-| `docx_add_table_col(session_id, table_id=None)` | 添加列 |
+| `docx_insert_paragraph_to_cell(session_id, text, position)` | 向单元格添加段落（position 必选） |
+| `docx_insert_table_row(session_id, position)` | 添加行（position 必选） |
+| `docx_insert_table_col(session_id, position)` | 添加列（position 必选） |
 | `docx_fill_table(session_id, data, table_id=None, start_row=0)` | 批量填充表格数据 |
-| `docx_copy_table(session_id, table_id)` | 深拷贝表格 |
+| `docx_copy_table(session_id, table_id, position)` | 深拷贝表格 |
 
 ### 6. Format Tools（格式化，6 个）
 
@@ -596,7 +596,7 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 |------|------|
 | `docx_replace_text(session_id, old_text, new_text, scope_id=None)` | 智能文本替换（跨 Run） |
 | `docx_batch_replace_text(session_id, replacements_json, scope_id=None)` | 批量文本替换 |
-| `docx_insert_image(session_id, image_path, width=None, height=None, parent_id=None)` | 插入图片 |
+| `docx_insert_image(session_id, image_path, width=None, height=None, position)` | 插入图片（position 必选） |
 
 ### 8. Cursor Tools（光标定位，4 个）
 
@@ -604,15 +604,13 @@ docx_add_paragraph_to_cell(session_id, cell_id, "单元格内容")
 |------|------|
 | `docx_cursor_get(session_id)` | 获取当前光标位置 |
 | `docx_cursor_move(session_id, element_id, position)` | 移动光标到指定位置 |
-| `docx_insert_paragraph_at_cursor(session_id, text, style=None)` | 在光标处插入段落 |
-| `docx_insert_table_at_cursor(session_id, rows, cols)` | 在光标处插入表格 |
 
 ### 9. Copy Tools（复制与元数据，2 个）
 
 | 工具 | 说明 |
 |------|------|
 | `docx_get_element_source(session_id, element_id)` | 获取元素来源元数据 |
-| `docx_copy_elements_range(session_id, start_id, end_id)` | 复制元素区间 |
+| `docx_copy_elements_range(session_id, start_id, end_id, position)` | 复制元素区间 |
 
 ### 10. System Tools（系统状态，1 个）
 

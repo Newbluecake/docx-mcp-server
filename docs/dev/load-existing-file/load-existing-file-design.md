@@ -97,7 +97,7 @@ User (Claude) -> docx_find_paragraphs(sid, "Introduction")
               -> Found match -> session.register_object(para) -> "para_123"
               -> Returns [{"id": "para_123", "text": "1. Introduction..."}]
 
-User (Claude) -> docx_add_run(sid, "para_123", " (Updated)")
+User (Claude) -> docx_insert_run(sid, " (Updated)", position="inside:para_123")
               -> Server looks up "para_123" -> gets Paragraph object
               -> calls para.add_run(...)
 ```

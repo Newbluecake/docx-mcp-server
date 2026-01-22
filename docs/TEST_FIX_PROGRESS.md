@@ -10,7 +10,7 @@
 
 ### 1. Core Tools
 - ✅ `composite_tools.py` - Added `_extract_element_id()` helper
-- ✅ Fixed `docx_add_formatted_paragraph`
+- ✅ Fixed `docx_insert_formatted_paragraph`
 - ✅ Fixed `docx_smart_fill_table`
 
 ### 2. Test Files Fixed (40 tests)

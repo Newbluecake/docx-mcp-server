@@ -29,7 +29,7 @@ The `context-aware-return` branch has been successfully merged into `master`.
 **File**: `src/docx_mcp_server/tools/composite_tools.py`
 
 Added `_extract_element_id()` helper function to parse JSON responses:
-- Fixed `docx_add_formatted_paragraph`
+- Fixed `docx_insert_formatted_paragraph`
 - Fixed `docx_smart_fill_table`
 - All 6 composite tool tests now passing
 
@@ -55,7 +55,7 @@ All failing tests follow the same pattern - they expect plain string returns but
 
 1. Add `import json` at the top
 2. Add `_extract_element_id()` helper function
-3. Wrap tool calls: `para_id = _extract_element_id(docx_add_paragraph(...))`
+3. Wrap tool calls: `para_id = _extract_element_id(docx_insert_paragraph(...))`
 4. Update error assertions to check JSON error responses
 
 ### Files Requiring Updates
@@ -90,7 +90,7 @@ All failing tests follow the same pattern - they expect plain string returns but
 ```python
 def test_example():
     session_id = docx_create()
-    para_id = docx_add_paragraph(session_id, "text")
+    para_id = docx_insert_paragraph(session_id, "text", position="end:document_body")
     assert para_id.startswith("para_")
 ```
 
@@ -109,7 +109,7 @@ def _extract_element_id(response):
 
 def test_example():
     session_id = docx_create()
-    para_response = docx_add_paragraph(session_id, "text")
+    para_response = docx_insert_paragraph(session_id, "text", position="end:document_body")
     para_id = _extract_element_id(para_response)
     assert para_id.startswith("para_")
 ```

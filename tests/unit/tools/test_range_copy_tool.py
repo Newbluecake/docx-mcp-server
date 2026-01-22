@@ -1,6 +1,6 @@
 import pytest
 import json
-from docx_mcp_server.server import docx_create, docx_add_paragraph, docx_copy_elements_range
+from docx_mcp_server.server import docx_create, docx_insert_paragraph, docx_copy_elements_range
 
 
 def _extract_element_id(response):
@@ -18,15 +18,15 @@ def test_docx_copy_elements_range_tool():
     session_id = docx_create()
 
     # Create content: P1, P2, P3
-    p1_response = docx_add_paragraph(session_id, "P1")
+    p1_response = docx_insert_paragraph(session_id, "P1", position="end:document_body")
     p1_id = _extract_element_id(p1_response)
-    p2_response = docx_add_paragraph(session_id, "P2")
+    p2_response = docx_insert_paragraph(session_id, "P2", position="end:document_body")
     p2_id = _extract_element_id(p2_response)
-    p3_response = docx_add_paragraph(session_id, "P3")
+    p3_response = docx_insert_paragraph(session_id, "P3", position="end:document_body")
     p3_id = _extract_element_id(p3_response)
 
     # Copy P1-P2 range
-    result_json = docx_copy_elements_range(session_id, p1_id, p2_id)
+    result_json = docx_copy_elements_range(session_id, p1_id, p2_id, position="end:document_body")
     result = json.loads(result_json)
 
     assert len(result) == 2

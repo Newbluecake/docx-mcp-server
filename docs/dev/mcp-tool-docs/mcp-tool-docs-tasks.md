@@ -56,17 +56,17 @@
 **描述**: 为内容操作工具添加详尽的 docstring
 
 **涉及工具** (5 个):
-1. `docx_add_paragraph` - 添加段落
-2. `docx_add_heading` - 添加标题
-3. `docx_add_run` - 添加文本块
+1. `docx_insert_paragraph` - 添加段落
+2. `docx_insert_heading` - 添加标题
+3. `docx_insert_run` - 添加文本块
 4. `docx_update_paragraph_text` - 更新段落文本
 5. `docx_update_run_text` - 更新文本块
 
 **验收标准**:
 - [ ] 每个工具都有完整的 docstring
-- [ ] `docx_add_paragraph` 说明 parent_id 的使用场景
-- [ ] `docx_add_heading` 说明 level 参数范围（0-9）
-- [ ] `docx_add_run` 说明上下文机制和参数兼容性
+- [ ] `docx_insert_paragraph` 说明 position 的使用场景
+- [ ] `docx_insert_heading` 说明 level 参数范围（0-9）
+- [ ] `docx_insert_run` 说明 position 的使用方式
 - [ ] 更新工具说明与添加工具的区别
 
 **实施要点**:
@@ -84,7 +84,7 @@
 1. `docx_set_font` - 设置字体
 2. `docx_set_alignment` - 设置对齐
 3. `docx_set_properties` - 设置属性
-4. `docx_add_page_break` - 添加分页符
+4. `docx_insert_page_break` - 添加分页符
 5. `docx_set_margins` - 设置页边距
 
 **验收标准**:
@@ -106,11 +106,11 @@
 **描述**: 为表格工具添加详尽的 docstring
 
 **涉及工具** (9 个):
-1. `docx_add_table` - 创建表格
+1. `docx_insert_table` - 创建表格
 2. `docx_get_cell` - 获取单元格
-3. `docx_add_paragraph_to_cell` - 单元格添加段落
-4. `docx_add_table_row` - 添加行
-5. `docx_add_table_col` - 添加列
+3. `docx_insert_paragraph_to_cell` - 单元格添加段落
+4. `docx_insert_table_row` - 添加行
+5. `docx_insert_table_col` - 添加列
 6. `docx_fill_table` - 批量填充表格
 7. `docx_copy_table` - 复制表格
 8. `docx_find_table` - 查找表格
@@ -118,7 +118,7 @@
 
 **验收标准**:
 - [ ] 每个工具都有完整的 docstring
-- [ ] `docx_add_table` 说明默认样式
+- [ ] `docx_insert_table` 说明默认样式
 - [ ] `docx_get_cell` 说明索引从 0 开始
 - [ ] `docx_fill_table` 提供 JSON 数据格式示例
 - [ ] `docx_copy_table` 说明深拷贝机制

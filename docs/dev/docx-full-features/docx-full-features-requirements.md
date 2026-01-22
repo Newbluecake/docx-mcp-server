@@ -71,10 +71,10 @@ Session 需要维护两个指针：
 ### 3.2 验收标准
 
 #### R-001: 混合上下文管理
-- **WHEN** 调用 `docx_add_paragraph` 后立即调用 `docx_add_run(text="foo")` (无 parent_id)
+- **WHEN** 调用 `docx_insert_paragraph` 后立即调用 `docx_insert_run(text="foo", position=...)`
 - **THEN** "foo" 应该被添加到刚才创建的段落中
 - **WHEN** 调用 `docx_copy_table` 复制一个表格
-- **THEN** 系统应自动将新表格设为当前上下文，后续的 `docx_table_add_row` 应作用于新表格
+- **THEN** 系统应自动将新表格设为当前上下文，后续的 `docx_insert_table_row` 应作用于新表格
 
 #### R-002: 通用属性设置器
 - **WHEN** 调用 `docx_set_properties` 传入 `{"font": {"bold": true}, "paragraph_format": {"alignment": "center"}}`
@@ -98,7 +98,7 @@ Session 需要维护两个指针：
 
 #### R-010: 自动保存
 - **WHEN** 在创建会话时指定 `auto_save=True` 和 `file_path`
-- **THEN** 每次执行修改操作（如 `docx_add_paragraph`）后，文件内容应立即写入磁盘
+- **THEN** 每次执行修改操作（如 `docx_insert_paragraph`）后，文件内容应立即写入磁盘
 
 ---
 

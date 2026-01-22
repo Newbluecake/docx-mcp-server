@@ -7,8 +7,8 @@ from docx_mcp_server.tools.content_tools import (
     docx_extract_template_structure
 )
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph, docx_add_heading
-from docx_mcp_server.tools.table_tools import docx_add_table
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
+from docx_mcp_server.tools.table_tools import docx_insert_table
 
 
 def test_read_content_with_pagination():
@@ -18,7 +18,7 @@ def test_read_content_with_pagination():
     try:
         # Add multiple paragraphs
         for i in range(20):
-            docx_add_paragraph(session_id, f"Paragraph {i}")
+            docx_insert_paragraph(session_id, f"Paragraph {i}", position="end:document_body")
 
         # Read first 5
         content = docx_read_content(session_id, max_paragraphs=5)
@@ -43,7 +43,7 @@ def test_find_paragraphs_with_limit():
     try:
         # Add many matching paragraphs
         for i in range(20):
-            docx_add_paragraph(session_id, f"Test paragraph {i}")
+            docx_insert_paragraph(session_id, f"Test paragraph {i}", position="end:document_body")
 
         # Find with limit
         matches_json = docx_find_paragraphs(session_id, "Test", max_results=5)
@@ -62,10 +62,10 @@ def test_extract_template_structure_with_limits():
     try:
         # Add content
         for i in range(5):
-            docx_add_heading(session_id, f"Heading {i}", level=1)
-            docx_add_paragraph(session_id, f"Content {i}")
+            docx_insert_heading(session_id, f"Heading {i}", position="end:document_body", level=1)
+            docx_insert_paragraph(session_id, f"Content {i}", position="end:document_body")
 
-        docx_add_table(session_id, 2, 2)
+        docx_insert_table(session_id, 2, 2, position="end:document_body")
 
         # Extract with limits
         limits = json.dumps({"headings": 2, "paragraphs": 0, "tables": 1})
@@ -96,8 +96,8 @@ def test_extract_template_structure_no_content():
     session_id = docx_create()
 
     try:
-        docx_add_heading(session_id, "Test Heading", level=1)
-        docx_add_paragraph(session_id, "Long paragraph content" * 100)
+        docx_insert_heading(session_id, "Test Heading", position="end:document_body", level=1)
+        docx_insert_paragraph(session_id, "Long paragraph content" * 100, position="end:document_body")
 
         structure_json = docx_extract_template_structure(
             session_id,

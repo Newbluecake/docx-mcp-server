@@ -51,11 +51,11 @@ All notable changes to this project will be documented in this file.
   - Implemented stateful session tracking (`last_created_id`, `last_accessed_id`).
   - Enabled concise MCP tool calls by inferring context (e.g., `docx_set_font` without explicit ID).
 - **Unified Properties Engine**: New `docx_set_properties` tool for setting complex formatting via JSON.
-- **Compatibility**: Added shim layer to support legacy `docx_add_run` argument signatures.
+- **Compatibility**: Insert tools now use `docx_insert_*` naming and require `position` for placement.
 
 ### 🐛 Fixes
 
-- Resolved `ValueError` in `docx_add_run` by detecting and swapping argument order for backward compatibility.
+- Resolved `ValueError` in `docx_insert_run` by validating position targets.
 - Fixed table cell expansion logic in batch filling operations.
 
 ### 👷 CI/CD

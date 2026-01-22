@@ -6,16 +6,14 @@ import tempfile
 import os
 from docx_mcp_server.tools.cursor_tools import (
     docx_cursor_get,
-    docx_cursor_move,
-    docx_insert_paragraph_at_cursor,
-    docx_insert_table_at_cursor
+    docx_cursor_move
 )
 from docx_mcp_server.tools.advanced_tools import (
     docx_replace_text,
     docx_batch_replace_text,
     docx_insert_image
 )
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
 
 
@@ -39,7 +37,7 @@ def test_cursor_get_returns_json():
 def test_cursor_move_returns_json():
     """Test that docx_cursor_move returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, "Test"))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "Test", position="end:document_body"))["data"]["element_id"]
 
     result = docx_cursor_move(session_id, para_id, "after")
     data = json.loads(result)
@@ -55,7 +53,7 @@ def test_cursor_move_returns_json():
 def test_cursor_move_invalid_position():
     """Test that docx_cursor_move returns error for invalid position."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, "Test"))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "Test", position="end:document_body"))["data"]["element_id"]
 
     result = docx_cursor_move(session_id, para_id, "invalid")
     data = json.loads(result)
@@ -66,40 +64,10 @@ def test_cursor_move_invalid_position():
     docx_close(session_id)
 
 
-def test_insert_paragraph_at_cursor_returns_json():
-    """Test that docx_insert_paragraph_at_cursor returns valid JSON."""
-    session_id = docx_create()
-
-    result = docx_insert_paragraph_at_cursor(session_id, "Inserted text")
-    data = json.loads(result)
-
-    assert data["status"] == "success"
-    assert "element_id" in data["data"]
-    assert data["data"]["element_id"].startswith("para_")
-    assert "cursor" in data["data"]
-
-    docx_close(session_id)
-
-
-def test_insert_table_at_cursor_returns_json():
-    """Test that docx_insert_table_at_cursor returns valid JSON."""
-    session_id = docx_create()
-
-    result = docx_insert_table_at_cursor(session_id, 3, 2)
-    data = json.loads(result)
-
-    assert data["status"] == "success"
-    assert "element_id" in data["data"]
-    assert data["data"]["element_id"].startswith("table_")
-    assert "cursor" in data["data"]
-
-    docx_close(session_id)
-
-
 def test_replace_text_returns_json():
     """Test that docx_replace_text returns valid JSON."""
     session_id = docx_create()
-    docx_add_paragraph(session_id, "Hello {{NAME}}, welcome!")
+    docx_insert_paragraph(session_id, "Hello {{NAME}}, welcome!", position="end:document_body")
 
     result = docx_replace_text(session_id, "{{NAME}}", "John")
     data = json.loads(result)
@@ -116,7 +84,7 @@ def test_replace_text_returns_json():
 def test_replace_text_no_matches():
     """Test that docx_replace_text returns 0 replacements when no matches."""
     session_id = docx_create()
-    docx_add_paragraph(session_id, "Hello World")
+    docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
 
     result = docx_replace_text(session_id, "{{NAME}}", "John")
     data = json.loads(result)
@@ -130,7 +98,7 @@ def test_replace_text_no_matches():
 def test_batch_replace_text_returns_json():
     """Test that docx_batch_replace_text returns valid JSON."""
     session_id = docx_create()
-    docx_add_paragraph(session_id, "Hello {{NAME}}, today is {{DATE}}")
+    docx_insert_paragraph(session_id, "Hello {{NAME}}, today is {{DATE}}", position="end:document_body")
 
     replacements = json.dumps({"{{NAME}}": "Alice", "{{DATE}}": "2023-01-01"})
     result = docx_batch_replace_text(session_id, replacements)
@@ -168,7 +136,7 @@ def test_insert_image_returns_json():
         tmp_path = tmp.name
 
     try:
-        result = docx_insert_image(session_id, tmp_path, width=2.0)
+        result = docx_insert_image(session_id, tmp_path, width=2.0, position="end:document_body")
         data = json.loads(result)
 
         assert data["status"] == "success"
@@ -184,7 +152,7 @@ def test_insert_image_file_not_found():
     """Test that docx_insert_image returns error for missing file."""
     session_id = docx_create()
 
-    result = docx_insert_image(session_id, "/nonexistent/image.png")
+    result = docx_insert_image(session_id, "/nonexistent/image.png", position="end:document_body")
     data = json.loads(result)
 
     assert data["status"] == "error"

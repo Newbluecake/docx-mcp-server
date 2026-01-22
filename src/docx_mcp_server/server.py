@@ -17,28 +17,26 @@ from docx_mcp_server.tools.content_tools import (
     docx_read_content, docx_find_paragraphs, docx_list_files, docx_extract_template_structure
 )
 from docx_mcp_server.tools.paragraph_tools import (
-    docx_add_paragraph, docx_add_heading, docx_update_paragraph_text,
-    docx_copy_paragraph, docx_delete, docx_add_page_break
+    docx_insert_paragraph, docx_insert_heading, docx_update_paragraph_text,
+    docx_copy_paragraph, docx_delete, docx_insert_page_break
 )
 from docx_mcp_server.tools.run_tools import (
-    docx_add_run, docx_update_run_text, docx_set_font
+    docx_insert_run, docx_update_run_text, docx_set_font
 )
 from docx_mcp_server.tools.table_tools import (
-    docx_add_table, docx_get_table, docx_find_table, docx_get_cell,
-    docx_add_paragraph_to_cell, docx_add_table_row, docx_add_table_col,
+    docx_insert_table, docx_get_table, docx_find_table, docx_get_cell,
+    docx_insert_paragraph_to_cell, docx_insert_table_row, docx_insert_table_col,
     docx_fill_table, docx_copy_table
 )
-from docx_mcp_server.tools.format_tools import (
-    docx_set_alignment, docx_set_properties, docx_format_copy, docx_set_margins,
-    docx_extract_format_template, docx_apply_format_template
+from docx_mcp_server.tools.cursor_tools import (
+    docx_cursor_move, docx_cursor_get
 )
 from docx_mcp_server.tools.advanced_tools import (
     docx_replace_text, docx_insert_image, docx_batch_replace_text
 )
 from docx_mcp_server.tools.system_tools import docx_server_status
 from docx_mcp_server.tools.cursor_tools import (
-    docx_cursor_move, docx_cursor_get,
-    docx_insert_paragraph_at_cursor, docx_insert_table_at_cursor
+    docx_cursor_move, docx_cursor_get
 )
 from docx_mcp_server.tools.copy_tools import (
     docx_get_element_source, docx_copy_elements_range

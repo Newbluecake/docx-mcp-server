@@ -44,7 +44,7 @@ pip install git+https://github.com/Newbluecake/docx-mcp-server.git
 请使用 docx 工具创建一个新文档，添加标题"测试报告"，然后保存为 test.docx
 ```
 
-3. 如果看到 Claude 调用了 `docx_create`, `docx_add_heading`, `docx_save` 等工具，说明配置成功！
+3. 如果看到 Claude 调用了 `docx_create`, `docx_insert_heading`, `docx_save` 等工具，说明配置成功！
 
 ## 使用示例
 

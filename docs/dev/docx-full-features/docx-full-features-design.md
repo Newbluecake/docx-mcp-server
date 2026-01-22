@@ -48,9 +48,9 @@ graph TD
 ### 2.1 混合上下文逻辑 (Hybrid Context)
 
 **规则**:
-1. **Creation**: `docx_add_paragraph` -> 更新 `last_created_id` 和 `last_accessed_id`。
+1. **Creation**: `docx_insert_paragraph` -> 更新 `last_created_id` 和 `last_accessed_id`。
 2. **Modification**: `docx_set_properties` (无 ID) -> 使用 `last_accessed_id`。
-3. **Implicit Parent**: `docx_add_run` (无 parent) -> 使用 `last_created_id` 检查是否为 Paragraph。
+3. **Implicit Parent**: `docx_insert_run` (position=inside:para_xxx) -> 使用 `last_created_id` 检查是否为 Paragraph。
 
 **代码变更**:
 `src/docx_mcp_server/core/session.py`:

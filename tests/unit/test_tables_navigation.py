@@ -6,12 +6,12 @@ from docx_mcp_server.server import (
     docx_find_table,
     docx_list_files,
     docx_copy_table,
-    docx_add_table_row,
-    docx_add_table_col,
+    docx_insert_table_row,
+    docx_insert_table_col,
     docx_fill_table,
     session_manager,
     docx_create,
-    docx_add_table
+    docx_insert_table
 )
 
 
@@ -40,7 +40,7 @@ def test_table_operations_flow():
     sid = docx_create()
 
     # 2. Add table
-    t_response = docx_add_table(sid, rows=2, cols=2)
+    t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
     t_id = _extract_element_id(t_response)
     session = session_manager.get_session(sid)
     table = session.get_object(t_id)
@@ -48,16 +48,16 @@ def test_table_operations_flow():
     assert len(table.columns) == 2
 
     # 3. Add row
-    docx_add_table_row(sid, t_id)
+    docx_insert_table_row(sid, position=f"inside:{t_id}")
     assert len(table.rows) == 3
 
     # 4. Add column
-    docx_add_table_col(sid, t_id)
+    docx_insert_table_col(sid, position=f"inside:{t_id}")
     assert len(table.columns) == 3
 
 def test_fill_table():
     sid = docx_create()
-    t_response = docx_add_table(sid, rows=1, cols=2)
+    t_response = docx_insert_table(sid, rows=1, cols=2, position="end:document_body")
     t_id = _extract_element_id(t_response)
 
     # Data for 2 rows (will need to add 1 row)
@@ -78,11 +78,11 @@ def test_fill_table():
 
 def test_copy_table():
     sid = docx_create()
-    t_response = docx_add_table(sid, rows=2, cols=2)
+    t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
     t_id = _extract_element_id(t_response)
 
     # Copy it
-    t_copy_response = docx_copy_table(sid, t_id)
+    t_copy_response = docx_copy_table(sid, t_id, position="end:document_body")
     t_copy_id = _extract_element_id(t_copy_response)
 
     assert t_copy_id != t_id
@@ -98,7 +98,7 @@ def test_copy_table():
 
 def test_find_table():
     sid = docx_create()
-    t_response = docx_add_table(sid, rows=1, cols=1)
+    t_response = docx_insert_table(sid, rows=1, cols=1, position="end:document_body")
     t_id = _extract_element_id(t_response)
 
     # Set text

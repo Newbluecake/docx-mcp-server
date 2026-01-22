@@ -45,13 +45,14 @@
 ### 实现
 ```python
 @mcp.tool()
-def docx_add_picture(session_id: str, image_path: str, width_inches: float = None) -> str:
+def docx_insert_image(session_id: str, image_path: str, position: str, width_inches: float = None) -> str:
     """
     在文档中插入图片。
 
     Args:
         session_id: 会话 ID
         image_path: 图片文件的绝对路径
+        position: 插入位置
         width_inches: 图片宽度（英寸），保持宽高比
 
     Returns:
@@ -73,9 +74,9 @@ def docx_add_picture(session_id: str, image_path: str, width_inches: float = Non
 
 ### 测试
 ```python
-def test_add_picture():
+def test_insert_image():
     session_id = docx_create()
-    result = docx_add_picture(session_id, "/path/to/test.png", width_inches=3.0)
+    result = docx_insert_image(session_id, "/path/to/test.png", position="end:document_body", width_inches=3.0)
     assert "Picture added" in result
     docx_close(session_id)
 ```

@@ -39,7 +39,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 @mcp.tool()
-def docx_add_paragraph(session_id: str, text: str, style: str = None) -> str:
+def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
     session = session_manager.get_session(session_id)
     paragraph = session.document.add_paragraph(text, style=style)
     element_id = session.register_object(paragraph, "para")
@@ -117,7 +117,7 @@ session:
 
 操作序列：
 1. docx_create() -> session_id: xxx
-2. docx_add_paragraph(session_id, "test") -> para_id: yyy
+2. docx_insert_paragraph(session_id, "test", position="end:document_body") -> para_id: yyy
 3. [出错的操作]
 
 请帮我：

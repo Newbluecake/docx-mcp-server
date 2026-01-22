@@ -19,9 +19,9 @@ All 33 MCP tools in `src/docx_mcp_server/server.py` already have comprehensive, 
 - [x] `docx_read_content` - Complete with content extraction examples
 
 #### Content Operation Tools (5/5) ✅
-- [x] `docx_add_paragraph` - Complete with parent_id and style examples
-- [x] `docx_add_heading` - Complete with level parameter (0-9) documentation
-- [x] `docx_add_run` - Complete with context mechanism and compatibility shim
+- [x] `docx_insert_paragraph` - Complete with position and style examples
+- [x] `docx_insert_heading` - Complete with level parameter (0-9) documentation
+- [x] `docx_insert_run` - Complete with position-based insertion examples
 - [x] `docx_update_paragraph_text` - Complete with template placeholder examples
 - [x] `docx_update_run_text` - Complete with formatting preservation notes
 
@@ -29,15 +29,15 @@ All 33 MCP tools in `src/docx_mcp_server/server.py` already have comprehensive, 
 - [x] `docx_set_font` - Complete with color hex format and units (points)
 - [x] `docx_set_alignment` - Complete with all valid values listed
 - [x] `docx_set_properties` - Complete with JSON format examples
-- [x] `docx_add_page_break` - Complete with section separation examples
+- [x] `docx_insert_page_break` - Complete with section separation examples
 - [x] `docx_set_margins` - Complete with units (inches) documentation
 
 #### Table Tools (9/9) ✅
-- [x] `docx_add_table` - Complete with default style documentation
+- [x] `docx_insert_table` - Complete with default style documentation
 - [x] `docx_get_cell` - Complete with 0-based indexing notes
-- [x] `docx_add_paragraph_to_cell` - Complete with cell population examples
-- [x] `docx_add_table_row` - Complete with context mechanism
-- [x] `docx_add_table_col` - Complete with default width (1 inch)
+- [x] `docx_insert_paragraph_to_cell` - Complete with cell population examples
+- [x] `docx_insert_table_row` - Complete with context mechanism
+- [x] `docx_insert_table_col` - Complete with default width (1 inch)
 - [x] `docx_fill_table` - Complete with JSON data format and auto-expand
 - [x] `docx_copy_table` - Complete with deep copy mechanism
 - [x] `docx_find_table` - Complete with search logic explanation
@@ -152,7 +152,7 @@ Typical Use Cases:
 ### Quality Highlights
 
 1. **Context Mechanism**: Well-documented implicit context feature
-2. **Compatibility**: Legacy signature support documented (e.g., `docx_add_run`)
+2. **Positioning**: Position-based insert documented (e.g., `docx_insert_run`)
 3. **Cross-Platform**: Path handling notes for different OS
 4. **Units**: Explicit unit documentation (points, inches, hex format)
 5. **Atomicity**: Design philosophy explained in relevant tools

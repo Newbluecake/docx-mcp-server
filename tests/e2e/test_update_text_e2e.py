@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_run,
     docx_set_font,
     docx_update_paragraph_text,
     docx_update_run_text,
@@ -29,15 +29,15 @@ def test_update_text_e2e():
         session_id = docx_create()
 
         # Create original content
-        result = docx_add_paragraph(session_id, "Original paragraph 1")
+        result = docx_insert_paragraph(session_id, "Original paragraph 1", position="end:document_body")
         data = json.loads(result)
         para1_id = data["data"]["element_id"]
 
-        result = docx_add_paragraph(session_id, "")
+        result = docx_insert_paragraph(session_id, "", position="end:document_body")
         data = json.loads(result)
         para2_id = data["data"]["element_id"]
 
-        result = docx_add_run(session_id, "Original run", paragraph_id=para2_id)
+        result = docx_insert_run(session_id, "Original run", position=f"inside:{para2_id}")
         data = json.loads(result)
         run1_id = data["data"]["element_id"]
 

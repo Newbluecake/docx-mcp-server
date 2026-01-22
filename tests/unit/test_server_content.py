@@ -2,9 +2,9 @@ import unittest
 import json
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_heading,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_heading,
+    docx_insert_run,
     session_manager
 )
 
@@ -25,7 +25,7 @@ class TestServerContent(unittest.TestCase):
         self.session_id = docx_create()
 
     def test_add_paragraph(self):
-        para_response = docx_add_paragraph(self.session_id, "Hello World")
+        para_response = docx_insert_paragraph(self.session_id, "Hello World", position="end:document_body")
         para_id = _extract_element_id(para_response)
         self.assertTrue(para_id.startswith("para_"))
 
@@ -34,7 +34,7 @@ class TestServerContent(unittest.TestCase):
         self.assertEqual(para.text, "Hello World")
 
     def test_add_heading(self):
-        head_response = docx_add_heading(self.session_id, "My Title", level=0)
+        head_response = docx_insert_heading(self.session_id, "My Title", position="end:document_body", level=0)
         head_id = _extract_element_id(head_response)
         self.assertTrue(head_id.startswith("para_"))
 
@@ -44,9 +44,9 @@ class TestServerContent(unittest.TestCase):
         self.assertEqual(head.style.name, "Title")
 
     def test_add_run(self):
-        para_response = docx_add_paragraph(self.session_id, "Start: ")
+        para_response = docx_insert_paragraph(self.session_id, "Start: ", position="end:document_body")
         para_id = _extract_element_id(para_response)
-        run_response = docx_add_run(self.session_id, para_id, "Appended Text")
+        run_response = docx_insert_run(self.session_id, "Appended Text", position=f"inside:{para_id}")
         run_id = _extract_element_id(run_response)
 
         self.assertTrue(run_id.startswith("run_"))
@@ -57,7 +57,7 @@ class TestServerContent(unittest.TestCase):
 
     def test_invalid_ids(self):
         # Test invalid session - should return error JSON
-        result = docx_add_paragraph("bad_session", "text")
+        result = docx_insert_paragraph("bad_session", "text", position="end:document_body")
         try:
             data = json.loads(result)
             self.assertEqual(data["status"], "error")
@@ -65,7 +65,7 @@ class TestServerContent(unittest.TestCase):
             self.assertIn("not found", result.lower())
 
         # Test invalid parent ID - should return error JSON
-        result = docx_add_run(self.session_id, "bad_para_id", "text")
+        result = docx_insert_run(self.session_id, "text", position="inside:bad_para_id")
         try:
             data = json.loads(result)
             self.assertEqual(data["status"], "error")

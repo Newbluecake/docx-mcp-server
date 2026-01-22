@@ -27,10 +27,10 @@
 
 示例：
 # 不好
-run_id = docx_add_run(session_id, para_id, "text")  # 如果不需要格式化，不必返回 ID
+run_id = docx_insert_run(session_id, "text", position=f"inside:{para_id}")  # 如果不需要格式化，不必返回 ID
 
 # 好
-docx_add_run_simple(session_id, para_id, "text")  # 返回 "Success"，不注册对象
+docx_insert_run_simple(session_id, "text", position=f"inside:{para_id}")  # 返回 "Success"，不注册对象
 ```
 
 ### 2. 会话清理策略
@@ -53,7 +53,7 @@ def docx_cleanup_sessions() -> str:
 请添加批量操作工具：
 
 @mcp.tool()
-def docx_add_paragraphs_batch(session_id: str, texts: list[str]) -> str:
+def docx_insert_paragraphs_batch(session_id: str, texts: list[str]) -> str:
     """批量添加段落，不返回 ID"""
     session = session_manager.get_session(session_id)
     for text in texts:
@@ -105,7 +105,7 @@ def docx_stats() -> str:
 ```python
 # 每处理 100 个段落就保存一次
 for i, text in enumerate(large_text_list):
-    docx_add_paragraph(session_id, text)
+    docx_insert_paragraph(session_id, text, position="end:document_body")
     if i % 100 == 0:
         docx_save(session_id, f"/tmp/checkpoint_{i}.docx")
 ```
@@ -116,7 +116,7 @@ for i, text in enumerate(large_text_list):
 请为大文档场景添加简化工具：
 
 @mcp.tool()
-def docx_add_content_simple(session_id: str, content: str) -> str:
+def docx_insert_content_simple(session_id: str, content: str) -> str:
     """添加纯文本内容，不注册对象，适合大文档"""
     session = session_manager.get_session(session_id)
     for line in content.split('\n'):

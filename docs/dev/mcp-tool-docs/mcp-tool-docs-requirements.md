@@ -78,9 +78,9 @@ version: 1
 | ID | 功能点 | 验收步骤 | 优先级 | 关联需求 | 通过 |
 |----|--------|----------|--------|----------|------|
 | F-001 | 核心工具文档 | 1. 检查 docx_create, docx_save, docx_close 的 docstring 2. 验证包含所有必需元素 | P0 | R-001~R-005 | ☐ |
-| F-002 | 内容操作工具文档 | 1. 检查 docx_add_paragraph, docx_add_heading, docx_add_run 等 2. 验证示例完整 | P0 | R-001~R-005 | ☐ |
+| F-002 | 内容操作工具文档 | 1. 检查 docx_insert_paragraph, docx_insert_heading, docx_insert_run 等 2. 验证示例完整 | P0 | R-001~R-005 | ☐ |
 | F-003 | 格式化工具文档 | 1. 检查 docx_set_font, docx_set_alignment 等 2. 验证参数说明清晰 | P0 | R-001~R-005 | ☐ |
-| F-004 | 表格工具文档 | 1. 检查 docx_add_table, docx_get_cell 等 2. 验证场景说明完整 | P0 | R-001~R-005 | ☐ |
+| F-004 | 表格工具文档 | 1. 检查 docx_insert_table, docx_get_cell 等 2. 验证场景说明完整 | P0 | R-001~R-005 | ☐ |
 | F-005 | 高级功能工具文档 | 1. 检查 docx_extract_template_structure, docx_copy_paragraph 等 2. 验证错误处理说明 | P1 | R-001~R-005 | ☐ |
 
 ---
@@ -156,9 +156,9 @@ def docx_example_tool(session_id: str, param1: str, param2: Optional[int] = None
 - `docx_read_content` - 读取文档内容
 
 ### 5.2 内容操作工具（P0）
-- `docx_add_paragraph` - 添加段落
-- `docx_add_heading` - 添加标题
-- `docx_add_run` - 添加文本块
+- `docx_insert_paragraph` - 添加段落
+- `docx_insert_heading` - 添加标题
+- `docx_insert_run` - 添加文本块
 - `docx_update_paragraph_text` - 更新段落文本
 - `docx_update_run_text` - 更新文本块
 
@@ -166,15 +166,15 @@ def docx_example_tool(session_id: str, param1: str, param2: Optional[int] = None
 - `docx_set_font` - 设置字体
 - `docx_set_alignment` - 设置对齐
 - `docx_set_properties` - 设置属性
-- `docx_add_page_break` - 添加分页符
+- `docx_insert_page_break` - 添加分页符
 - `docx_set_margins` - 设置页边距
 
 ### 5.4 表格工具（P0）
-- `docx_add_table` - 创建表格
+- `docx_insert_table` - 创建表格
 - `docx_get_cell` - 获取单元格
-- `docx_add_paragraph_to_cell` - 单元格添加段落
-- `docx_add_table_row` - 添加行
-- `docx_add_table_col` - 添加列
+- `docx_insert_paragraph_to_cell` - 单元格添加段落
+- `docx_insert_table_row` - 添加行
+- `docx_insert_table_col` - 添加列
 - `docx_fill_table` - 批量填充表格
 - `docx_copy_table` - 复制表格
 - `docx_find_table` - 查找表格

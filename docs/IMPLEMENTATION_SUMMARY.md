@@ -6,7 +6,7 @@
 
 创建了 5 个高层复合工具，将多步操作合并为一步：
 
-- ✅ `docx_add_formatted_paragraph` - 一步创建格式化段落
+- ✅ `docx_insert_formatted_paragraph` - 一步创建格式化段落
 - ✅ `docx_quick_edit` - 查找并编辑段落
 - ✅ `docx_get_structure_summary` - 轻量级结构提取
 - ✅ `docx_smart_fill_table` - 智能表格填充
@@ -54,9 +54,9 @@
 
 ## 🔄 向后兼容性
 
-- ✅ 所有现有工具保持不变
-- ✅ 新增参数都是可选的
-- ✅ 旧代码无需修改即可继续使用
+- ✅ 插入类工具统一为 `docx_insert_*`
+- ✅ 插入类工具要求传入 `position`
+- ✅ 其它工具保持兼容
 
 ## 🧪 测试覆盖
 

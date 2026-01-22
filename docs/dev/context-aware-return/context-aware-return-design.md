@@ -52,8 +52,8 @@ class ToolResponse:
 
 | 工具 | 当前返回 | 新返回 (JSON Schema) |
 |------|----------|-------------------|
-| `docx_add_paragraph` | `id` / `id\n\nContext` | `{status, data: {element_id, cursor}}` |
-| `docx_add_table` | `id` / `id\n\nContext` | `{status, data: {element_id, cursor}}` |
+| `docx_insert_paragraph` | `id` / `id\n\nContext` | `{status, data: {element_id, cursor}}` |
+| `docx_insert_table` | `id` / `id\n\nContext` | `{status, data: {element_id, cursor}}` |
 | `docx_update_*` | `Message` / `Msg\n\nContext` | `{status, data: {element_id, changed_fields, cursor}}` |
 | `docx_cursor_move` | `Msg\n\nContext` | `{status, data: {cursor}}` |
 

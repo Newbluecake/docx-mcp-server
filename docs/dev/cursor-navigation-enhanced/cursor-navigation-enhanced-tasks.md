@@ -18,9 +18,9 @@
 
 | 任务 ID | 标题 | 描述 | 复杂度 | 依赖 |
 |---------|------|------|--------|------|
-| T-004 | 升级 Paragraph 相关工具 | 更新 `docx_add_paragraph` 和 `docx_add_heading`。添加 `position` 参数支持，使用 `PositionResolver` 处理插入，返回 `ContextBuilder` 生成的 JSON。 | Simple | T-003 |
-| T-005 | 升级 Table 相关工具 | 更新 `docx_add_table`。支持 `position` 参数（段落前后插入）。集成新的上下文返回格式。 | Simple | T-003 |
-| T-006 | 升级 Image 与辅助工具 | 更新 `docx_insert_image` 支持 `position`。检查是否需要更新 `docx_add_run` (通常不需要 position，但需要上下文)。 | Simple | T-003 |
+| T-004 | 升级 Paragraph 相关工具 | 更新 `docx_insert_paragraph` 和 `docx_insert_heading`。统一 `position` 参数，使用 `PositionResolver` 处理插入，返回 `ContextBuilder` 生成的 JSON。 | Simple | T-003 |
+| T-005 | 升级 Table 相关工具 | 更新 `docx_insert_table`。支持 `position` 参数（段落前后插入）。集成新的上下文返回格式。 | Simple | T-003 |
+| T-006 | 升级 Image 与辅助工具 | 更新 `docx_insert_image` 支持 `position`。更新 `docx_insert_run` 使用 position 插入。 | Simple | T-003 |
 
 ### Group 3: Verification (验证)
 
@@ -31,4 +31,4 @@
 ## 执行策略
 
 - **优先级**: T-002 (Visualizer) 是本次重构的核心，应优先通过单元测试验证其输出效果。
-- **兼容性**: 在 T-004/5 实施时，必须保证不传 `position` 参数时的行为与旧版本完全一致（追加到末尾）。
+- **兼容性**: 插入类工具统一要求传入 `position`，示例与测试需同步更新。

@@ -78,9 +78,9 @@ def docx_example_tool(session_id: str, param1: str, param2: Optional[int] = None
 - `docx_read_content` - 读取文档内容
 
 #### 2.2.2 内容操作工具 (5 个)
-- `docx_add_paragraph` - 添加段落
-- `docx_add_heading` - 添加标题
-- `docx_add_run` - 添加文本块
+- `docx_insert_paragraph` - 添加段落
+- `docx_insert_heading` - 添加标题
+- `docx_insert_run` - 添加文本块
 - `docx_update_paragraph_text` - 更新段落文本
 - `docx_update_run_text` - 更新文本块
 
@@ -88,15 +88,15 @@ def docx_example_tool(session_id: str, param1: str, param2: Optional[int] = None
 - `docx_set_font` - 设置字体
 - `docx_set_alignment` - 设置对齐
 - `docx_set_properties` - 设置属性
-- `docx_add_page_break` - 添加分页符
+- `docx_insert_page_break` - 添加分页符
 - `docx_set_margins` - 设置页边距
 
 #### 2.2.4 表格工具 (9 个)
-- `docx_add_table` - 创建表格
+- `docx_insert_table` - 创建表格
 - `docx_get_cell` - 获取单元格
-- `docx_add_paragraph_to_cell` - 单元格添加段落
-- `docx_add_table_row` - 添加行
-- `docx_add_table_col` - 添加列
+- `docx_insert_paragraph_to_cell` - 单元格添加段落
+- `docx_insert_table_row` - 添加行
+- `docx_insert_table_col` - 添加列
 - `docx_fill_table` - 批量填充表格
 - `docx_copy_table` - 复制表格
 - `docx_find_table` - 查找表格

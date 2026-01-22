@@ -26,9 +26,10 @@ def _extract_element_id(response: str) -> str:
         return response
 
 
-def docx_add_formatted_paragraph(
+def docx_insert_formatted_paragraph(
     session_id: str,
     text: str,
+    position: str,
     bold: bool = False,
     italic: bool = False,
     size: float = None,
@@ -39,7 +40,7 @@ def docx_add_formatted_paragraph(
     """
     Create a formatted paragraph in one step.
 
-    Combines docx_add_paragraph + docx_add_run + docx_set_font + docx_set_alignment
+    Combines docx_insert_paragraph + docx_insert_run + docx_set_font + docx_set_alignment
     into a single operation for common use cases.
 
     Typical Use Cases:
@@ -50,6 +51,7 @@ def docx_add_formatted_paragraph(
     Args:
         session_id (str): Active session ID.
         text (str): Paragraph text content.
+        position (str): Insertion position string (e.g., "after:para_123").
         bold (bool): Make text bold. Defaults to False.
         italic (bool): Make text italic. Defaults to False.
         size (float): Font size in points (e.g., 12.0, 14.5).
@@ -62,27 +64,27 @@ def docx_add_formatted_paragraph(
 
     Examples:
         Create bold red text:
-        >>> para_id = docx_add_formatted_paragraph(
-        ...     session_id, "Important!", bold=True, color_hex="FF0000"
+        >>> para_id = docx_insert_formatted_paragraph(
+        ...     session_id, "Important!", position="end:document_body", bold=True, color_hex="FF0000"
         ... )
 
         Create centered heading:
-        >>> para_id = docx_add_formatted_paragraph(
-        ...     session_id, "Title", size=16, alignment="center"
+        >>> para_id = docx_insert_formatted_paragraph(
+        ...     session_id, "Title", position="end:document_body", size=16, alignment="center"
         ... )
     """
     from docx_mcp_server.server import session_manager
-    from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
-    from docx_mcp_server.tools.run_tools import docx_add_run, docx_set_font
+    from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
+    from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
     from docx_mcp_server.tools.format_tools import docx_set_alignment
 
     try:
         # Step 1: Create paragraph
-        para_response = docx_add_paragraph(session_id, "", style=style)
+        para_response = docx_insert_paragraph(session_id, "", position=position, style=style)
         para_id = _extract_element_id(para_response)
 
         # Step 2: Add run with text
-        run_response = docx_add_run(session_id, text, paragraph_id=para_id)
+        run_response = docx_insert_run(session_id, text, position=f"inside:{para_id}")
         run_id = _extract_element_id(run_response)
 
         # Step 3: Apply font formatting if specified
@@ -327,7 +329,7 @@ def docx_smart_fill_table(
         >>> result = docx_smart_fill_table(session_id, "Employee", data)
     """
     from docx_mcp_server.tools.table_tools import (
-        docx_get_table, docx_find_table, docx_fill_table, docx_add_table_row
+        docx_get_table, docx_find_table, docx_fill_table, docx_insert_table_row
     )
     from docx_mcp_server.server import session_manager
 
@@ -358,7 +360,7 @@ def docx_smart_fill_table(
         if auto_resize and data_rows > existing_rows:
             rows_to_add = data_rows - existing_rows
             for _ in range(rows_to_add):
-                docx_add_table_row(session_id, table_id)
+                docx_insert_table_row(session_id, position=f"inside:{table_id}")
             logger.info(f"Added {rows_to_add} rows to table")
 
         # Fill table
@@ -470,7 +472,7 @@ def docx_format_range(
 
 def register_tools(mcp: FastMCP):
     """Register composite tools with MCP server"""
-    mcp.tool()(docx_add_formatted_paragraph)
+    mcp.tool()(docx_insert_formatted_paragraph)
     mcp.tool()(docx_quick_edit)
     mcp.tool()(docx_get_structure_summary)
     mcp.tool()(docx_smart_fill_table)

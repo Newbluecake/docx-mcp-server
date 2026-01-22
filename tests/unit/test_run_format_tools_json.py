@@ -3,7 +3,7 @@
 import json
 import pytest
 from docx_mcp_server.tools.run_tools import (
-    docx_add_run,
+    docx_insert_run,
     docx_update_run_text,
     docx_set_font
 )
@@ -15,16 +15,16 @@ from docx_mcp_server.tools.format_tools import (
     docx_extract_format_template,
     docx_apply_format_template
 )
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
 
 
 def test_add_run_returns_json():
-    """Test that docx_add_run returns valid JSON."""
+    """Test that docx_insert_run returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, ""))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "", position="end:document_body"))["data"]["element_id"]
 
-    result = docx_add_run(session_id, "Test Run", paragraph_id=para_id)
+    result = docx_insert_run(session_id, "Test Run", position=f"inside:{para_id}")
     data = json.loads(result)
 
     assert data["status"] == "success"
@@ -38,8 +38,8 @@ def test_add_run_returns_json():
 def test_update_run_text_returns_json():
     """Test that docx_update_run_text returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, ""))["data"]["element_id"]
-    run_id = json.loads(docx_add_run(session_id, "Old", paragraph_id=para_id))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "", position="end:document_body"))["data"]["element_id"]
+    run_id = json.loads(docx_insert_run(session_id, "Old", position=f"inside:{para_id}"))["data"]["element_id"]
 
     result = docx_update_run_text(session_id, run_id, "New")
     data = json.loads(result)
@@ -54,8 +54,8 @@ def test_update_run_text_returns_json():
 def test_set_font_returns_json():
     """Test that docx_set_font returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, ""))["data"]["element_id"]
-    run_id = json.loads(docx_add_run(session_id, "Text", paragraph_id=para_id))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "", position="end:document_body"))["data"]["element_id"]
+    run_id = json.loads(docx_insert_run(session_id, "Text", position=f"inside:{para_id}"))["data"]["element_id"]
 
     result = docx_set_font(session_id, run_id, bold=True, size=12, color_hex="FF0000")
     data = json.loads(result)
@@ -72,7 +72,7 @@ def test_set_font_returns_json():
 def test_set_alignment_returns_json():
     """Test that docx_set_alignment returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, "Text"))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "Text", position="end:document_body"))["data"]["element_id"]
 
     result = docx_set_alignment(session_id, para_id, "center")
     data = json.loads(result)
@@ -87,7 +87,7 @@ def test_set_alignment_returns_json():
 def test_set_properties_returns_json():
     """Test that docx_set_properties returns valid JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, "Text"))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "Text", position="end:document_body"))["data"]["element_id"]
 
     props = json.dumps({"font": {"bold": True}})
     # set_properties usually works on runs or paragraphs. For paragraphs it sets para props.
@@ -107,8 +107,8 @@ def test_set_properties_returns_json():
 def test_format_copy_returns_json():
     """Test that docx_format_copy returns valid JSON."""
     session_id = docx_create()
-    para1_id = json.loads(docx_add_paragraph(session_id, "Source"))["data"]["element_id"]
-    para2_id = json.loads(docx_add_paragraph(session_id, "Target"))["data"]["element_id"]
+    para1_id = json.loads(docx_insert_paragraph(session_id, "Source", position="end:document_body"))["data"]["element_id"]
+    para2_id = json.loads(docx_insert_paragraph(session_id, "Target", position="end:document_body"))["data"]["element_id"]
 
     result = docx_format_copy(session_id, para1_id, para2_id)
     data = json.loads(result)
@@ -137,7 +137,7 @@ def test_set_margins_returns_json():
 def test_template_operations_return_json():
     """Test extract and apply template return JSON."""
     session_id = docx_create()
-    para_id = json.loads(docx_add_paragraph(session_id, "Template"))["data"]["element_id"]
+    para_id = json.loads(docx_insert_paragraph(session_id, "Template", position="end:document_body"))["data"]["element_id"]
     docx_set_alignment(session_id, para_id, "right")
 
     # Extract
@@ -149,7 +149,7 @@ def test_template_operations_return_json():
     template_obj = extract_data["data"]["template"]
 
     # Apply
-    para2_id = json.loads(docx_add_paragraph(session_id, "Apply"))["data"]["element_id"]
+    para2_id = json.loads(docx_insert_paragraph(session_id, "Apply", position="end:document_body"))["data"]["element_id"]
 
     # Note: apply takes the raw JSON string of the template usually,
     # but our new extract returns a wrapped JSON response.

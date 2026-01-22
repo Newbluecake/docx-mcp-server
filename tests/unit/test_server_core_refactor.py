@@ -3,8 +3,8 @@ import json
 from unittest.mock import MagicMock, patch
 from docx_mcp_server.server import (
     docx_create,
-    docx_add_paragraph,
-    docx_add_run,
+    docx_insert_paragraph,
+    docx_insert_run,
     docx_set_properties,
     session_manager
 )
@@ -34,13 +34,13 @@ def test_implicit_context_flow():
     session = session_manager.get_session(sid)
 
     # 2. Add paragraph (should set last_created_id)
-    p_response = docx_add_paragraph(sid, "Hello")
+    p_response = docx_insert_paragraph(sid, "Hello", position="end:document_body")
     p_id = _extract_element_id(p_response)
     clean_id = p_id.strip().split()[0]
     assert session.last_created_id == clean_id
 
-    # 3. Add run without parent (should use p_id)
-    r_response = docx_add_run(sid, " World")
+    # 3. Add run using explicit position
+    r_response = docx_insert_run(sid, " World", position=f"inside:{p_id}")
     r_id = _extract_element_id(r_response)
     clean_rid = r_id.strip().split()[0]
     assert session.last_accessed_id == clean_rid
@@ -51,7 +51,7 @@ def test_implicit_context_flow():
 
 def test_set_properties_flow():
     sid = docx_create()
-    p_response = docx_add_paragraph(sid, "Test Prop")
+    p_response = docx_insert_paragraph(sid, "Test Prop", position="end:document_body")
     p_id = _extract_element_id(p_response)
 
     # Set alignment via properties
@@ -66,7 +66,7 @@ def test_set_properties_flow():
 
 def test_set_properties_implicit_context():
     sid = docx_create()
-    p_response = docx_add_paragraph(sid, "Context Test")
+    p_response = docx_insert_paragraph(sid, "Context Test", position="end:document_body")
     p_id = _extract_element_id(p_response)
 
     # Implicitly use p_id because it was last created/accessed

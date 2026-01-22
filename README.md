@@ -137,17 +137,17 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 
 ### 内容编辑
 
-- `docx_add_paragraph(session_id, text, style=None)` - 添加段落
-- `docx_add_heading(session_id, text, level=1)` - 添加标题
-- `docx_add_run(session_id, text, paragraph_id=None)` - 向段落添加文本块
-- `docx_add_page_break(session_id)` - 插入分页符
-- `docx_insert_image(session_id, image_path, width=None, height=None)` - 插入图片
+- `docx_insert_paragraph(session_id, text, position, style=None)` - 添加段落（position 必选）
+- `docx_insert_heading(session_id, text, position, level=1)` - 添加标题（position 必选）
+- `docx_insert_run(session_id, text, position)` - 向段落添加文本块（position 必选）
+- `docx_insert_page_break(session_id, position)` - 插入分页符（position 必选）
+- `docx_insert_image(session_id, image_path, width=None, height=None, position)` - 插入图片（position 必选）
 
 ### 高级编辑
 
-- `docx_copy_paragraph(session_id, paragraph_id)` - 复制段落（保留格式）
-- `docx_copy_table(session_id, table_id)` - 深拷贝表格（保留结构与格式）
-- `docx_copy_elements_range(session_id, start_id, end_id)` - 复制元素区间（如整个章节）
+- `docx_copy_paragraph(session_id, paragraph_id, position)` - 复制段落（保留格式）
+- `docx_copy_table(session_id, table_id, position)` - 深拷贝表格（保留结构与格式）
+- `docx_copy_elements_range(session_id, start_id, end_id, position)` - 复制元素区间（如整个章节）
 - `docx_replace_text(session_id, old_text, new_text, scope_id=None)` - 智能文本替换（支持模板填充）
 - `docx_batch_replace_text(session_id, replacements_json, scope_id=None)` - 批量文本替换（格式保留）
 - `docx_update_paragraph_text(session_id, paragraph_id, new_text)` - 更新段落文本
@@ -159,12 +159,12 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 
 ### 表格操作
 
-- `docx_add_table(session_id, rows, cols)` - 创建表格
-- `docx_add_table_row(session_id, table_id=None)` - 添加行
-- `docx_add_table_col(session_id, table_id=None)` - 添加列
+- `docx_insert_table(session_id, rows, cols, position)` - 创建表格（position 必选）
+- `docx_insert_table_row(session_id, position)` - 添加行（position 必选）
+- `docx_insert_table_col(session_id, position)` - 添加列（position 必选）
 - `docx_fill_table(session_id, data, table_id=None, start_row=0)` - 批量填充表格数据
 - `docx_get_cell(session_id, table_id, row, col)` - 获取单元格
-- `docx_add_paragraph_to_cell(session_id, cell_id, text)` - 向单元格添加段落
+- `docx_insert_paragraph_to_cell(session_id, text, position)` - 向单元格添加段落（position 必选）
 
 ### 格式化
 
@@ -177,8 +177,6 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 
 - `docx_cursor_get(session_id)` - 获取当前光标位置
 - `docx_cursor_move(session_id, element_id, position)` - 移动光标到指定位置
-- `docx_insert_paragraph_at_cursor(session_id, text, style=None)` - 在光标处插入段落
-- `docx_insert_table_at_cursor(session_id, rows, cols)` - 在光标处插入表格
 
 ## 使用示例
 

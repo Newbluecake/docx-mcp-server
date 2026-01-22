@@ -55,15 +55,15 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
     Examples:
         Center a heading:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_heading(session_id, "Title", level=0)
+        >>> para_id = docx_insert_heading(session_id, "Title", position="end:document_body", level=0)
         >>> docx_set_alignment(session_id, para_id, "center")
 
         Right-align a date:
-        >>> para_id = docx_add_paragraph(session_id, "January 21, 2026")
+        >>> para_id = docx_insert_paragraph(session_id, "January 21, 2026", position="end:document_body")
         >>> docx_set_alignment(session_id, para_id, "right")
 
         Justify body text:
-        >>> para_id = docx_add_paragraph(session_id, "Long paragraph text...")
+        >>> para_id = docx_insert_paragraph(session_id, "Long paragraph text...", position="end:document_body")
         >>> docx_set_alignment(session_id, para_id, "justify")
 
     Notes:
@@ -72,7 +72,7 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
         - Default alignment is "left"
 
     See Also:
-        - docx_add_paragraph: Create paragraph to align
+        - docx_insert_paragraph: Create paragraph to align
         - docx_set_properties: Advanced paragraph formatting
     """
     from docx_mcp_server.server import session_manager
@@ -144,8 +144,8 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
     Examples:
         Set font properties:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run_id = docx_add_run(session_id, "Text", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run_id = docx_insert_run(session_id, "Text", position=f"inside:{para_id}")
         >>> props = '{"font": {"bold": true, "size": 14, "name": "Arial"}}'
         >>> docx_set_properties(session_id, props, element_id=run_id)
 
@@ -236,16 +236,16 @@ def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
     Examples:
         Copy run formatting:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "")
-        >>> run1 = docx_add_run(session_id, "Styled", paragraph_id=para_id)
+        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
+        >>> run1 = docx_insert_run(session_id, "Styled", position=f"inside:{para_id}")
         >>> docx_set_font(session_id, run1, bold=True, size=14, color_hex="FF0000")
-        >>> run2 = docx_add_run(session_id, "Copy style", paragraph_id=para_id)
+        >>> run2 = docx_insert_run(session_id, "Copy style", position=f"inside:{para_id}")
         >>> docx_format_copy(session_id, run1, run2)
 
         Copy paragraph formatting:
-        >>> para1 = docx_add_paragraph(session_id, "Source")
+        >>> para1 = docx_insert_paragraph(session_id, "Source", position="end:document_body")
         >>> docx_set_alignment(session_id, para1, "center")
-        >>> para2 = docx_add_paragraph(session_id, "Target")
+        >>> para2 = docx_insert_paragraph(session_id, "Target", position="end:document_body")
         >>> docx_format_copy(session_id, para1, para2)
 
     Notes:
@@ -348,7 +348,7 @@ def docx_set_margins(
         - Default Word margins are typically 1 inch on all sides
 
     See Also:
-        - docx_add_page_break: Control page breaks
+        - docx_insert_page_break: Control page breaks
     """
     from docx_mcp_server.server import session_manager
 

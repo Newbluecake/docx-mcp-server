@@ -59,7 +59,7 @@ def test_docx_insert_image():
         # Mock add_picture on run
         with patch("docx.text.run.Run.add_picture") as mock_add_pic:
              # Insert
-             r_response = docx_insert_image(sid, "/tmp/image.png", width=2.0)
+             r_response = docx_insert_image(sid, "/tmp/image.png", width=2.0, position="end:document_body")
              r_id = _extract_element_id(r_response)
 
              assert r_id.startswith("run_") or r_id.startswith("para_") # Our implementation returns para_id by default if parent not specified

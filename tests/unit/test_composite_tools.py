@@ -2,15 +2,15 @@
 import json
 import pytest
 from docx_mcp_server.tools.composite_tools import (
-    docx_add_formatted_paragraph,
+    docx_insert_formatted_paragraph,
     docx_quick_edit,
     docx_get_structure_summary,
     docx_smart_fill_table,
     docx_format_range
 )
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
-from docx_mcp_server.tools.table_tools import docx_add_table
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
+from docx_mcp_server.tools.table_tools import docx_insert_table
 
 
 def test_add_formatted_paragraph():
@@ -19,9 +19,10 @@ def test_add_formatted_paragraph():
 
     try:
         # Create formatted paragraph
-        para_id = docx_add_formatted_paragraph(
+        para_id = docx_insert_formatted_paragraph(
             session_id,
             "Test Text",
+            position="end:document_body",
             bold=True,
             size=14,
             color_hex="FF0000",
@@ -40,8 +41,8 @@ def test_quick_edit():
 
     try:
         # Add some paragraphs
-        docx_add_paragraph(session_id, "This is a test paragraph")
-        docx_add_paragraph(session_id, "Another test paragraph")
+        docx_insert_paragraph(session_id, "This is a test paragraph", position="end:document_body")
+        docx_insert_paragraph(session_id, "Another test paragraph", position="end:document_body")
 
         # Quick edit
         result_json = docx_quick_edit(
@@ -65,9 +66,9 @@ def test_get_structure_summary():
 
     try:
         # Add some content
-        docx_add_paragraph(session_id, "Test", style="Heading 1")
-        docx_add_paragraph(session_id, "Body text")
-        docx_add_table(session_id, 2, 2)
+        docx_insert_paragraph(session_id, "Test", position="end:document_body", style="Heading 1")
+        docx_insert_paragraph(session_id, "Body text", position="end:document_body")
+        docx_insert_table(session_id, 2, 2, position="end:document_body")
 
         # Get summary
         summary_json = docx_get_structure_summary(
@@ -93,7 +94,7 @@ def test_smart_fill_table():
 
     try:
         # Create table
-        table_id = docx_add_table(session_id, 2, 3)
+        docx_insert_table(session_id, 2, 3, position="end:document_body")
 
         # Fill with data
         data = json.dumps([
@@ -124,9 +125,9 @@ def test_format_range():
 
     try:
         # Add paragraphs
-        docx_add_paragraph(session_id, "Start marker")
-        docx_add_paragraph(session_id, "Middle content")
-        docx_add_paragraph(session_id, "End marker")
+        docx_insert_paragraph(session_id, "Start marker", position="end:document_body")
+        docx_insert_paragraph(session_id, "Middle content", position="end:document_body")
+        docx_insert_paragraph(session_id, "End marker", position="end:document_body")
 
         # Format range
         result_json = docx_format_range(
@@ -149,7 +150,7 @@ def test_quick_edit_no_matches():
     session_id = docx_create()
 
     try:
-        docx_add_paragraph(session_id, "Test paragraph")
+        docx_insert_paragraph(session_id, "Test paragraph", position="end:document_body")
 
         result_json = docx_quick_edit(
             session_id,

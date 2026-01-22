@@ -7,7 +7,7 @@ from docx_mcp_server.server import (
     docx_save,
     docx_read_content,
     docx_find_paragraphs,
-    docx_add_run,
+    docx_insert_run,
     docx_set_font
 )
 
@@ -36,7 +36,7 @@ class TestLoadEditE2E:
         para_id = results[0]["id"]
 
         # 5. Edit (Append text)
-        result = docx_add_run(session_id, " [EDITED]", paragraph_id=para_id)
+        result = docx_insert_run(session_id, " [EDITED]", position=f"inside:{para_id}")
         run_data = json.loads(result)
         run_id = run_data["data"]["element_id"]
 

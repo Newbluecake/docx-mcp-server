@@ -1,6 +1,6 @@
 import pytest
 import os
-from docx_mcp_server.server import docx_create, docx_save, docx_read_content, docx_add_paragraph, docx_find_paragraphs
+from docx_mcp_server.server import docx_create, docx_save, docx_read_content, docx_insert_paragraph, docx_find_paragraphs
 from docx import Document
 import json
 
@@ -18,7 +18,7 @@ class TestLoadExisting:
 
         # Verify content can be read (using our new tool later, or just save and check)
         # For now, let's verify we can add to it and save
-        docx_add_paragraph(session_id, "New Content")
+        docx_insert_paragraph(session_id, "New Content", position="end:document_body")
 
         output_path = tmp_path / "test_existing_modified.docx"
         docx_save(session_id, str(output_path))

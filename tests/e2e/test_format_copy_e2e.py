@@ -3,7 +3,7 @@ import json
 import os
 from docx_mcp_server.server import (
     docx_create, docx_save, docx_close,
-    docx_add_heading, docx_add_paragraph, docx_add_run, docx_set_font,
+    docx_insert_heading, docx_insert_paragraph, docx_insert_run, docx_set_font,
     docx_copy_paragraph, docx_copy_elements_range,
     docx_extract_format_template, docx_apply_format_template,
     docx_batch_replace_text, docx_read_content
@@ -30,23 +30,23 @@ def test_format_copy_system_workflow(tmp_path):
 
     # --- Step 1: Create Template Content ---
     # Heading 1
-    h1_resp = docx_add_heading(session_id, "Template Section", level=1)
+    h1_resp = docx_insert_heading(session_id, "Template Section", position="end:document_body", level=1)
     h1_id = _extract(h1_resp)["element_id"]
 
     # Styled Paragraph
-    p_resp = docx_add_paragraph(session_id, "")
+    p_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
     p_id = _extract(p_resp)["element_id"]
 
-    run_resp = docx_add_run(session_id, "Key: ", paragraph_id=p_id)
+    run_resp = docx_insert_run(session_id, "Key: ", position=f"inside:{p_id}")
     run_id = _extract(run_resp)["element_id"]
     docx_set_font(session_id, run_id, bold=True, color_hex="0000FF") # Blue bold label
 
-    val_run_resp = docx_add_run(session_id, "{VALUE}", paragraph_id=p_id)
+    val_run_resp = docx_insert_run(session_id, "{VALUE}", position=f"inside:{p_id}")
     val_run_id = _extract(val_run_resp)["element_id"]
     docx_set_font(session_id, val_run_id, italic=True) # Italic placeholder
 
     # End marker for range
-    end_p_resp = docx_add_paragraph(session_id, "--- End Template ---")
+    end_p_resp = docx_insert_paragraph(session_id, "--- End Template ---", position="end:document_body")
     end_p_id = _extract(end_p_resp)["element_id"]
 
     # --- Step 2: Extract Formatting Template ---
@@ -61,17 +61,17 @@ def test_format_copy_system_workflow(tmp_path):
     # --- Step 3: Range Copy ---
     # Copy from Heading to End Marker
     # We expect 3 elements: Heading, Styled Para, End Marker
-    new_ids_resp = docx_copy_elements_range(session_id, h1_id, end_p_id)
+    new_ids_resp = docx_copy_elements_range(session_id, h1_id, end_p_id, position="end:document_body")
     new_ids = json.loads(new_ids_resp)  # This tool returns a plain JSON array
 
     assert len(new_ids) == 3
 
     # --- Step 4: Apply Formatting Template ---
     # Create a raw paragraph
-    raw_p_resp = docx_add_paragraph(session_id, "")
+    raw_p_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
     raw_p_id = _extract(raw_p_resp)["element_id"]
 
-    raw_run_resp = docx_add_run(session_id, "Applied Style Text", paragraph_id=raw_p_id)
+    raw_run_resp = docx_insert_run(session_id, "Applied Style Text", position=f"inside:{raw_p_id}")
     raw_run_id = _extract(raw_run_resp)["element_id"]
 
     # Apply the blue bold template

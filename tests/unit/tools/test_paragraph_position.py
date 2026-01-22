@@ -1,7 +1,7 @@
 import pytest
 import json
 from docx_mcp_server.server import docx_create, session_manager
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 
 def _extract_id(response):
     data = json.loads(response)
@@ -11,14 +11,14 @@ def test_add_paragraph_position_after():
     session_id = docx_create()
 
     # Create P1
-    p1_resp = docx_add_paragraph(session_id, "P1")
+    p1_resp = docx_insert_paragraph(session_id, "P1", position="end:document_body")
     p1_id = _extract_id(p1_resp)
 
     # Create P3 (appended)
-    p3_resp = docx_add_paragraph(session_id, "P3")
+    p3_resp = docx_insert_paragraph(session_id, "P3", position="end:document_body")
 
     # Insert P2 after P1 using position
-    p2_resp = docx_add_paragraph(session_id, "P2", position=f"after:{p1_id}")
+    p2_resp = docx_insert_paragraph(session_id, "P2", position=f"after:{p1_id}")
     p2_id = _extract_id(p2_resp)
 
     # Verify Order
@@ -40,11 +40,11 @@ def test_add_paragraph_position_before():
     session_id = docx_create()
 
     # Create P2
-    p2_resp = docx_add_paragraph(session_id, "P2")
+    p2_resp = docx_insert_paragraph(session_id, "P2", position="end:document_body")
     p2_id = _extract_id(p2_resp)
 
     # Insert P1 before P2
-    p1_resp = docx_add_paragraph(session_id, "P1", position=f"before:{p2_id}")
+    p1_resp = docx_insert_paragraph(session_id, "P1", position=f"before:{p2_id}")
 
     # Verify Order
     session = session_manager.get_session(session_id)
@@ -55,10 +55,10 @@ def test_add_paragraph_position_before():
 def test_add_paragraph_position_start():
     session_id = docx_create()
 
-    docx_add_paragraph(session_id, "Existing")
+    docx_insert_paragraph(session_id, "Existing", position="end:document_body")
 
     # Insert at start of document
-    docx_add_paragraph(session_id, "Start", position="start:document_body")
+    docx_insert_paragraph(session_id, "Start", position="start:document_body")
 
     session = session_manager.get_session(session_id)
     paras = session.document.paragraphs

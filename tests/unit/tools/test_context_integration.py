@@ -2,9 +2,9 @@
 
 import pytest
 import json
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph, docx_add_heading
-from docx_mcp_server.tools.run_tools import docx_add_run
-from docx_mcp_server.tools.table_tools import docx_add_table, docx_add_paragraph_to_cell, docx_get_cell
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
+from docx_mcp_server.tools.run_tools import docx_insert_run
+from docx_mcp_server.tools.table_tools import docx_insert_table, docx_insert_paragraph_to_cell, docx_get_cell
 
 
 def _extract_element_id(response):
@@ -25,14 +25,14 @@ def test_paragraph_context():
     session_id = session_manager.create_session()
 
     # Add first paragraph
-    result1 = docx_add_paragraph(session_id, "First paragraph")
+    result1 = docx_insert_paragraph(session_id, "First paragraph", position="end:document_body")
     data1 = json.loads(result1)
     assert "para_" in data1["data"]["element_id"]
     assert "cursor" in data1["data"]  # Should include cursor with context
     assert "context" in data1["data"]["cursor"]
 
     # Add second paragraph
-    result2 = docx_add_paragraph(session_id, "Second paragraph")
+    result2 = docx_insert_paragraph(session_id, "Second paragraph", position="end:document_body")
     data2 = json.loads(result2)
     assert "cursor" in data2["data"]
     assert "First paragraph" in data2["data"]["cursor"]["context"]  # Should show previous element
@@ -44,7 +44,7 @@ def test_heading_context():
 
     session_id = session_manager.create_session()
 
-    result = docx_add_heading(session_id, "My Heading", level=1)
+    result = docx_insert_heading(session_id, "My Heading", position="end:document_body", level=1)
     data = json.loads(result)
     assert "para_" in data["data"]["element_id"]
     assert "cursor" in data["data"]
@@ -57,10 +57,10 @@ def test_run_context():
 
     session_id = session_manager.create_session()
 
-    para_result = docx_add_paragraph(session_id, "")
+    para_result = docx_insert_paragraph(session_id, "", position="end:document_body")
     para_id = _extract_element_id(para_result)
 
-    result = docx_add_run(session_id, "Run text", paragraph_id=para_id)
+    result = docx_insert_run(session_id, "Run text", position=f"inside:{para_id}")
     data = json.loads(result)
     assert "run_" in data["data"]["element_id"]
     assert "cursor" in data["data"]
@@ -74,10 +74,10 @@ def test_table_context():
     session_id = session_manager.create_session()
 
     # Add paragraph first
-    docx_add_paragraph(session_id, "Before table")
+    docx_insert_paragraph(session_id, "Before table", position="end:document_body")
 
     # Add table
-    result = docx_add_table(session_id, rows=2, cols=2)
+    result = docx_insert_table(session_id, rows=2, cols=2, position="end:document_body")
     data = json.loads(result)
     assert "table_" in data["data"]["element_id"]
     assert "cursor" in data["data"]
@@ -90,14 +90,14 @@ def test_table_cell_context():
 
     session_id = session_manager.create_session()
 
-    table_result = docx_add_table(session_id, rows=2, cols=2)
+    table_result = docx_insert_table(session_id, rows=2, cols=2, position="end:document_body")
     table_id = _extract_element_id(table_result)
 
     cell_result = docx_get_cell(session_id, table_id, 0, 0)
     cell_id = _extract_element_id(cell_result)
 
-    result = docx_add_paragraph_to_cell(session_id, cell_id, "Cell content")
-    # docx_add_paragraph_to_cell might return plain string ID, not JSON
+    result = docx_insert_paragraph_to_cell(session_id, "Cell content", position=f"inside:{cell_id}")
+    # docx_insert_paragraph_to_cell might return plain string ID, not JSON
     # Let's check if it's JSON or plain string
     try:
         data = json.loads(result)
@@ -120,12 +120,11 @@ def test_cursor_tools_context():
     from docx_mcp_server.server import session_manager
     from docx_mcp_server.tools.cursor_tools import (
         docx_cursor_move,
-        docx_insert_paragraph_at_cursor,
         docx_cursor_get
     )
 
     session_id = session_manager.create_session()
-    para_result = docx_add_paragraph(session_id, "Para 1")
+    para_result = docx_insert_paragraph(session_id, "Para 1", position="end:document_body")
     para_id = _extract_element_id(para_result)
 
     # Move cursor
@@ -134,13 +133,6 @@ def test_cursor_tools_context():
     assert "Cursor moved" in move_data["message"]
     assert "cursor" in move_data["data"]
     assert "context" in move_data["data"]["cursor"]
-
-    # Insert at cursor
-    insert_result = docx_insert_paragraph_at_cursor(session_id, "Inserted Para")
-    insert_data = json.loads(insert_result)
-    assert "para_" in insert_data["data"]["element_id"]
-    assert "cursor" in insert_data["data"]
-    assert "context" in insert_data["data"]["cursor"]
 
     # Get cursor info
     get_result = docx_cursor_get(session_id)
@@ -177,7 +169,7 @@ def test_advanced_tools_context():
         with open(img_path, 'wb') as f:
             f.write(minimal_png)
 
-        result = docx_insert_image(session_id, img_path)
+        result = docx_insert_image(session_id, img_path, position="end:document_body")
         data = json.loads(result)
         element_id = data["data"]["element_id"]
         assert "para_" in element_id or "run_" in element_id

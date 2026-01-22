@@ -4,7 +4,7 @@ import os
 import json
 from docx_mcp_server.server import docx_create, session_manager
 from docx_mcp_server.tools.advanced_tools import docx_insert_image
-from docx_mcp_server.tools.paragraph_tools import docx_add_paragraph
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 
 # Minimal 1x1 PNG
 PNG_DATA = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff\x3f\x03\x00\x08\xfc\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xae\x42\x60\x82'
@@ -28,7 +28,7 @@ def test_insert_image_position_after(temp_image):
     session_id = docx_create()
 
     # Create Anchor
-    p1_resp = docx_add_paragraph(session_id, "Anchor")
+    p1_resp = docx_insert_paragraph(session_id, "Anchor", position="end:document_body")
     p1_id = _extract_id(p1_resp)
 
     # Insert Image after Anchor
@@ -53,7 +53,7 @@ def test_insert_image_position_after(temp_image):
 
 def test_insert_image_position_start(temp_image):
     session_id = docx_create()
-    docx_add_paragraph(session_id, "Existing")
+    docx_insert_paragraph(session_id, "Existing", position="end:document_body")
 
     # Insert at start
     img_resp = docx_insert_image(session_id, temp_image, position="start:document_body")

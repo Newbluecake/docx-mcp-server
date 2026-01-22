@@ -85,7 +85,7 @@ def docx_close(session_id: str) -> str:
     Examples:
         Complete document workflow:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "Content")
+        >>> para_id = docx_insert_paragraph(session_id, "Content", position="end:document_body")
         >>> docx_save(session_id, "./output.docx")
         >>> result = docx_close(session_id)
         >>> print(result)
@@ -139,7 +139,7 @@ def docx_save(session_id: str, file_path: str) -> str:
     Examples:
         Save a new document:
         >>> session_id = docx_create()
-        >>> para_id = docx_add_paragraph(session_id, "Hello World")
+        >>> para_id = docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
         >>> result = docx_save(session_id, "./output.docx")
         >>> print(result)
         'Document saved successfully to ./output.docx'
@@ -222,7 +222,7 @@ def docx_get_context(session_id: str) -> str:
     Examples:
         Check session context:
         >>> session_id = docx_create(file_path="./report.docx")
-        >>> para_id = docx_add_paragraph(session_id, "Text")
+        >>> para_id = docx_insert_paragraph(session_id, "Text", position="end:document_body")
         >>> context = docx_get_context(session_id)
         >>> import json
         >>> data = json.loads(context)

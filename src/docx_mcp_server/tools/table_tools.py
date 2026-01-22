@@ -3,8 +3,9 @@ import json
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Inches
+from docx.table import _Cell, Table
 from docx_mcp_server.core.finder import Finder
-from docx_mcp_server.core.copier import clone_table
+from docx_mcp_server.utils.copy_engine import CopyEngine
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
     create_context_aware_response,
@@ -17,7 +18,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_add_table(session_id: str, rows: int, cols: int, position: str = None) -> str:
+def docx_insert_table(session_id: str, rows: int, cols: int, position: str) -> str:
     """
     Create a new table in the document.
 
@@ -27,17 +28,17 @@ def docx_add_table(session_id: str, rows: int, cols: int, position: str = None) 
         session_id (str): Active session ID returned by docx_create().
         rows (int): Number of rows to create (must be >= 1).
         cols (int): Number of columns to create (must be >= 1).
-        position (str, optional): Insertion position string (e.g., "after:para_123").
+        position (str): Insertion position string (e.g., "after:para_123").
 
     Returns:
         str: JSON response with element_id and visual cursor context.
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_table called: session_id={session_id}, rows={rows}, cols={cols}, position={position}")
+    logger.debug(f"docx_insert_table called: session_id={session_id}, rows={rows}, cols={cols}, position={position}")
     session = session_manager.get_session(session_id)
     if not session:
-        logger.error(f"docx_add_table failed: Session {session_id} not found")
+        logger.error(f"docx_insert_table failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Resolve Target Parent and Position
@@ -46,11 +47,8 @@ def docx_add_table(session_id: str, rows: int, cols: int, position: str = None) 
     mode = "append"
 
     try:
-        if position:
-            resolver = PositionResolver(session)
-            target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
-        else:
-            mode = "append"
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
     except ValueError as e:
         return create_error_response(str(e), error_type="ValidationError")
 
@@ -107,7 +105,7 @@ def docx_add_table(session_id: str, rows: int, cols: int, position: str = None) 
             **data
         )
     except Exception as e:
-        logger.exception(f"docx_add_table failed: {e}")
+        logger.exception(f"docx_insert_table failed: {e}")
         return create_error_response(f"Failed to create table: {str(e)}", error_type="CreationError")
 
 def docx_get_table(session_id: str, index: int) -> str:
@@ -216,9 +214,14 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
         logger.exception(f"docx_get_cell failed: {e}")
         return create_error_response(f"Failed to get cell: {str(e)}", error_type="RetrievalError")
 
-def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
+def docx_insert_paragraph_to_cell(session_id: str, text: str, position: str) -> str:
     """
     Add a paragraph to a table cell.
+
+    Args:
+        session_id (str): Active session ID.
+        text (str): Paragraph text.
+        position (str): Insertion position string targeting a cell (e.g., "inside:cell_123").
     """
     from docx_mcp_server.server import session_manager
 
@@ -226,9 +229,15 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    cell = session.get_object(cell_id)
-    if not cell:
-        return create_error_response(f"Cell {cell_id} not found", error_type="ElementNotFound")
+    try:
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
+
+    cell = target_parent
+    if not isinstance(cell, _Cell):
+        return create_error_response("Position must target a table cell", error_type="InvalidParent")
 
     try:
         p_id = None
@@ -246,6 +255,14 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
             p_id = session.register_object(p, "para")
             session.update_context(p_id, action="create")
 
+        if mode != "append":
+            if mode == "before" and ref_element:
+                ElementManipulator.insert_xml_before(ref_element._element, paragraph._element)
+            elif mode == "after" and ref_element:
+                ElementManipulator.insert_xml_after(ref_element._element, paragraph._element)
+            elif mode == "start":
+                ElementManipulator.insert_at_index(cell._element, paragraph._element, 0)
+
         session.cursor.element_id = p_id
         session.cursor.position = "after"
 
@@ -257,33 +274,44 @@ def docx_add_paragraph_to_cell(session_id: str, cell_id: str, text: str) -> str:
             **data
         )
     except Exception as e:
-        logger.exception(f"docx_add_paragraph_to_cell failed: {e}")
+        logger.exception(f"docx_insert_paragraph_to_cell failed: {e}")
         return create_error_response(f"Failed to add paragraph to cell: {str(e)}", error_type="CreationError")
 
-def docx_add_table_row(session_id: str, table_id: str = None) -> str:
+def docx_insert_table_row(session_id: str, position: str) -> str:
     """
     Add a new row to the end of a table.
+
+    Args:
+        session_id (str): Active session ID.
+        position (str): Insertion position string (e.g., "inside:table_123").
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_table_row called: session_id={session_id}, table_id={table_id}")
+    logger.debug(f"docx_insert_table_row called: session_id={session_id}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    if not table_id:
-        table_id = session.last_accessed_id
+    try:
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
 
-    if not table_id:
-        return create_error_response("No table specified and no context available", error_type="NoContext")
-
-    table = session.get_object(table_id)
+    table = target_parent
     if not table or not hasattr(table, 'add_row'):
-        return create_error_response(f"Valid table context not found for ID {table_id}", error_type="InvalidElementType")
+        return create_error_response("Position must target a table", error_type="InvalidElementType")
+
+    table_id = session._get_element_id(table, auto_register=True)
 
     try:
         row = table.add_row()
+        if mode == "start":
+            table._tbl.remove(row._tr)
+            table._tbl.insert(0, row._tr)
+        elif mode not in ["append"]:
+            return create_error_response("Table row insertion only supports inside/end/start on a table", error_type="ValidationError")
         session.update_context(table_id, action="access")
 
         # We don't have an ID for the Row object usually, we focus on the table or cells.
@@ -302,32 +330,41 @@ def docx_add_table_row(session_id: str, table_id: str = None) -> str:
             **data
         )
     except Exception as e:
-        logger.exception(f"docx_add_table_row failed: {e}")
+        logger.exception(f"docx_insert_table_row failed: {e}")
         return create_error_response(f"Failed to add row: {str(e)}", error_type="ModificationError")
 
-def docx_add_table_col(session_id: str, table_id: str = None) -> str:
+def docx_insert_table_col(session_id: str, position: str) -> str:
     """
     Add a new column to the right side of a table.
+
+    Args:
+        session_id (str): Active session ID.
+        position (str): Insertion position string (e.g., "inside:table_123").
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_add_table_col called: session_id={session_id}, table_id={table_id}")
+    logger.debug(f"docx_insert_table_col called: session_id={session_id}, position={position}")
 
     session = session_manager.get_session(session_id)
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    if not table_id:
-        table_id = session.last_accessed_id
+    try:
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+    except ValueError as e:
+        return create_error_response(str(e), error_type="ValidationError")
 
-    if not table_id:
-        return create_error_response("No table specified and no context available", error_type="NoContext")
-
-    table = session.get_object(table_id)
+    table = target_parent
     if not table or not hasattr(table, 'add_column'):
-        return create_error_response(f"Valid table context not found for ID {table_id}", error_type="InvalidElementType")
+        return create_error_response("Position must target a table", error_type="InvalidElementType")
+
+    table_id = session._get_element_id(table, auto_register=True)
 
     try:
+        if mode not in ["append"]:
+            return create_error_response("Table column insertion only supports inside/end on a table", error_type="ValidationError")
+
         table.add_column(width=Inches(1.0))
         session.update_context(table_id, action="access")
 
@@ -341,7 +378,7 @@ def docx_add_table_col(session_id: str, table_id: str = None) -> str:
             **data
         )
     except Exception as e:
-        logger.exception(f"docx_add_table_col failed: {e}")
+        logger.exception(f"docx_insert_table_col failed: {e}")
         return create_error_response(f"Failed to add column: {str(e)}", error_type="ModificationError")
 
 def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row: int = 0) -> str:
@@ -405,7 +442,7 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
         logger.exception(f"docx_fill_table failed: {e}")
         return create_error_response(f"Failed to fill table: {str(e)}", error_type="FillError")
 
-def docx_copy_table(session_id: str, table_id: str) -> str:
+def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
     """
     Create a deep copy of an existing table.
     """
@@ -425,7 +462,27 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
         return create_error_response(f"Object {table_id} is not a table", error_type="InvalidElementType")
 
     try:
-        new_table = clone_table(table)
+        resolver = PositionResolver(session)
+        target_parent, ref_element, mode = resolver.resolve(position, default_parent=session.document)
+
+        engine = CopyEngine()
+        new_xml = engine.copy_element(table)
+
+        if mode == "after" and ref_element:
+            new_table = engine.insert_element_after(target_parent, new_xml, ref_element._element)
+        elif mode == "before" and ref_element:
+            # Insert before by placing before ref element, then wrap
+            ElementManipulator.insert_xml_before(ref_element._element, new_xml)
+            new_table = Table(new_xml, target_parent)
+        elif mode == "start":
+            container_xml = target_parent._element
+            if hasattr(target_parent, '_body'):
+                container_xml = target_parent._body._element
+            ElementManipulator.insert_at_index(container_xml, new_xml, 0)
+            new_table = Table(new_xml, target_parent)
+        else:
+            # append
+            new_table = engine.insert_element_after(target_parent, new_xml, None)
 
         meta = MetadataTools.create_copy_metadata(
             source_id=table_id,
@@ -436,8 +493,6 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
 
         session.update_context(t_id, action="create")
 
-        # Copy usually appends to body.
-        # TODO: Support 'position' in copy tool? Not in current scope but good to have.
         session.cursor.element_id = t_id
         session.cursor.position = "after"
 
@@ -457,12 +512,12 @@ def docx_copy_table(session_id: str, table_id: str) -> str:
 
 def register_tools(mcp: FastMCP):
     """Register table manipulation tools"""
-    mcp.tool()(docx_add_table)
+    mcp.tool()(docx_insert_table)
     mcp.tool()(docx_get_table)
     mcp.tool()(docx_find_table)
     mcp.tool()(docx_get_cell)
-    mcp.tool()(docx_add_paragraph_to_cell)
-    mcp.tool()(docx_add_table_row)
-    mcp.tool()(docx_add_table_col)
+    mcp.tool()(docx_insert_paragraph_to_cell)
+    mcp.tool()(docx_insert_table_row)
+    mcp.tool()(docx_insert_table_col)
     mcp.tool()(docx_fill_table)
     mcp.tool()(docx_copy_table)
