@@ -41,17 +41,12 @@ def test_replace_text_split_runs():
     mock_para.runs = [run1, run2]
     mock_para.text = "Hello {{name}}!"
 
-    # Mock clear and add_run for fallback
-    mock_para.clear = MagicMock()
-    new_run = MagicMock()
-    mock_para.add_run = MagicMock(return_value=new_run)
-
     # Action
     replace_text_in_paragraph(mock_para, "{{name}}", "Claude")
 
-    # Assert fallback triggered
-    mock_para.clear.assert_called_once()
-    mock_para.add_run.assert_called_with("Hello Claude!")
+    # Assert cross-run replacement preserved runs instead of clearing
+    assert run1.text == "Hello Claude!"
+    assert run2.text == ""
 
 def test_docx_insert_image():
     with patch("os.path.exists", return_value=True):
