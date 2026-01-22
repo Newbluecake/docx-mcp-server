@@ -340,18 +340,40 @@ def docx_smart_fill_table(
         if not isinstance(data_array, list) or not data_array:
             raise ValueError("Data must be a non-empty JSON array")
 
-        # Find table
-        try:
-            # Try as index first
-            table_response = docx_get_table(session_id, int(table_identifier))
-            table_id = _extract_element_id(table_response)
-        except (ValueError, TypeError):
-            # Try as search text
+        session = session_manager.get_session(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        # Find table - try multiple strategies
+        table_id = None
+        table = None
+
+        # Strategy 1: Check if it's already a valid table ID
+        if table_identifier.startswith("table_"):
+            table = session.get_object(table_identifier)
+            if table is not None:
+                table_id = table_identifier
+                logger.info(f"Using existing table ID: {table_id}")
+
+        # Strategy 2: Try as index
+        if table is None:
+            try:
+                table_response = docx_get_table(session_id, int(table_identifier))
+                table_id = _extract_element_id(table_response)
+                table = session.get_object(table_id)
+                logger.info(f"Found table by index: {table_id}")
+            except (ValueError, TypeError):
+                pass
+
+        # Strategy 3: Try as search text
+        if table is None:
             table_response = docx_find_table(session_id, table_identifier)
             table_id = _extract_element_id(table_response)
+            table = session.get_object(table_id)
+            logger.info(f"Found table by search text: {table_id}")
 
-        session = session_manager.get_session(session_id)
-        table = session.get_object(table_id)
+        if table is None:
+            raise ValueError(f"Table not found with identifier: {table_identifier}")
 
         # Calculate rows needed
         data_rows = len(data_array) - (1 if has_header else 0)

@@ -163,3 +163,38 @@ def test_quick_edit_no_matches():
 
     finally:
         docx_close(session_id)
+
+
+def test_smart_fill_table_with_table_id():
+    """Test smart table filling using table ID instead of index"""
+    session_id = docx_create()
+
+    try:
+        # Create table and get its ID
+        table_response = docx_insert_table(session_id, 2, 3, position="end:document_body")
+        table_data = json.loads(table_response)
+        table_id = table_data["data"]["element_id"]
+
+        # Fill with data using table ID
+        data = json.dumps([
+            ["Name", "Age", "City"],
+            ["Alice", "30", "NYC"],
+            ["Bob", "25", "LA"],
+            ["Charlie", "35", "SF"]
+        ])
+
+        result_json = docx_smart_fill_table(
+            session_id,
+            table_id,  # Use table ID directly
+            data,
+            has_header=True,
+            auto_resize=True
+        )
+
+        result = json.loads(result_json)
+        assert result["status"] == "success"
+        assert result["rows_filled"] == 4
+        assert result["rows_added"] == 2  # Should add 2 rows (started with 2, need 4 total)
+
+    finally:
+        docx_close(session_id)
