@@ -8,6 +8,7 @@ from docx_mcp_server.core.finder import Finder
 from docx_mcp_server.utils.copy_engine import CopyEngine
 from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.metadata_tools import MetadataTools
+from docx_mcp_server.core.table_analyzer import TableStructureAnalyzer
 from docx_mcp_server.core.response import (
     create_context_aware_response,
     create_error_response,
@@ -657,6 +658,54 @@ def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
 
 
 
+def docx_get_table_structure(session_id: str, table_id: str) -> str:
+    """
+    Get table structure with ASCII visualization.
+
+    Args:
+        session_id: Session ID
+        table_id: Table ID
+
+    Returns:
+        JSON response with ASCII visualization and metadata
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        return create_error_response(
+            f"Session {session_id} not found",
+            error_type="SessionNotFound"
+        )
+
+    table = session.get_object(table_id)
+    if not table or not isinstance(table, Table):
+        return create_error_response(
+            f"Table {table_id} not found",
+            error_type="ElementNotFound"
+        )
+
+    try:
+        # Generate visualization
+        ascii_viz = TableStructureAnalyzer.generate_ascii_visualization(table)
+        structure_info = TableStructureAnalyzer.detect_irregular_structure(table)
+
+        return create_success_response(
+            message="Table structure retrieved successfully",
+            element_id=table_id,
+            ascii_visualization=ascii_viz,
+            structure_info=structure_info,
+            rows=len(table.rows),
+            cols=len(table.columns) if table.rows else 0
+        )
+    except Exception as e:
+        logger.exception(f"Failed to get table structure: {e}")
+        return create_error_response(
+            f"Failed to get table structure: {str(e)}",
+            error_type="AnalysisError"
+        )
+
+
 def register_tools(mcp: FastMCP):
     """Register table manipulation tools"""
     mcp.tool()(docx_insert_table)
@@ -669,3 +718,4 @@ def register_tools(mcp: FastMCP):
     mcp.tool()(docx_insert_table_col)
     mcp.tool()(docx_fill_table)
     mcp.tool()(docx_copy_table)
+    mcp.tool()(docx_get_table_structure)
