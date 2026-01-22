@@ -160,3 +160,47 @@ def create_context_aware_response(
         cursor=cursor_info,
         **extra_data
     )
+
+
+def create_change_tracked_response(
+    session,
+    message: str,
+    element_id: Optional[str] = None,
+    changes: Optional[Dict[str, Any]] = None,
+    commit_id: Optional[str] = None,
+    include_cursor: bool = True,
+    **extra_data
+) -> str:
+    """Create a response with change tracking information.
+
+    Args:
+        session: Session object
+        message: Success message
+        element_id: Created/modified element ID
+        changes: Change information (before/after/context)
+        commit_id: Commit ID if changes were tracked
+        include_cursor: Whether to include cursor context
+        **extra_data: Additional data fields
+
+    Returns:
+        JSON string of ToolResponse
+    """
+    # Start with extra_data
+    data = dict(extra_data)
+
+    # Add changes if provided
+    if changes:
+        data["changes"] = changes
+
+    # Add commit_id if provided
+    if commit_id:
+        data["commit_id"] = commit_id
+
+    # Use context_aware_response to handle cursor
+    return create_context_aware_response(
+        session=session,
+        message=message,
+        element_id=element_id,
+        include_cursor=include_cursor,
+        **data
+    )
