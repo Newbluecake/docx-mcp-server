@@ -15,6 +15,7 @@ def register_all_tools(mcp: FastMCP):
     from . import cursor_tools
     from . import copy_tools
     from . import composite_tools
+    from . import history_tools
 
     # Register composite tools first (high-level, commonly used)
     composite_tools.register_tools(mcp)
@@ -30,3 +31,4 @@ def register_all_tools(mcp: FastMCP):
     system_tools.register_tools(mcp)
     cursor_tools.register_tools(mcp)
     copy_tools.register_tools(mcp)
+    history_tools.register_tools(mcp)
