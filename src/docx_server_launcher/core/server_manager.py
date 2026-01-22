@@ -64,7 +64,8 @@ class ServerManager(QObject):
 
         # Merge environment if needed
         env = self.process.processEnvironment()
-        # env.insert("SOME_VAR", "VALUE")
+        # Force UTF-8 encoding for Python subprocess output
+        env.insert("PYTHONIOENCODING", "utf-8:strict")
         self.process.setProcessEnvironment(env)
 
         self.log_received.emit(f"Starting server in {cwd}...")

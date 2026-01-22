@@ -312,7 +312,7 @@ def docx_list_files(directory: Optional[str] = None, recursive: bool = False, in
     try:
         files = list_docx_files(directory, recursive=recursive, include_meta=include_meta)
         logger.debug(f"docx_list_files success: found {len(files)} files")
-        return json.dumps(files)
+        return json.dumps(files, ensure_ascii=False)
     except Exception as e:
         logger.error(f"docx_list_files failed: {e}")
         raise ValueError(str(e))
