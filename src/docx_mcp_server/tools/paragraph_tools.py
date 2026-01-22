@@ -2,6 +2,11 @@
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.metadata_tools import MetadataTools
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    CursorInfo
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +32,7 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
             If None, adds to document body.
 
     Returns:
-        str: Element ID of the new paragraph (format: "para_xxxxx").
+        str: JSON response with element_id and cursor context.
 
     Raises:
         ValueError: If session_id is invalid or parent_id not found.
@@ -64,39 +69,39 @@ def docx_add_paragraph(session_id: str, text: str, style: str = None, parent_id:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_paragraph failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     parent = session.document
     if parent_id:
         parent = session.get_object(parent_id)
         if not parent:
             logger.error(f"docx_add_paragraph failed: Parent {parent_id} not found")
-            raise ValueError(f"Parent object {parent_id} not found")
+            return create_error_response(f"Parent object {parent_id} not found", error_type="ParentNotFound")
         if not hasattr(parent, 'add_paragraph'):
             logger.error(f"docx_add_paragraph failed: Parent {parent_id} cannot contain paragraphs")
-            raise ValueError(f"Object {parent_id} cannot contain paragraphs")
+            return create_error_response(f"Object {parent_id} cannot contain paragraphs", error_type="InvalidParent")
 
-    paragraph = parent.add_paragraph(text, style=style)
-    p_id = session.register_object(paragraph, "para")
-
-    # Update context: this is a creation action
-    session.update_context(p_id, action="create")
-
-    # Update cursor to point after the new paragraph
-    session.cursor.element_id = p_id
-    session.cursor.parent_id = parent_id if parent_id else "document_body"
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = p_id
     try:
-        context = session.get_cursor_context()
-        result_msg = f"{p_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        paragraph = parent.add_paragraph(text, style=style)
+        p_id = session.register_object(paragraph, "para")
 
-    logger.debug(f"docx_add_paragraph success: {p_id}")
-    return result_msg
+        # Update context: this is a creation action
+        session.update_context(p_id, action="create")
+
+        # Update cursor to point after the new paragraph
+        session.cursor.element_id = p_id
+        session.cursor.parent_id = parent_id if parent_id else "document_body"
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_paragraph success: {p_id}")
+        return create_context_aware_response(
+            session,
+            message="Paragraph created successfully",
+            element_id=p_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_paragraph failed: {e}")
+        return create_error_response(f"Failed to create paragraph: {str(e)}", error_type="CreationError")
 
 def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     """
@@ -117,7 +122,7 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
             levels 1-9 are Heading 1-9 styles. Defaults to 1.
 
     Returns:
-        str: Element ID of the new heading paragraph (format: "para_xxxxx").
+        str: JSON response with element_id and cursor context.
 
     Raises:
         ValueError: If session_id is invalid or level is out of range.
@@ -146,29 +151,29 @@ def docx_add_heading(session_id: str, text: str, level: int = 1) -> str:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_add_heading failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    heading = session.document.add_heading(text, level=level)
-    h_id = session.register_object(heading, "para")
-
-    # Update context: this is a creation action
-    session.update_context(h_id, action="create")
-
-    # Update cursor to point after the new heading
-    session.cursor.element_id = h_id
-    session.cursor.parent_id = "document_body"
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = h_id
     try:
-        context = session.get_cursor_context()
-        result_msg = f"{h_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        heading = session.document.add_heading(text, level=level)
+        h_id = session.register_object(heading, "para")
 
-    logger.debug(f"docx_add_heading success: {h_id}")
-    return result_msg
+        # Update context: this is a creation action
+        session.update_context(h_id, action="create")
+
+        # Update cursor to point after the new heading
+        session.cursor.element_id = h_id
+        session.cursor.parent_id = "document_body"
+        session.cursor.position = "after"
+
+        logger.debug(f"docx_add_heading success: {h_id}")
+        return create_context_aware_response(
+            session,
+            message=f"Heading level {level} created successfully",
+            element_id=h_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_heading failed: {e}")
+        return create_error_response(f"Failed to create heading: {str(e)}", error_type="CreationError")
 
 def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
     """
@@ -188,7 +193,7 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         new_text (str): New text content to replace existing content.
 
     Returns:
-        str: Success message confirming the update.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or paragraph_id is invalid.
@@ -221,32 +226,33 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     paragraph = session.get_object(paragraph_id)
     if not paragraph:
-        raise ValueError(f"Paragraph {paragraph_id} not found")
+        return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
     if not hasattr(paragraph, 'text'):
-        raise ValueError(f"Object {paragraph_id} is not a paragraph")
+        return create_error_response(f"Object {paragraph_id} is not a paragraph", error_type="InvalidElementType")
 
-    # Clear existing runs and set new text
-    paragraph.clear()
-    paragraph.add_run(new_text)
-
-    # Update cursor to point to this paragraph
-    session.cursor.element_id = paragraph_id
-    session.cursor.position = "after"
-
-    # Attach cursor context
-    result_msg = f"Paragraph {paragraph_id} updated successfully"
     try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
+        # Clear existing runs and set new text
+        paragraph.clear()
+        paragraph.add_run(new_text)
 
-    return result_msg
+        # Update cursor to point to this paragraph
+        session.cursor.element_id = paragraph_id
+        session.cursor.position = "after"
+
+        return create_context_aware_response(
+            session,
+            message=f"Paragraph {paragraph_id} updated successfully",
+            element_id=paragraph_id,
+            changed_fields=["text"]
+        )
+    except Exception as e:
+        logger.exception(f"docx_update_paragraph_text failed: {e}")
+        return create_error_response(f"Failed to update paragraph: {str(e)}", error_type="UpdateError")
 
 def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
     """
@@ -265,7 +271,7 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
         paragraph_id (str): ID of the paragraph to copy.
 
     Returns:
-        str: Element ID of the new copied paragraph (format: "para_xxxxx").
+        str: JSON response with new element_id and cursor context.
 
     Raises:
         ValueError: If session_id or paragraph_id is invalid.
@@ -293,45 +299,61 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     source_para = session.get_object(paragraph_id)
     if not source_para:
-        raise ValueError(f"Paragraph {paragraph_id} not found")
+        return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
     if not hasattr(source_para, 'runs'):
-        raise ValueError(f"Object {paragraph_id} is not a paragraph")
+        return create_error_response(f"Object {paragraph_id} is not a paragraph", error_type="InvalidElementType")
 
-    # Create new paragraph with same style
-    new_para = session.document.add_paragraph(style=source_para.style)
+    try:
+        # Create new paragraph with same style
+        new_para = session.document.add_paragraph(style=source_para.style)
 
-    # Copy paragraph-level formatting
-    if source_para.alignment is not None:
-        new_para.alignment = source_para.alignment
+        # Copy paragraph-level formatting
+        if source_para.alignment is not None:
+            new_para.alignment = source_para.alignment
 
-    # Copy all runs with their formatting
-    for run in source_para.runs:
-        new_run = new_para.add_run(run.text)
+        # Copy all runs with their formatting
+        for run in source_para.runs:
+            new_run = new_para.add_run(run.text)
 
-        # Copy font properties
-        if run.font.bold is not None:
-            new_run.font.bold = run.font.bold
-        if run.font.italic is not None:
-            new_run.font.italic = run.font.italic
-        if run.font.underline is not None:
-            new_run.font.underline = run.font.underline
-        if run.font.size is not None:
-            new_run.font.size = run.font.size
-        if run.font.color.rgb is not None:
-            new_run.font.color.rgb = run.font.color.rgb
+            # Copy font properties
+            if run.font.bold is not None:
+                new_run.font.bold = run.font.bold
+            if run.font.italic is not None:
+                new_run.font.italic = run.font.italic
+            if run.font.underline is not None:
+                new_run.font.underline = run.font.underline
+            if run.font.size is not None:
+                new_run.font.size = run.font.size
+            if run.font.color.rgb is not None:
+                new_run.font.color.rgb = run.font.color.rgb
 
-    # Track lineage metadata using shared utility
-    meta = MetadataTools.create_copy_metadata(
-        source_id=paragraph_id,
-        source_type="paragraph"
-    )
+        # Track lineage metadata using shared utility
+        meta = MetadataTools.create_copy_metadata(
+            source_id=paragraph_id,
+            source_type="paragraph"
+        )
 
-    return session.register_object(new_para, "para", metadata=meta)
+        new_para_id = session.register_object(new_para, "para", metadata=meta)
+
+        # Update cursor to point after the new paragraph
+        session.cursor.element_id = new_para_id
+        session.cursor.parent_id = "document_body"
+        session.cursor.position = "after"
+
+        return create_context_aware_response(
+            session,
+            message="Paragraph copied successfully",
+            element_id=new_para_id,
+            source_id=paragraph_id
+        )
+    except Exception as e:
+        logger.exception(f"docx_copy_paragraph failed: {e}")
+        return create_error_response(f"Failed to copy paragraph: {str(e)}", error_type="CopyError")
 
 def docx_delete(session_id: str, element_id: str = None) -> str:
     """
@@ -351,7 +373,7 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
             If None, uses last accessed element from context.
 
     Returns:
-        str: Success message confirming deletion.
+        str: JSON response with success message and cursor context.
 
     Raises:
         ValueError: If session_id or element_id is invalid.
@@ -388,21 +410,24 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if not element_id:
         element_id = session.last_accessed_id
 
+    if not element_id:
+        return create_error_response("No element specified and no context available", error_type="NoContext")
+
     obj = session.get_object(element_id)
     if not obj:
-         raise ValueError(f"Object {element_id} not found")
+        return create_error_response(f"Object {element_id} not found", error_type="ElementNotFound")
 
     # Try to delete
     # Strategy: get the XML element and remove it from its parent
     try:
         if hasattr(obj, "_element") and obj._element.getparent() is not None:
             obj._element.getparent().remove(obj._element)
-            # Remove from registry?
+            # Remove from registry
             if element_id in session.object_registry:
                 del session.object_registry[element_id]
 
@@ -413,24 +438,19 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
                 session.last_created_id = None
 
             # Update cursor to parent container since element is gone
-            # We don't easily know the parent ID here unless we look it up or stored it
-            # But we can default to document body or just say "after deletion"
             session.cursor.element_id = None
             session.cursor.position = "inside_end"
-            # Ideally we'd know the parent_id, but for now this resets to a safe state
 
-            result_msg = f"Deleted {element_id}"
-            try:
-                context = session.get_cursor_context()
-                result_msg += f"\n\n{context}"
-            except Exception as e:
-                logger.warning(f"Failed to get cursor context: {e}")
-
-            return result_msg
+            return create_context_aware_response(
+                session,
+                message=f"Deleted {element_id}",
+                deleted_id=element_id
+            )
         else:
-             raise ValueError("Element has no parent or cannot be deleted")
+            return create_error_response("Element has no parent or cannot be deleted", error_type="DeletionError")
     except Exception as e:
-        raise ValueError(f"Failed to delete {element_id}: {str(e)}")
+        logger.exception(f"docx_delete failed: {e}")
+        return create_error_response(f"Failed to delete {element_id}: {str(e)}", error_type="DeletionError")
 
 def docx_add_page_break(session_id: str) -> str:
     """
@@ -448,7 +468,7 @@ def docx_add_page_break(session_id: str) -> str:
         session_id (str): Active session ID returned by docx_create().
 
     Returns:
-        str: Success message confirming page break insertion.
+        str: JSON response confirming page break insertion.
 
     Raises:
         ValueError: If session_id is invalid or session has expired.
@@ -473,10 +493,18 @@ def docx_add_page_break(session_id: str) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    session.document.add_page_break()
-    return "Page break added"
+    try:
+        session.document.add_page_break()
+        return create_context_aware_response(
+            session,
+            message="Page break added",
+            include_cursor=False
+        )
+    except Exception as e:
+        logger.exception(f"docx_add_page_break failed: {e}")
+        return create_error_response(f"Failed to add page break: {str(e)}", error_type="CreationError")
 
 
 def register_tools(mcp: FastMCP):
