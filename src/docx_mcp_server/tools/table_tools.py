@@ -721,7 +721,7 @@ def docx_get_table_structure(session_id: str, table_id: str) -> str:
     try:
         # Generate visualization
         ascii_viz = TableStructureAnalyzer.generate_ascii_visualization(table)
-        structure_info = TableStructureAnalyzer.detect_irregular_structure(table)
+        structure_info = TableStructureAnalyzer.detect_irregular_structure(table, session=session)
 
         return create_success_response(
             message="Table structure retrieved successfully",

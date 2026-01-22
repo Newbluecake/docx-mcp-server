@@ -6,7 +6,7 @@ nested tables, and generating ASCII visualizations.
 """
 
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from docx.table import Table, _Cell
 
 logger = logging.getLogger(__name__)
@@ -16,22 +16,24 @@ class TableStructureAnalyzer:
     """Analyzer for table structures."""
 
     @staticmethod
-    def detect_irregular_structure(table: Table) -> Dict[str, Any]:
+    def detect_irregular_structure(table: Table, session: Optional[Any] = None) -> Dict[str, Any]:
         """
         Detect if table contains irregular structures.
 
         Args:
             table: Table object to analyze
+            session: Optional Session object for cell ID registration
 
         Returns:
-            Dictionary with detection results
+            Dictionary with detection results and optionally grid_structure with cell_ids
         """
         result = {
             "is_irregular": False,
             "has_merged_cells": False,
             "has_nested_tables": False,
             "row_col_inconsistent": False,
-            "irregular_regions": []
+            "irregular_regions": [],
+            "grid_structure": []
         }
 
         if not table.rows:
@@ -88,6 +90,31 @@ class TableStructureAnalyzer:
         if len(set(col_counts)) > 1:
             result["row_col_inconsistent"] = True
             result["is_irregular"] = True
+
+        # Generate grid_structure with cell_ids if session is provided
+        if session is not None:
+            grid_structure = []
+            for row_idx, row in enumerate(table.rows):
+                row_data = []
+                for col_idx, cell in enumerate(row.cells):
+                    cell_info = {
+                        "row": row_idx,
+                        "col": col_idx,
+                        "text": cell.text[:50] if cell.text else ""
+                    }
+
+                    # Add cell_id if session is provided
+                    try:
+                        cell_id = session._get_element_id(cell, auto_register=True)
+                        if cell_id:
+                            cell_info["cell_id"] = cell_id
+                    except Exception as e:
+                        logger.warning(f"Failed to generate cell_id for cell ({row_idx}, {col_idx}): {e}")
+
+                    row_data.append(cell_info)
+                grid_structure.append(row_data)
+
+            result["grid_structure"] = grid_structure
 
         return result
 
