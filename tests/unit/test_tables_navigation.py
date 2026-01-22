@@ -14,6 +14,17 @@ from docx_mcp_server.server import (
     docx_add_table
 )
 
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
+
 def test_list_files():
     with patch("os.listdir", return_value=["template.docx", "ignore.txt", "~$temp.docx"]):
         with patch("os.path.exists", return_value=True):
@@ -29,7 +40,8 @@ def test_table_operations_flow():
     sid = docx_create()
 
     # 2. Add table
-    t_id = docx_add_table(sid, rows=2, cols=2)
+    t_response = docx_add_table(sid, rows=2, cols=2)
+    t_id = _extract_element_id(t_response)
     session = session_manager.get_session(sid)
     table = session.get_object(t_id)
     assert len(table.rows) == 2
@@ -45,7 +57,8 @@ def test_table_operations_flow():
 
 def test_fill_table():
     sid = docx_create()
-    t_id = docx_add_table(sid, rows=1, cols=2)
+    t_response = docx_add_table(sid, rows=1, cols=2)
+    t_id = _extract_element_id(t_response)
 
     # Data for 2 rows (will need to add 1 row)
     data = [
@@ -65,10 +78,12 @@ def test_fill_table():
 
 def test_copy_table():
     sid = docx_create()
-    t_id = docx_add_table(sid, rows=2, cols=2)
+    t_response = docx_add_table(sid, rows=2, cols=2)
+    t_id = _extract_element_id(t_response)
 
     # Copy it
-    t_copy_id = docx_copy_table(sid, t_id)
+    t_copy_response = docx_copy_table(sid, t_id)
+    t_copy_id = _extract_element_id(t_copy_response)
 
     assert t_copy_id != t_id
     assert t_copy_id.startswith("table_")
@@ -83,7 +98,8 @@ def test_copy_table():
 
 def test_find_table():
     sid = docx_create()
-    t_id = docx_add_table(sid, rows=1, cols=1)
+    t_response = docx_add_table(sid, rows=1, cols=1)
+    t_id = _extract_element_id(t_response)
 
     # Set text
     session = session_manager.get_session(sid)
@@ -91,7 +107,8 @@ def test_find_table():
     table.cell(0, 0).text = "UniqueRevenueData"
 
     # Find it
-    found_id = docx_find_table(sid, "Revenue")
+    found_response = docx_find_table(sid, "Revenue")
+    found_id = _extract_element_id(found_response)
     # Note: found_id might be different string if registered again, or same?
     # The register_object generates new ID every time unless we cache.
     # The current implementation generates new ID.
