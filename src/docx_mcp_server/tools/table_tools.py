@@ -142,9 +142,66 @@ def docx_get_table(session_id: str, index: int) -> str:
         logger.exception(f"docx_get_table failed: {e}")
         return create_error_response(f"Failed to get table: {str(e)}", error_type="RetrievalError")
 
-def docx_find_table(session_id: str, text: str) -> str:
+
+def docx_list_tables(session_id: str, max_results: int = 50, start_element_id: str = None) -> str:
+    """
+    List tables in document order with basic metadata.
+    """
+    from docx_mcp_server.server import session_manager
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+
+    try:
+        tables = list(session.document.tables)
+        start_idx = 0
+        if start_element_id:
+            anchor = session.get_object(start_element_id)
+            if anchor is not None:
+                anchor_el = getattr(anchor, "_element", None)
+                if anchor_el is None and hasattr(anchor, "_tc"):
+                    el = anchor._tc
+                    while el is not None:
+                        if el.tag.split('}')[-1] == 'tbl':
+                            anchor_el = el
+                            break
+                        el = el.getparent()
+                if anchor_el is not None:
+                    for idx, tbl in enumerate(tables):
+                        if tbl._element is anchor_el:
+                            start_idx = idx + 1
+                            break
+
+        selected = tables[start_idx: start_idx + max_results] if max_results else tables[start_idx:]
+
+        results = []
+        for idx, tbl in enumerate(selected, start=start_idx):
+            t_id = session._get_element_id(tbl, auto_register=True)
+            session.update_context(t_id, action="access")
+            first_row_text = "\t".join([cell.text for cell in tbl.rows[0].cells]) if tbl.rows else ""
+            results.append({
+                "id": t_id,
+                "index": idx,
+                "rows": len(tbl.rows),
+                "cols": len(tbl.columns) if tbl.rows else 0,
+                "first_row_text": first_row_text,
+            })
+
+        return create_success_response(
+            message=f"Listed {len(results)} table(s)",
+            count=len(results),
+            tables=results,
+            start_index=start_idx,
+        )
+    except Exception as e:
+        logger.exception(f"docx_list_tables failed: {e}")
+        return create_error_response(f"Failed to list tables: {str(e)}", error_type="SearchError")
+
+def docx_find_table(session_id: str, text: str, max_results: int = 1, start_element_id: str = None, return_structure: bool = False) -> str:
     """
     Find the first table containing specific text in any cell.
+    Optionally start search after a given element and limit results.
     """
     from docx_mcp_server.server import session_manager
 
@@ -157,20 +214,60 @@ def docx_find_table(session_id: str, text: str) -> str:
     try:
         finder = Finder(session.document)
         tables = finder.find_tables_by_text(text)
+        if start_element_id:
+            anchor = session.get_object(start_element_id)
+            if anchor is not None:
+                # compute document order of tables
+                order = {tbl: idx for idx, tbl in enumerate(session.document.tables)}
+                if hasattr(anchor, "_element"):
+                    anchor_el = getattr(anchor, "_element")
+                elif hasattr(anchor, "_tc"):
+                    el = anchor._tc
+                    anchor_el = None
+                    while el is not None:
+                        if el.tag.split('}')[-1] == 'tbl':
+                            anchor_el = el
+                            break
+                        el = el.getparent()
+                else:
+                    anchor_el = None
+
+                start_idx = None
+                if anchor_el is not None:
+                    for tbl, idx in order.items():
+                        if tbl._element is anchor_el:
+                            start_idx = idx
+                            break
+                if start_idx is not None:
+                    tables = [t for t in tables if order.get(t, -1) > start_idx]
+
         if not tables:
             return create_error_response(f"No table found containing text '{text}'", error_type="NotFound")
 
-        # Return the first match
-        t_id = session._get_element_id(tables[0], auto_register=True)
-        session.update_context(t_id, action="access")
+        selected = tables[:max_results] if max_results and max_results > 0 else tables
+        results = []
+        for tbl in selected:
+            t_id = session._get_element_id(tbl, auto_register=True)
+            session.update_context(t_id, action="access")
+            builder = ContextBuilder(session)
+            data = builder.build_response_data(tbl, t_id)
+            if return_structure:
+                data["rows"] = len(tbl.rows)
+                data["cols"] = len(tbl.columns) if tbl.rows else 0
+            results.append(data)
 
-        builder = ContextBuilder(session)
-        data = builder.build_response_data(tables[0], t_id)
+        if max_results == 1:
+            data = results[0]
+            return create_success_response(
+                message=f"Table found containing '{text}'",
+                search_text=text,
+                **data
+            )
 
         return create_success_response(
-            message=f"Table found containing '{text}'",
+            message=f"Found {len(results)} table(s) containing '{text}'",
             search_text=text,
-            **data
+            results=results
         )
     except Exception as e:
         logger.exception(f"docx_find_table failed: {e}")
@@ -564,6 +661,7 @@ def register_tools(mcp: FastMCP):
     """Register table manipulation tools"""
     mcp.tool()(docx_insert_table)
     mcp.tool()(docx_get_table)
+    mcp.tool()(docx_list_tables)
     mcp.tool()(docx_find_table)
     mcp.tool()(docx_get_cell)
     mcp.tool()(docx_insert_paragraph_to_cell)

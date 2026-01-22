@@ -2,7 +2,7 @@
 import json
 import logging
 from mcp.server.fastmcp import FastMCP
-from typing import Optional
+from typing import Optional, Dict, List, Any
 from docx_mcp_server.core.finder import Finder, list_docx_files
 from docx_mcp_server.core.template_parser import TemplateParser
 
@@ -15,7 +15,10 @@ def docx_read_content(
     start_from: int = 0,
     include_tables: bool = False,
     return_json: bool = False,
-    include_ids: bool = False
+    include_ids: bool = False,
+    start_element_id: Optional[str] = None,
+    max_tables: Optional[int] = None,
+    table_mode: str = "text",
 ) -> str:
     """
     Read and extract text content from the document with pagination support.
@@ -63,29 +66,102 @@ def docx_read_content(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_read_content called: session_id={session_id}, max={max_paragraphs}, start={start_from}")
+    logger.debug(
+        f"docx_read_content called: session_id={session_id}, max={max_paragraphs}, start={start_from}, "
+        f"include_tables={include_tables}, start_element_id={start_element_id}, max_tables={max_tables}, table_mode={table_mode}"
+    )
 
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_read_content failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
-    entries = []
-    for p in session.document.paragraphs:
-        if not p.text.strip():
-            continue
-        entry = {"text": p.text}
-        if include_ids:
-            entry["id"] = session._get_element_id(p, auto_register=True)
-        entries.append(entry)
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
-    # Apply pagination
-    if start_from > 0:
+    # Resolve anchor element (optional)
+    anchor_element = None
+    if start_element_id:
+        obj = session.get_object(start_element_id)
+        if obj is not None:
+            if isinstance(obj, Paragraph) or isinstance(obj, Table):
+                anchor_element = obj._element
+            elif hasattr(obj, "_tc"):
+                # For cells: climb to parent table
+                el = obj._tc
+                while el is not None and getattr(el, "tag", "").split("}")[-1] != "tbl":
+                    el = el.getparent()
+                if el is not None:
+                    anchor_element = el
+
+    # Iterate document blocks (paragraphs and tables) in order
+    def iter_blocks(doc):
+        body = doc.element.body
+        for child in body.iterchildren():
+            tag = child.tag.split('}')[-1]
+            if tag == 'p':
+                yield Paragraph(child, doc)
+            elif tag == 'tbl':
+                yield Table(child, doc)
+
+    blocks = list(iter_blocks(session.document))
+
+    start_index = 0
+    if anchor_element is not None:
+        for idx, blk in enumerate(blocks):
+            if getattr(blk, "_element", None) is anchor_element:
+                start_index = idx + 1
+                break
+
+    entries: List[Dict[str, Any]] = []
+    para_count = 0
+    table_count = 0
+
+    for blk in blocks[start_index:]:
+        if isinstance(blk, Paragraph):
+            if not blk.text.strip():
+                continue
+            # Only enforce paragraph limit during scan when anchored; otherwise slice later
+            if start_element_id is not None and max_paragraphs is not None and para_count >= max_paragraphs:
+                continue
+            entry: Dict[str, Any] = {"text": blk.text, "type": "paragraph"}
+            if include_ids:
+                entry["id"] = session._get_element_id(blk, auto_register=True)
+            entries.append(entry)
+            para_count += 1
+        elif include_tables and isinstance(blk, Table):
+            if start_element_id is not None and max_tables is not None and table_count >= max_tables:
+                continue
+            table_id = session._get_element_id(blk, auto_register=True) if include_ids else None
+            mode = table_mode if table_mode in ["text", "cells"] else "text"
+            if mode != table_mode:
+                logger.warning(f"Unsupported table_mode '{table_mode}', fallback to 'text'")
+
+            if mode == "cells":
+                table_data = [[cell.text for cell in row.cells] for row in blk.rows]
+                text_repr = "\n".join(["\t".join(r) for r in table_data])
+            else:
+                table_data = None
+                text_repr = "\n".join([cell.text for row in blk.rows for cell in row.cells])
+
+            entry: Dict[str, Any] = {"text": text_repr, "type": "table"}
+            if table_id is not None:
+                entry["id"] = table_id
+            if table_data is not None:
+                entry["cells"] = table_data
+            entry["rows"] = int(len(blk.rows))
+            entry["cols"] = int(len(blk.columns)) if blk.rows else 0
+            entries.append(entry)
+            table_count += 1
+
+    # Apply pagination by index if start_from provided and no anchor
+    if start_element_id is None and start_from > 0:
         entries = entries[start_from:]
-    if max_paragraphs is not None:
+    if max_paragraphs is not None and start_element_id is None:
+        # keep compatibility: limit total entries when no anchor; para limit already applied otherwise
         entries = entries[:max_paragraphs]
 
-    logger.debug(f"docx_read_content success: extracted {len(entries)} paragraphs")
+    logger.debug(f"docx_read_content success: extracted {len(entries)} entries (paras={para_count}, tables={table_count})")
 
     if return_json:
         return json.dumps({
@@ -94,7 +170,7 @@ def docx_read_content(
             "data": entries
         }, ensure_ascii=False)
 
-    result = "\n".join([e["text"] for e in entries]) if entries else "[Empty Document]"
+    result = "\n".join([str(e.get("text", "")) for e in entries]) if entries else "[Empty Document]"
     return result
 
 def docx_find_paragraphs(
