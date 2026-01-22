@@ -28,10 +28,18 @@ def test_update_text_e2e():
         session_id = docx_create()
 
         # Create original content
-        para1_id = docx_add_paragraph(session_id, "Original paragraph 1")
+        result = docx_add_paragraph(session_id, "Original paragraph 1")
+        data = json.loads(result)
+        para1_id = data["data"]["element_id"]
 
-        para2_id = docx_add_paragraph(session_id, "")
-        run1_id = docx_add_run(session_id, para2_id, "Original run")
+        result = docx_add_paragraph(session_id, "")
+        data = json.loads(result)
+        para2_id = data["data"]["element_id"]
+
+        result = docx_add_run(session_id, "Original run", paragraph_id=para2_id)
+        data = json.loads(result)
+        run1_id = data["data"]["element_id"]
+
         docx_set_font(session_id, run1_id, bold=True, size=14)
 
         # Update paragraph text

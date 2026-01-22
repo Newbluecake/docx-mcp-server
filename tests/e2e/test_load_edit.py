@@ -36,7 +36,9 @@ class TestLoadEditE2E:
         para_id = results[0]["id"]
 
         # 5. Edit (Append text)
-        run_id = docx_add_run(session_id, para_id, " [EDITED]")
+        result = docx_add_run(session_id, " [EDITED]", paragraph_id=para_id)
+        run_data = json.loads(result)
+        run_id = run_data["data"]["element_id"]
 
         # 6. Style the new run
         docx_set_font(session_id, run_id, bold=True, color_hex="FF0000")
