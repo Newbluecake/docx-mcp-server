@@ -1,4 +1,5 @@
 import os
+import time
 from typing import List, Dict, Any, Optional, Union
 from docx.document import Document
 from docx.text.paragraph import Paragraph
@@ -51,24 +52,41 @@ class Finder:
                     break
         return matches
 
-def list_docx_files(root_path: str = ".") -> List[str]:
-    """List all .docx files in the given directory (non-recursive)."""
+def list_docx_files(
+    root_path: str = ".",
+    recursive: bool = False,
+    include_meta: bool = False
+) -> List[Any]:
+    """List .docx files with optional recursion and metadata."""
     if not os.path.exists(root_path):
         raise ValueError(f"Directory not found: {root_path}")
 
-    # Security check: prevent traversing up if strictly required,
-    # but for now assume root_path is safe or validated by caller.
+    collected = []
 
-    files = []
+    def _add(path: str):
+        rel_path = os.path.relpath(path, start=root_path)
+        rel_path = f"./{rel_path}" if not rel_path.startswith(".") else rel_path
+        if include_meta:
+            stat = os.stat(path)
+            collected.append({
+                "path": rel_path.replace(os.sep, "/"),
+                "size": stat.st_size,
+                "modified": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(stat.st_mtime)),
+            })
+        else:
+            collected.append(rel_path.replace(os.sep, "/"))
+
     try:
-        for entry in os.listdir(root_path):
-            if entry.lower().endswith(".docx") and not entry.startswith("~$"):
-                # Always return relative paths with forward slashes for MCP consistency
-                # e.g. "./filename.docx"
-                # This explicitly tells the client "use this relative path"
-                rel_path = f"./{entry}"
-                files.append(rel_path)
+        if recursive:
+            for dirpath, _, filenames in os.walk(root_path):
+                for entry in filenames:
+                    if entry.lower().endswith(".docx") and not entry.startswith("~$"):
+                        _add(os.path.join(dirpath, entry))
+        else:
+            for entry in os.listdir(root_path):
+                if entry.lower().endswith(".docx") and not entry.startswith("~$"):
+                    _add(os.path.join(root_path, entry))
     except Exception as e:
         raise ValueError(f"Failed to list files: {str(e)}")
 
-    return sorted(files)
+    return sorted(collected, key=lambda x: x["path"] if include_meta else x)

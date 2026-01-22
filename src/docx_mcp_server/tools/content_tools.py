@@ -2,6 +2,7 @@
 import json
 import logging
 from mcp.server.fastmcp import FastMCP
+from typing import Optional
 from docx_mcp_server.core.finder import Finder, list_docx_files
 from docx_mcp_server.core.template_parser import TemplateParser
 
@@ -10,9 +11,11 @@ logger = logging.getLogger(__name__)
 
 def docx_read_content(
     session_id: str,
-    max_paragraphs: int = None,
+    max_paragraphs: Optional[int] = None,
     start_from: int = 0,
-    include_tables: bool = False
+    include_tables: bool = False,
+    return_json: bool = False,
+    include_ids: bool = False
 ) -> str:
     """
     Read and extract text content from the document with pagination support.
@@ -67,24 +70,40 @@ def docx_read_content(
         logger.error(f"docx_read_content failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
-    paragraphs = [p.text for p in session.document.paragraphs if p.text.strip()]
+    entries = []
+    for p in session.document.paragraphs:
+        if not p.text.strip():
+            continue
+        entry = {"text": p.text}
+        if include_ids:
+            entry["id"] = session._get_element_id(p, auto_register=True)
+        entries.append(entry)
 
     # Apply pagination
     if start_from > 0:
-        paragraphs = paragraphs[start_from:]
+        entries = entries[start_from:]
     if max_paragraphs is not None:
-        paragraphs = paragraphs[:max_paragraphs]
+        entries = entries[:max_paragraphs]
 
-    result = "\n".join(paragraphs) if paragraphs else "[Empty Document]"
+    logger.debug(f"docx_read_content success: extracted {len(entries)} paragraphs")
 
-    logger.debug(f"docx_read_content success: extracted {len(paragraphs)} paragraphs")
+    if return_json:
+        return json.dumps({
+            "status": "success",
+            "count": len(entries),
+            "data": entries
+        }, ensure_ascii=False)
+
+    result = "\n".join([e["text"] for e in entries]) if entries else "[Empty Document]"
     return result
 
 def docx_find_paragraphs(
     session_id: str,
     query: str,
     max_results: int = 10,
-    return_context: bool = False
+    return_context: bool = False,
+    case_sensitive: bool = False,
+    context_span: int = 0
 ) -> str:
     """
     Find paragraphs containing specific text with result limiting.
@@ -138,19 +157,35 @@ def docx_find_paragraphs(
         raise ValueError(f"Session {session_id} not found")
 
     matches = []
-    for p in session.document.paragraphs:
-        if query.lower() in p.text.lower():
-            p_id = session.register_object(p, "para")
-            matches.append({"id": p_id, "text": p.text})
+    paras = list(session.document.paragraphs)
+    lowered_query = query if case_sensitive else query.lower()
 
-            # Limit results
+    for idx, p in enumerate(paras):
+        text = p.text
+        hay = text if case_sensitive else text.lower()
+        if lowered_query in hay:
+            p_id = session.register_object(p, "para")
+            entry = {"id": p_id, "text": text}
+
+            if return_context and context_span > 0:
+                before = []
+                after = []
+                for i in range(max(0, idx - context_span), idx):
+                    before.append(paras[i].text)
+                for i in range(idx + 1, min(len(paras), idx + 1 + context_span)):
+                    after.append(paras[i].text)
+                entry["context_before"] = before
+                entry["context_after"] = after
+
+            matches.append(entry)
+
             if len(matches) >= max_results:
                 break
 
     logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches (limited to {max_results})")
-    return json.dumps(matches)
+    return json.dumps(matches, ensure_ascii=False)
 
-def docx_list_files(directory: str = None) -> str:
+def docx_list_files(directory: Optional[str] = None, recursive: bool = False, include_meta: bool = False) -> str:
     """
     List all .docx files in the specified directory.
 
@@ -199,7 +234,7 @@ def docx_list_files(directory: str = None) -> str:
         directory = "."
 
     try:
-        files = list_docx_files(directory)
+        files = list_docx_files(directory, recursive=recursive, include_meta=include_meta)
         logger.debug(f"docx_list_files success: found {len(files)} files")
         return json.dumps(files)
     except Exception as e:
