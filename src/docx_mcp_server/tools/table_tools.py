@@ -560,7 +560,7 @@ def docx_fill_table(
     try:
          # Detect irregular structure
          structure_info = TableStructureAnalyzer.detect_irregular_structure(table)
-         fillable_cells = set(TableStructureAnalyzer.get_fillable_cells(table, structure_info))
+         is_irregular = structure_info["is_irregular"]
 
          current_row_idx = start_row
          painter = FormatPainter()
@@ -575,8 +575,21 @@ def docx_fill_table(
 
              for col_idx, cell_value in enumerate(row_data):
                  if col_idx < len(row.cells):
-                     # Check if cell is fillable
-                     if (current_row_idx, col_idx) in fillable_cells:
+                     # Check if cell is fillable (for irregular tables only)
+                     is_fillable = True
+                     if is_irregular:
+                         # Re-check fillability for this specific cell
+                         cell = row.cells[col_idx]
+                         try:
+                             tc_pr = cell._element.tcPr
+                             if tc_pr is not None and tc_pr.gridSpan is not None:
+                                 grid_span = tc_pr.gridSpan.val
+                                 if grid_span > 1:
+                                     is_fillable = False
+                         except:
+                             pass
+
+                     if is_fillable:
                          cell = row.cells[col_idx]
                          _set_cell_text(cell, cell_value, preserve_formatting, painter)
                          filled_range["end_row"] = current_row_idx
