@@ -228,9 +228,10 @@ class TestToolsWithElementId:
         assert "element_id" in table_elem
         assert table_elem["element_id"].startswith("table_")
 
-    def test_get_structure_summary_returns_element_ids(self, session_manager, session_id):
+    def test_get_structure_summary_returns_element_ids(self, global_session_id):
         """Test docx_get_structure_summary() returns element_id."""
-        session = session_manager.get_session(session_id)
+        from docx_mcp_server.server import session_manager
+        session = session_manager.get_session(global_session_id)
         
         # Add content
         session.document.add_heading("Heading 1", level=1)
@@ -242,7 +243,7 @@ class TestToolsWithElementId:
 
         # Get structure summary
         result_json = docx_get_structure_summary(
-            session_id,
+            global_session_id,
             max_headings=10,
             max_tables=5,
             max_paragraphs=5
@@ -267,55 +268,60 @@ class TestToolsWithElementId:
             assert "element_id" in para
             assert para["element_id"].startswith("para_")
 
-    def test_read_content_default_includes_ids(self, session_manager, session_id):
+    def test_read_content_default_includes_ids(self, global_session_id):
         """Test docx_read_content() defaults to include_ids=True."""
-        session = session_manager.get_session(session_id)
+        from docx_mcp_server.server import session_manager
+        session = session_manager.get_session(global_session_id)
         session.document.add_paragraph("Test paragraph 1")
         session.document.add_paragraph("Test paragraph 2")
 
         # Call without include_ids parameter (should default to True)
-        result = docx_read_content(session_id, return_json=True)
+        result = docx_read_content(global_session_id, return_json=True)
         data = json.loads(result)
 
         # Verify element_ids are included by default
-        assert "paragraphs" in data
-        assert len(data["paragraphs"]) == 2
-        for para in data["paragraphs"]:
-            assert "element_id" in para
-            assert para["element_id"].startswith("para_")
+        assert data["status"] == "success"
+        assert "data" in data
+        assert len(data["data"]) == 2
+        for para in data["data"]:
+            assert "id" in para
+            assert para["id"].startswith("para_")
 
-    def test_read_content_explicit_exclude_ids(self, session_manager, session_id):
+    def test_read_content_explicit_exclude_ids(self, global_session_id):
         """Test docx_read_content() with include_ids=False."""
-        session = session_manager.get_session(session_id)
+        from docx_mcp_server.server import session_manager
+        session = session_manager.get_session(global_session_id)
         session.document.add_paragraph("Test paragraph 1")
         session.document.add_paragraph("Test paragraph 2")
 
         # Call with include_ids=False
-        result = docx_read_content(session_id, return_json=True, include_ids=False)
+        result = docx_read_content(global_session_id, return_json=True, include_ids=False)
         data = json.loads(result)
 
         # Verify element_ids are NOT included
-        assert "paragraphs" in data
-        assert len(data["paragraphs"]) == 2
-        for para in data["paragraphs"]:
-            assert "element_id" not in para
+        assert data["status"] == "success"
+        assert "data" in data
+        assert len(data["data"]) == 2
+        for para in data["data"]:
+            assert "id" not in para
 
 
 class TestElementIdReusability:
     """Test that returned element_ids can be used with other tools."""
 
-    def test_element_id_usable_across_tools(self, session_manager, session_id):
+    def test_element_id_usable_across_tools(self, global_session_id):
         """Test that element_id from extract_structure can be used to modify elements."""
         from docx_mcp_server.tools.paragraph_tools import docx_update_paragraph_text
-        
-        session = session_manager.get_session(session_id)
-        
+        from docx_mcp_server.server import session_manager
+
+        session = session_manager.get_session(global_session_id)
+
         # Add content
         session.document.add_heading("Test Heading", level=1)
         session.document.add_paragraph("Original text")
-        
+
         # Extract structure to get element_ids
-        result_json = docx_extract_template_structure(session_id)
+        result_json = docx_extract_template_structure(global_session_id)
         result = json.loads(result_json)
         
         # Get paragraph element_id
@@ -323,7 +329,7 @@ class TestElementIdReusability:
         para_id = para["element_id"]
         
         # Use element_id to modify paragraph
-        update_result = docx_update_paragraph_text(session_id, para_id, "Modified text")
+        update_result = docx_update_paragraph_text(global_session_id, para_id, "Modified text")
         update_data = json.loads(update_result)
         
         # Verify modification succeeded
@@ -333,19 +339,20 @@ class TestElementIdReusability:
         modified_para = session.get_object(para_id)
         assert modified_para.text == "Modified text"
 
-    def test_table_element_id_usable(self, session_manager, session_id):
+    def test_table_element_id_usable(self, global_session_id):
         """Test that table element_id can be used with table tools."""
         from docx_mcp_server.tools.table_tools import docx_get_table_structure
-        
-        session = session_manager.get_session(session_id)
-        
+        from docx_mcp_server.server import session_manager
+
+        session = session_manager.get_session(global_session_id)
+
         # Add table
         table = session.document.add_table(rows=2, cols=2)
         for cell in table.rows[0].cells:
             cell.paragraphs[0].add_run("Header").bold = True
-        
+
         # Extract structure to get table_id
-        result_json = docx_extract_template_structure(session_id)
+        result_json = docx_extract_template_structure(global_session_id)
         result = json.loads(result_json)
         
         # Get table element_id
@@ -353,7 +360,7 @@ class TestElementIdReusability:
         table_id = table_elem["element_id"]
         
         # Use table_id with docx_get_table_structure
-        table_structure_json = docx_get_table_structure(session_id, table_id)
+        table_structure_json = docx_get_table_structure(global_session_id, table_id)
         table_structure = json.loads(table_structure_json)
         
         # Verify it worked
@@ -365,15 +372,16 @@ class TestElementIdReusability:
 class TestBackwardCompatibility:
     """Test backward compatibility - existing code should still work."""
 
-    def test_existing_tests_still_pass(self, session_manager, session_id):
+    def test_existing_tests_still_pass(self, global_session_id):
         """Test that existing functionality is not broken."""
-        session = session_manager.get_session(session_id)
-        
+        from docx_mcp_server.server import session_manager
+        session = session_manager.get_session(global_session_id)
+
         # Old way of using tools (without relying on element_id)
         session.document.add_paragraph("Test paragraph")
-        
+
         # Extract structure (old code doesn't check for element_id)
-        result_json = docx_extract_template_structure(session_id)
+        result_json = docx_extract_template_structure(global_session_id)
         result = json.loads(result_json)
         
         # Old code just checks structure exists
