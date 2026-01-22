@@ -558,8 +558,14 @@ def docx_fill_table(
         return create_error_response("Data must be a list of lists", error_type="InvalidDataFormat")
 
     try:
+         # Detect irregular structure
+         structure_info = TableStructureAnalyzer.detect_irregular_structure(table)
+         fillable_cells = set(TableStructureAnalyzer.get_fillable_cells(table, structure_info))
+
          current_row_idx = start_row
          painter = FormatPainter()
+         skipped_regions = []
+         filled_range = {"start_row": start_row, "start_col": 0, "end_row": start_row, "end_col": 0}
 
          for row_data in rows_data:
              if current_row_idx >= len(table.rows):
@@ -569,8 +575,19 @@ def docx_fill_table(
 
              for col_idx, cell_value in enumerate(row_data):
                  if col_idx < len(row.cells):
-                     cell = row.cells[col_idx]
-                     _set_cell_text(cell, cell_value, preserve_formatting, painter)
+                     # Check if cell is fillable
+                     if (current_row_idx, col_idx) in fillable_cells:
+                         cell = row.cells[col_idx]
+                         _set_cell_text(cell, cell_value, preserve_formatting, painter)
+                         filled_range["end_row"] = current_row_idx
+                         filled_range["end_col"] = max(filled_range["end_col"], col_idx)
+                     else:
+                         # Skip irregular cell
+                         skipped_regions.append({
+                             "row": current_row_idx,
+                             "col": col_idx,
+                             "reason": "irregular_cell"
+                         })
 
              current_row_idx += 1
 
@@ -584,6 +601,9 @@ def docx_fill_table(
              rows_filled=len(rows_data),
              start_row=start_row,
              preserve_formatting=preserve_formatting,
+             filled_range=filled_range,
+             skipped_regions=skipped_regions,
+             structure_info=structure_info,
              **data
          )
     except Exception as e:
