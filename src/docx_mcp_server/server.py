@@ -34,10 +34,11 @@ from docx_mcp_server.tools.cursor_tools import (
 from docx_mcp_server.tools.advanced_tools import (
     docx_replace_text, docx_insert_image, docx_batch_replace_text
 )
-from docx_mcp_server.tools.system_tools import docx_server_status
-from docx_mcp_server.tools.cursor_tools import (
-    docx_cursor_move, docx_cursor_get
+from docx_mcp_server.tools.format_tools import (
+    docx_set_alignment, docx_set_properties, docx_set_margins,
+    docx_format_copy, docx_extract_format_template, docx_apply_format_template
 )
+from docx_mcp_server.tools.system_tools import docx_server_status
 from docx_mcp_server.tools.copy_tools import (
     docx_get_element_source, docx_copy_elements_range
 )
