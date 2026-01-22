@@ -9,6 +9,17 @@ from docx_mcp_server.server import (
     session_manager
 )
 
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
+
 def test_create_with_autosave(tmp_path):
     test_file = str(tmp_path / "test.docx")
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
@@ -23,12 +34,14 @@ def test_implicit_context_flow():
     session = session_manager.get_session(sid)
 
     # 2. Add paragraph (should set last_created_id)
-    p_id = docx_add_paragraph(sid, "Hello")
+    p_response = docx_add_paragraph(sid, "Hello")
+    p_id = _extract_element_id(p_response)
     clean_id = p_id.strip().split()[0]
     assert session.last_created_id == clean_id
 
     # 3. Add run without parent (should use p_id)
-    r_id = docx_add_run(sid, " World")
+    r_response = docx_add_run(sid, " World")
+    r_id = _extract_element_id(r_response)
     clean_rid = r_id.strip().split()[0]
     assert session.last_accessed_id == clean_rid
 
@@ -38,7 +51,8 @@ def test_implicit_context_flow():
 
 def test_set_properties_flow():
     sid = docx_create()
-    p_id = docx_add_paragraph(sid, "Test Prop")
+    p_response = docx_add_paragraph(sid, "Test Prop")
+    p_id = _extract_element_id(p_response)
 
     # Set alignment via properties
     props = json.dumps({
@@ -52,7 +66,8 @@ def test_set_properties_flow():
 
 def test_set_properties_implicit_context():
     sid = docx_create()
-    p_id = docx_add_paragraph(sid, "Context Test")
+    p_response = docx_add_paragraph(sid, "Context Test")
+    p_id = _extract_element_id(p_response)
 
     # Implicitly use p_id because it was last created/accessed
     props = json.dumps({"alignment": "right"}) # Shortcut property
