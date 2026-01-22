@@ -3,6 +3,7 @@
 import sys
 import os
 import tempfile
+import json
 from docx import Document
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))

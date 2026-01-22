@@ -1,5 +1,6 @@
 import pytest
 import os
+import json
 from docx_mcp_server.server import (
     docx_create,
     docx_add_paragraph,
@@ -15,6 +16,12 @@ from docx_mcp_server.server import (
 )
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+def _extract(response):
+    data = json.loads(response)
+    if data["status"] == "error":
+        raise ValueError(f"Tool failed: {data['message']}")
+    return data["data"]
 
 @pytest.fixture
 def session_id():
@@ -35,18 +42,22 @@ def test_format_painter_workflow(session_id):
     4. Verify persistence and application.
     """
     # 1. Setup Source Paragraph (Centered)
-    src_para_id = docx_add_paragraph(session_id, "Source Paragraph")
+    src_para_resp = docx_add_paragraph(session_id, "Source Paragraph")
+    src_para_id = _extract(src_para_resp)["element_id"]
     docx_set_alignment(session_id, src_para_id, "center")
 
     # 2. Setup Source Run (Bold, Red, Size 16)
-    src_run_id = docx_add_run(session_id, "Source Run", src_para_id)
+    src_run_resp = docx_add_run(session_id, "Source Run", paragraph_id=src_para_id)
+    src_run_id = _extract(src_run_resp)["element_id"]
     docx_set_font(session_id, src_run_id, bold=True, size=16, color_hex="FF0000")
 
     # 3. Setup Target Paragraph (Left aligned by default)
-    tgt_para_id = docx_add_paragraph(session_id, "Target Paragraph")
+    tgt_para_resp = docx_add_paragraph(session_id, "Target Paragraph")
+    tgt_para_id = _extract(tgt_para_resp)["element_id"]
 
     # 4. Setup Target Run (Plain)
-    tgt_run_id = docx_add_run(session_id, "Target Run", tgt_para_id)
+    tgt_run_resp = docx_add_run(session_id, "Target Run", paragraph_id=tgt_para_id)
+    tgt_run_id = _extract(tgt_run_resp)["element_id"]
 
     # 5. Apply Format Painter: Para -> Para
     docx_format_copy(session_id, src_para_id, tgt_para_id)
@@ -68,34 +79,30 @@ def test_format_painter_workflow(session_id):
     assert tgt_run.font.color.rgb == RGBColor(255, 0, 0)
 
     # 8. Test Cross-Type: Para -> Run (Smart Matching)
-    # Target run should inherit paragraph style properties (if any set on style)
-    # Since we set direct formatting on paragraph, and smart match uses style...
-    # Let's verify expected behavior.
-    # Our implementation uses source.style.font.
-    # Default Normal style usually has defaults.
-    # Let's create a new para with a heading style to test this.
-    heading_id = docx_add_paragraph(session_id, "Heading", style="Heading 1")
-    plain_run_id = docx_add_run(session_id, "Plain Run", tgt_para_id)
+    heading_resp = docx_add_paragraph(session_id, "Heading", style="Heading 1")
+    heading_id = _extract(heading_resp)["element_id"]
+
+    plain_run_resp = docx_add_run(session_id, "Plain Run", paragraph_id=tgt_para_id)
+    plain_run_id = _extract(plain_run_resp)["element_id"]
 
     docx_format_copy(session_id, heading_id, plain_run_id)
 
     plain_run = session.get_object(plain_run_id)
-    # Heading 1 usually has specific font/size (e.g. 14pt or 16pt depending on template)
-    # We just assert it changed from default None/Normal
-    # Note: If template defaults are None, this might be tricky.
-    # But usually Headings have a name.
-    # assert plain_run.font.name is not None # Flaky depending on system docx template?
 
 def test_format_painter_table_workflow(session_id):
     """Test table format copying workflow"""
     # Create Source Table
-    src_table_id = docx_add_table(session_id, 2, 2)
+    src_table_resp = docx_add_table(session_id, 2, 2)
+    src_table_id = _extract(src_table_resp)["element_id"]
+
     session = session_manager.get_session(session_id)
     src_table = session.get_object(src_table_id)
     src_table.style = "Table Grid"
 
     # Create Target Table
-    tgt_table_id = docx_add_table(session_id, 2, 2)
+    tgt_table_resp = docx_add_table(session_id, 2, 2)
+    tgt_table_id = _extract(tgt_table_resp)["element_id"]
+
     tgt_table = session.get_object(tgt_table_id)
     tgt_table.style = "Normal Table" # or something else
 

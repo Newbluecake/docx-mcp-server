@@ -3,7 +3,9 @@
 import sys
 import os
 import tempfile
+import json
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
@@ -18,6 +20,12 @@ from docx_mcp_server.server import (
     docx_close
 )
 
+def _extract(response):
+    data = json.loads(response)
+    if data["status"] == "error":
+        raise ValueError(f"Tool failed: {data['message']}")
+    return data["data"]
+
 def test_copy_paragraph_e2e():
     """Test copying paragraphs and verify in saved document."""
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
@@ -28,21 +36,30 @@ def test_copy_paragraph_e2e():
         session_id = docx_create()
 
         # Create original paragraph with formatting
-        para1_id = docx_add_paragraph(session_id, "")
-        run1_id = docx_add_run(session_id, para1_id, "This is ")
-        run2_id = docx_add_run(session_id, para1_id, "formatted ")
+        p1_resp = docx_add_paragraph(session_id, "")
+        para1_id = _extract(p1_resp)["element_id"]
+
+        docx_add_run(session_id, "This is ", paragraph_id=para1_id)
+
+        r2_resp = docx_add_run(session_id, "formatted ", paragraph_id=para1_id)
+        run2_id = _extract(r2_resp)["element_id"]
+
         docx_set_font(session_id, run2_id, bold=True, color_hex="FF0000")
-        run3_id = docx_add_run(session_id, para1_id, "text")
+        docx_add_run(session_id, "text", paragraph_id=para1_id)
+
         docx_set_alignment(session_id, para1_id, "center")
 
         # Copy the paragraph
-        para2_id = docx_copy_paragraph(session_id, para1_id)
+        cp_resp = docx_copy_paragraph(session_id, para1_id)
+        _extract(cp_resp) # verify success
 
         # Add another paragraph
-        para3_id = docx_add_paragraph(session_id, "Normal paragraph")
+        p3_resp = docx_add_paragraph(session_id, "Normal paragraph")
+        para3_id = _extract(p3_resp)["element_id"]
 
         # Copy it too
-        para4_id = docx_copy_paragraph(session_id, para3_id)
+        cp2_resp = docx_copy_paragraph(session_id, para3_id)
+        _extract(cp2_resp)
 
         # Save
         docx_save(session_id, output_path)
