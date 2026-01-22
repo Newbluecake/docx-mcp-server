@@ -123,21 +123,38 @@ class Session:
         return self.object_registry.get(clean_id)
 
     def _get_element_id(self, element: Any, auto_register: bool = True) -> Optional[str]:
-        """Get element ID from cache, optionally auto-register if not found."""
+        """Get element ID from cache, optionally auto-register if not found.
+
+        Args:
+            element: The docx element (Paragraph, Table, Cell, Run, etc.)
+            auto_register: If True, automatically register element if not in cache
+
+        Returns:
+            Element ID string if found/registered, None otherwise
+        """
         if not hasattr(element, '_element'):
+            logger.debug(f"Element {type(element).__name__} has no _element attribute")
             return None
 
         element_key = id(element._element)
-        if element_key in self._element_id_cache:
-            return self._element_id_cache[element_key]
 
+        # Check cache first
+        if element_key in self._element_id_cache:
+            element_id = self._element_id_cache[element_key]
+            logger.debug(f"Element ID cache hit: {element_id} (type={type(element).__name__})")
+            return element_id
+
+        # Cache miss
         if auto_register:
             prefix = "para" if isinstance(element, Paragraph) else \
                      "table" if isinstance(element, Table) else \
                      "cell" if isinstance(element, _Cell) else \
                      "run" if isinstance(element, Run) else "obj"
-            return self.register_object(element, prefix)
+            element_id = self.register_object(element, prefix)
+            logger.debug(f"Element ID cache miss, registered: {element_id} (type={type(element).__name__})")
+            return element_id
 
+        logger.debug(f"Element ID cache miss, auto_register=False (type={type(element).__name__})")
         return None
 
     def _get_siblings(self, parent: Any) -> List[Any]:
