@@ -65,12 +65,19 @@ def _patch_tool_logging(mcp_instance: FastMCP, log: logging.Logger):
     """Wrap mcp.tool decorator to log tool outputs, pretty-printing JSON if possible."""
     original_tool = mcp_instance.tool
 
+    def _format_params(args, kwargs):
+        try:
+            return json.dumps({"args": args, "kwargs": kwargs}, ensure_ascii=False, default=str)
+        except Exception:
+            return f"args={args!r}, kwargs={kwargs!r}"
+
     def tool_with_logging(self, *targs, **tkwargs):
         decorator = original_tool(*targs, **tkwargs)
 
         def registrar(func):
             @wraps(func)
             def wrapped(*fargs, **fkwargs):
+                log.info("Tool %s request: %s", func.__name__, _format_params(fargs, fkwargs))
                 result = func(*fargs, **fkwargs)
                 try:
                     parsed = json.loads(result)
