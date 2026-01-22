@@ -12,6 +12,7 @@ from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 from docx_mcp_server.core.validators import validate_path_safety
 from docx_mcp_server.core.cursor import Cursor
+from docx_mcp_server.core.commit import Commit
 from docx_mcp_server.preview.manager import PreviewManager
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,10 @@ class Session:
 
     # Preview controller for handling live updates
     preview_controller: Any = field(init=False)
+
+    # History tracking for change management
+    history_stack: List[Commit] = field(default_factory=list)
+    current_commit_index: int = -1
 
     def __post_init__(self):
         self.preview_controller = PreviewManager.get_controller()
@@ -213,6 +218,174 @@ class Session:
 
         self.document.save(abs_target)
         return backup_path
+
+    def create_commit(
+        self,
+        operation: str,
+        changes: Dict[str, Any],
+        affected_elements: List[str],
+        description: str = ""
+    ) -> str:
+        """Create a new commit record."""
+        commit = Commit.create(
+            operation=operation,
+            changes=changes,
+            affected_elements=affected_elements,
+            description=description
+        )
+
+        # If not at latest, discard future history
+        if self.current_commit_index < len(self.history_stack) - 1:
+            self.history_stack = self.history_stack[:self.current_commit_index + 1]
+
+        self.history_stack.append(commit)
+        self.current_commit_index = len(self.history_stack) - 1
+
+        logger.info(f"Commit created: {commit.commit_id} ({operation})")
+        return commit.commit_id
+
+    def get_commit_log(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent commit history."""
+        commits = self.history_stack[-limit:]
+        commits.reverse()
+        return [commit.to_dict() for commit in commits]
+
+    def rollback(self, commit_id: Optional[str] = None) -> Dict[str, Any]:
+        """Rollback to specified commit or previous commit."""
+        if not self.history_stack:
+            raise ValueError("No commits to rollback")
+
+        # Determine target index
+        if commit_id is None:
+            target_index = self.current_commit_index - 1
+        else:
+            target_index = None
+            for i, commit in enumerate(self.history_stack):
+                if commit.commit_id == commit_id:
+                    target_index = i
+                    break
+            if target_index is None:
+                raise ValueError(f"Commit {commit_id} not found")
+
+        if target_index < -1:
+            raise ValueError("Cannot rollback beyond initial state")
+
+        # Apply reverse changes
+        rollback_info = {
+            "rolled_back_commits": [],
+            "restored_elements": []
+        }
+
+        for i in range(self.current_commit_index, target_index, -1):
+            commit = self.history_stack[i]
+            self._apply_reverse_changes(commit)
+            rollback_info["rolled_back_commits"].append(commit.commit_id)
+            rollback_info["restored_elements"].extend(commit.affected_elements)
+
+        self.current_commit_index = target_index
+        logger.info(f"Rolled back to index {target_index}")
+        return rollback_info
+
+    def checkout(self, commit_id: str) -> Dict[str, Any]:
+        """Checkout to specified commit state."""
+        target_index = None
+        for i, commit in enumerate(self.history_stack):
+            if commit.commit_id == commit_id:
+                target_index = i
+                break
+
+        if target_index is None:
+            raise ValueError(f"Commit {commit_id} not found")
+
+        # Apply changes to reach target state
+        checkout_info = {
+            "target_commit": commit_id,
+            "applied_commits": []
+        }
+
+        if target_index < self.current_commit_index:
+            # Rollback
+            for i in range(self.current_commit_index, target_index, -1):
+                commit = self.history_stack[i]
+                self._apply_reverse_changes(commit)
+                checkout_info["applied_commits"].append(commit.commit_id)
+        elif target_index > self.current_commit_index:
+            # Forward
+            for i in range(self.current_commit_index + 1, target_index + 1):
+                commit = self.history_stack[i]
+                self._apply_forward_changes(commit)
+                checkout_info["applied_commits"].append(commit.commit_id)
+
+        self.current_commit_index = target_index
+        logger.info(f"Checked out to commit {commit_id}")
+        return checkout_info
+
+    def _apply_reverse_changes(self, commit: Commit):
+        """Apply reverse changes from a commit."""
+        changes = commit.changes
+        before_state = changes.get("before", {})
+
+        for element_id in commit.affected_elements:
+            element = self.get_object(element_id)
+            if not element:
+                logger.warning(f"Element {element_id} not found, skipping")
+                continue
+
+            # Restore based on element type
+            if isinstance(element, Paragraph):
+                if "text" in before_state:
+                    element.clear()
+                    element.add_run(before_state["text"])
+            elif isinstance(element, Run):
+                if "text" in before_state:
+                    element.text = before_state["text"]
+                if "bold" in before_state:
+                    element.bold = before_state["bold"]
+                if "italic" in before_state:
+                    element.italic = before_state["italic"]
+            elif isinstance(element, Table):
+                if "cells" in before_state:
+                    self._restore_table_cells(element, before_state["cells"])
+
+    def _apply_forward_changes(self, commit: Commit):
+        """Apply forward changes from a commit."""
+        changes = commit.changes
+        after_state = changes.get("after", {})
+
+        for element_id in commit.affected_elements:
+            element = self.get_object(element_id)
+            if not element:
+                logger.warning(f"Element {element_id} not found, skipping")
+                continue
+
+            # Apply based on element type
+            if isinstance(element, Paragraph):
+                if "text" in after_state:
+                    element.clear()
+                    element.add_run(after_state["text"])
+            elif isinstance(element, Run):
+                if "text" in after_state:
+                    element.text = after_state["text"]
+                if "bold" in after_state:
+                    element.bold = after_state["bold"]
+                if "italic" in after_state:
+                    element.italic = after_state["italic"]
+            elif isinstance(element, Table):
+                if "cells" in after_state:
+                    self._restore_table_cells(element, after_state["cells"])
+
+    def _restore_table_cells(self, table: Table, cells_data: List[Dict[str, Any]]):
+        """Restore table cells from saved data."""
+        for cell_data in cells_data:
+            row = cell_data.get("row")
+            col = cell_data.get("col")
+            text = cell_data.get("text", "")
+            if row is not None and col is not None:
+                try:
+                    cell = table.rows[row].cells[col]
+                    cell.text = text
+                except IndexError:
+                    logger.warning(f"Cell ({row}, {col}) out of range")
 
     def _format_element_summary(self, element: Any) -> str:
         """Format element summary with truncation."""
