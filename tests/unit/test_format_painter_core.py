@@ -41,8 +41,8 @@ def test_format_painter_dispatch_table():
 
 def test_format_painter_unsupported_type():
     painter = FormatPainter()
-    mock_src = "NotAnObject"
-    mock_tgt = "NotAnObject"
+    mock_src = "NotAnObject"  # type: ignore
+    mock_tgt = "NotAnObject"  # type: ignore
 
     with pytest.raises(ValueError, match="Unsupported object type"):
-        painter.copy_format(mock_src, mock_tgt)
+        painter.copy_format(mock_src, mock_tgt)  # type: ignore
