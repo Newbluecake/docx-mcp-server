@@ -518,7 +518,7 @@ def docx_fill_table(
     data: str,
     table_id: str = None,
     start_row: int = 0,
-    preserve_formatting: bool = False
+    preserve_formatting: bool = True
 ) -> str:
     """
     Batch populate table cells with data from a 2D array.

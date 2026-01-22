@@ -1,5 +1,6 @@
 import logging
 import sys
+import io
 from typing import Optional
 from docx_mcp_server.utils.logging_config import StackTraceFormatter
 
@@ -53,7 +54,12 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
     if not logger.handlers:
         # MCP servers communicate via stdout, so logs MUST go to stderr
-        handler = logging.StreamHandler(sys.stderr, encoding="utf-8")
+        stream = sys.stderr
+        try:
+            stream = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")  # type: ignore[arg-type]
+        except Exception:
+            stream = sys.stderr
+        handler = logging.StreamHandler(stream)
         formatter = StackTraceFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
