@@ -32,10 +32,12 @@ def test_copy_simple_paragraph():
     session_id = docx_create()
 
     # Create original paragraph
-    para_id = docx_add_paragraph(session_id, "Original text")
+    para_response = docx_add_paragraph(session_id, "Original text")
+    para_id = _extract_element_id(para_response)
 
     # Copy it
-    new_para_id = docx_copy_paragraph(session_id, para_id)
+    new_para_response = docx_copy_paragraph(session_id, para_id)
+    new_para_id = _extract_element_id(new_para_response)
 
     # Verify it's a different ID
     assert new_para_id != para_id
@@ -52,13 +54,16 @@ def test_copy_formatted_paragraph():
     session_id = docx_create()
 
     # Create formatted paragraph
-    para_id = docx_add_paragraph(session_id, "")
-    run_id = docx_add_run(session_id, para_id, "Bold text")
+    para_response = docx_add_paragraph(session_id, "")
+    para_id = _extract_element_id(para_response)
+    run_response = docx_add_run(session_id, para_id, "Bold text")
+    run_id = _extract_element_id(run_response)
     docx_set_font(session_id, run_id, bold=True, size=14, color_hex="FF0000")
     docx_set_alignment(session_id, para_id, "center")
 
     # Copy it
-    new_para_id = docx_copy_paragraph(session_id, para_id)
+    new_para_response = docx_copy_paragraph(session_id, para_id)
+    new_para_id = _extract_element_id(new_para_response)
 
     # Verify different IDs
     assert new_para_id != para_id
@@ -74,15 +79,20 @@ def test_copy_paragraph_with_multiple_runs():
     session_id = docx_create()
 
     # Create paragraph with multiple runs
-    para_id = docx_add_paragraph(session_id, "")
-    run1_id = docx_add_run(session_id, para_id, "Normal ")
-    run2_id = docx_add_run(session_id, para_id, "Bold ")
+    para_response = docx_add_paragraph(session_id, "")
+    para_id = _extract_element_id(para_response)
+    run1_response = docx_add_run(session_id, para_id, "Normal ")
+    run1_id = _extract_element_id(run1_response)
+    run2_response = docx_add_run(session_id, para_id, "Bold ")
+    run2_id = _extract_element_id(run2_response)
     docx_set_font(session_id, run2_id, bold=True)
-    run3_id = docx_add_run(session_id, para_id, "Italic")
+    run3_response = docx_add_run(session_id, para_id, "Italic")
+    run3_id = _extract_element_id(run3_response)
     docx_set_font(session_id, run3_id, italic=True)
 
     # Copy it
-    new_para_id = docx_copy_paragraph(session_id, para_id)
+    new_para_response = docx_copy_paragraph(session_id, para_id)
+    new_para_id = _extract_element_id(new_para_response)
 
     # Verify content
     content = docx_read_content(session_id)
@@ -92,21 +102,25 @@ def test_copy_paragraph_with_multiple_runs():
 
 def test_copy_paragraph_invalid_session():
     """Test copying with invalid session ID."""
+    result = docx_copy_paragraph("invalid_session", "para_123")
     try:
-        docx_copy_paragraph("invalid_session", "para_123")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        assert "not found" in result.lower()
 
 def test_copy_paragraph_invalid_id():
     """Test copying with invalid paragraph ID."""
     session_id = docx_create()
 
+    result = docx_copy_paragraph(session_id, "para_invalid")
     try:
-        docx_copy_paragraph(session_id, "para_invalid")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        assert "not found" in result.lower()
 
     docx_close(session_id)
 
