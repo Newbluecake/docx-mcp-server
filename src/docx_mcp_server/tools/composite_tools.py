@@ -298,7 +298,8 @@ def docx_smart_fill_table(
     table_identifier: str,
     data: str,
     has_header: bool = True,
-    auto_resize: bool = True
+    auto_resize: bool = True,
+    preserve_formatting: bool = False
 ) -> str:
     """
     Intelligently fill table with data, auto-expanding rows as needed.
@@ -365,12 +366,13 @@ def docx_smart_fill_table(
 
         # Fill table
         start_row = 1 if has_header else 0
-        docx_fill_table(session_id, data, table_id, start_row=start_row)
+        docx_fill_table(session_id, data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
 
         result = {
             "status": "success",
             "rows_filled": len(data_array),
-            "rows_added": max(0, data_rows - existing_rows) if auto_resize else 0
+            "rows_added": max(0, data_rows - existing_rows) if auto_resize else 0,
+            "preserve_formatting": preserve_formatting
         }
 
         logger.info(f"Smart fill completed: {result}")

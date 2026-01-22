@@ -6,6 +6,7 @@ from docx.shared import Inches
 from docx.table import _Cell, Table
 from docx_mcp_server.core.finder import Finder
 from docx_mcp_server.utils.copy_engine import CopyEngine
+from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
     create_context_aware_response,
@@ -381,9 +382,56 @@ def docx_insert_table_col(session_id: str, position: str) -> str:
         logger.exception(f"docx_insert_table_col failed: {e}")
         return create_error_response(f"Failed to add column: {str(e)}", error_type="ModificationError")
 
-def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row: int = 0) -> str:
+def _set_cell_text(cell, text: str, preserve_formatting: bool, painter: FormatPainter) -> None:
+    """Set cell text, optionally preserving existing run formatting."""
+    safe_text = "" if text is None else str(text)
+
+    if not preserve_formatting:
+        cell.text = safe_text
+        return
+
+    # Ensure there is at least one paragraph
+    paragraph = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph("")
+
+    # Choose a source run to copy format from (prefer first run with text)
+    source_run = None
+    for run in paragraph.runs:
+        if run.text:
+            source_run = run
+            break
+    if source_run is None and paragraph.runs:
+        source_run = paragraph.runs[0]
+
+    # Clear existing runs to avoid leftover text
+    for run in list(paragraph.runs):
+        r_el = run._element
+        r_el.getparent().remove(r_el)
+
+    new_run = paragraph.add_run(safe_text)
+
+    if source_run:
+        painter.copy_format(source_run, new_run)
+    elif paragraph.style and hasattr(paragraph.style, "font"):
+        # Fallback: copy paragraph style font to the run
+        painter.copy_format(paragraph, new_run)
+
+
+def docx_fill_table(
+    session_id: str,
+    data: str,
+    table_id: str = None,
+    start_row: int = 0,
+    preserve_formatting: bool = False
+) -> str:
     """
     Batch populate table cells with data from a 2D array.
+
+    Args:
+        session_id: Active session ID.
+        data: JSON string of 2D array data.
+        table_id: Target table ID. Defaults to last accessed table.
+        start_row: Starting row index for writing.
+        preserve_formatting: If True, reuse existing cell run formatting when writing text.
     """
     from docx_mcp_server.server import session_manager
 
@@ -412,35 +460,37 @@ def docx_fill_table(session_id: str, data: str, table_id: str = None, start_row:
         return create_error_response("Data must be a list of lists", error_type="InvalidDataFormat")
 
     try:
-        current_row_idx = start_row
+         current_row_idx = start_row
+         painter = FormatPainter()
 
-        for row_data in rows_data:
-            if current_row_idx >= len(table.rows):
-                table.add_row()
+         for row_data in rows_data:
+             if current_row_idx >= len(table.rows):
+                 table.add_row()
 
-            row = table.rows[current_row_idx]
+             row = table.rows[current_row_idx]
 
-            for col_idx, cell_value in enumerate(row_data):
-                if col_idx < len(row.cells):
-                    cell = row.cells[col_idx]
-                    cell.text = str(cell_value) if cell_value is not None else ""
+             for col_idx, cell_value in enumerate(row_data):
+                 if col_idx < len(row.cells):
+                     cell = row.cells[col_idx]
+                     _set_cell_text(cell, cell_value, preserve_formatting, painter)
 
-            current_row_idx += 1
+             current_row_idx += 1
 
-        session.update_context(table_id, action="access")
+         session.update_context(table_id, action="access")
 
-        builder = ContextBuilder(session)
-        data = builder.build_response_data(table, table_id)
+         builder = ContextBuilder(session)
+         data = builder.build_response_data(table, table_id)
 
-        return create_success_response(
-            message=f"Table filled with {len(rows_data)} rows",
-            rows_filled=len(rows_data),
-            start_row=start_row,
-            **data
-        )
+         return create_success_response(
+             message=f"Table filled with {len(rows_data)} rows",
+             rows_filled=len(rows_data),
+             start_row=start_row,
+             preserve_formatting=preserve_formatting,
+             **data
+         )
     except Exception as e:
-        logger.exception(f"docx_fill_table failed: {e}")
-        return create_error_response(f"Failed to fill table: {str(e)}", error_type="FillError")
+         logger.exception(f"docx_fill_table failed: {e}")
+         return create_error_response(f"Failed to fill table: {str(e)}", error_type="FillError")
 
 def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
     """

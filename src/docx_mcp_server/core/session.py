@@ -3,6 +3,7 @@ import time
 import os
 import logging
 from typing import Dict, Any, Optional, List
+import shutil
 from dataclasses import dataclass, field
 from docx import Document
 from docx.document import Document as DocumentType
@@ -30,6 +31,9 @@ class Session:
     last_created_id: Optional[str] = None
     last_accessed_id: Optional[str] = None
     auto_save: bool = False
+    backup_on_save: bool = False
+    backup_dir: Optional[str] = None
+    backup_suffix: Optional[str] = None
     cursor: Cursor = field(default_factory=Cursor)
 
     # Context stack for nested operations
@@ -57,7 +61,12 @@ class Session:
         # Trigger auto-save if enabled
         if self.auto_save and self.file_path:
             try:
-                self.document.save(self.file_path)
+                self._save_with_optional_backup(
+                    self.file_path,
+                    backup=self.backup_on_save,
+                    backup_dir=self.backup_dir,
+                    backup_suffix=self.backup_suffix,
+                )
                 logger.debug(f"Auto-save successful: {self.file_path}")
             except Exception as e:
                 logger.warning(f"Auto-save failed for {self.file_path}: {e}")
@@ -174,6 +183,37 @@ class Session:
 
         return elements
 
+    def _save_with_optional_backup(
+        self,
+        target_path: str,
+        backup: bool = False,
+        backup_dir: Optional[str] = None,
+        backup_suffix: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Save document to target_path. If backup is True and file exists, create a timestamped backup copy.
+
+        Returns backup path if created.
+        """
+        abs_target = os.path.abspath(target_path)
+        parent_dir = os.path.dirname(abs_target) or "."
+        if not os.path.exists(parent_dir):
+            raise ValueError(f"Parent directory does not exist: {parent_dir}")
+
+        backup_path = None
+        if backup and os.path.exists(abs_target):
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            base, ext = os.path.splitext(os.path.basename(abs_target))
+            suffix = backup_suffix if backup_suffix else "-backup"
+            backup_name = f"{base}{suffix}-{ts}{ext}"
+            target_dir = os.path.abspath(backup_dir) if backup_dir else parent_dir
+            os.makedirs(target_dir, exist_ok=True)
+            backup_path = os.path.join(target_dir, backup_name)
+            shutil.copy2(abs_target, backup_path)
+
+        self.document.save(abs_target)
+        return backup_path
+
     def _format_element_summary(self, element: Any) -> str:
         """Format element summary with truncation."""
         if isinstance(element, Paragraph):
@@ -265,7 +305,14 @@ class SessionManager:
         self.sessions: Dict[str, Session] = {}
         self.ttl_seconds = ttl_seconds
 
-    def create_session(self, file_path: Optional[str] = None, auto_save: bool = False) -> str:
+    def create_session(
+        self,
+        file_path: Optional[str] = None,
+        auto_save: bool = False,
+        backup_on_save: bool = False,
+        backup_dir: Optional[str] = None,
+        backup_suffix: Optional[str] = None,
+    ) -> str:
         """Create a new session, optionally loading a file."""
         session_id = str(uuid.uuid4())
 
@@ -302,7 +349,10 @@ class SessionManager:
             session_id=session_id,
             document=doc,
             file_path=file_path,
-            auto_save=auto_save
+            auto_save=auto_save,
+            backup_on_save=backup_on_save,
+            backup_dir=backup_dir,
+            backup_suffix=backup_suffix,
         )
         self.sessions[session_id] = session
         return session_id
@@ -330,13 +380,30 @@ class SessionManager:
         logger.debug(f"Close session failed - not found: {session_id}")
         return False
 
-    def cleanup_expired(self):
+    def cleanup_expired(self, max_idle_seconds: Optional[int] = None) -> int:
         now = time.time()
+        ttl = max_idle_seconds if max_idle_seconds is not None else self.ttl_seconds
         expired = [
             sid for sid, s in self.sessions.items()
-            if now - s.last_accessed > self.ttl_seconds
+            if now - s.last_accessed > ttl
         ]
         for sid in expired:
             del self.sessions[sid]
         if expired:
-            logger.info(f"Cleaned up {len(expired)} expired sessions")
+            logger.info(f"Cleaned up {len(expired)} expired sessions (ttl={ttl}s)")
+        return len(expired)
+
+    def list_sessions(self) -> List[Dict[str, Any]]:
+        now = time.time()
+        items: List[Dict[str, Any]] = []
+        for sid, s in self.sessions.items():
+            items.append({
+                "session_id": sid,
+                "file_path": s.file_path,
+                "auto_save": s.auto_save,
+                "backup_on_save": s.backup_on_save,
+                "last_accessed": s.last_accessed,
+                "age_seconds": now - s.created_at,
+                "idle_seconds": now - s.last_accessed,
+            })
+        return items

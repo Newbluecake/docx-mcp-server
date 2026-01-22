@@ -146,6 +146,37 @@ def test_fill_table_returns_json():
     docx_close(session_id)
 
 
+def test_fill_table_preserves_run_formatting_when_enabled():
+    """docx_fill_table preserves existing run formatting when preserve_formatting=True."""
+    session_id = docx_create()
+    table_id = json.loads(docx_insert_table(session_id, 1, 1, position="end:document_body"))["data"]["element_id"]
+
+    # Seed formatting in the first cell (bold run)
+    cell_id = json.loads(docx_get_cell(session_id, table_id, 0, 0))["data"]["element_id"]
+    from docx_mcp_server.server import session_manager
+    session = session_manager.get_session(session_id)
+    cell = session.get_object(cell_id)
+    para = cell.paragraphs[0]
+    run = para.add_run("Seed")
+    run.font.bold = True
+
+    # Fill table with preserve_formatting=True
+    data_json = json.dumps([["New Value"]])
+    result = docx_fill_table(session_id, data_json, table_id, preserve_formatting=True)
+    data = json.loads(result)
+
+    assert data["status"] == "success"
+    assert data["data"]["preserve_formatting"] is True
+
+    # Verify formatting is retained on the new run
+    updated_cell = session.get_object(table_id).rows[0].cells[0]
+    updated_run = updated_cell.paragraphs[0].runs[0]
+    assert updated_run.text == "New Value"
+    assert updated_run.font.bold is True
+
+    docx_close(session_id)
+
+
 def test_copy_table_returns_json():
     """Test that docx_copy_table returns valid JSON."""
     session_id = docx_create()

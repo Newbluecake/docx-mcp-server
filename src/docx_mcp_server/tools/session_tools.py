@@ -1,12 +1,19 @@
 """Session management tools"""
 import json
 import logging
+from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
 
-def docx_create(file_path: str = None, auto_save: bool = False) -> str:
+def docx_create(
+    file_path: str = "",
+    auto_save: bool = False,
+    backup_on_save: bool = False,
+    backup_dir: str = "",
+    backup_suffix: str = ""
+) -> str:
     """
     Create a new Word document session or load an existing document.
 
@@ -55,9 +62,18 @@ def docx_create(file_path: str = None, auto_save: bool = False) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.info(f"docx_create called: file_path={file_path}, auto_save={auto_save}")
+    logger.info(
+        f"docx_create called: file_path={file_path}, auto_save={auto_save}, "
+        f"backup_on_save={backup_on_save}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
+    )
     try:
-        session_id = session_manager.create_session(file_path, auto_save=auto_save)
+        session_id = session_manager.create_session(
+            file_path or None,
+            auto_save=auto_save,
+            backup_on_save=backup_on_save,
+            backup_dir=backup_dir or None,
+            backup_suffix=backup_suffix or None,
+        )
         logger.info(f"docx_create success: session_id={session_id}")
         return session_id
     except Exception as e:
@@ -111,7 +127,13 @@ def docx_close(session_id: str) -> str:
         logger.warning(f"docx_close: Session {session_id} not found")
         return f"Session {session_id} not found"
 
-def docx_save(session_id: str, file_path: str) -> str:
+def docx_save(
+    session_id: str,
+    file_path: str,
+    backup: bool = False,
+    backup_dir: str = "",
+    backup_suffix: str = "",
+) -> str:
     """
     Save the document to disk at the specified path.
 
@@ -160,7 +182,10 @@ def docx_save(session_id: str, file_path: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.info(f"docx_save called: session_id={session_id}, file_path={file_path}")
+    logger.info(
+        f"docx_save called: session_id={session_id}, file_path={file_path}, "
+        f"backup={backup}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
+    )
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_save failed: Session {session_id} not found")
@@ -177,8 +202,13 @@ def docx_save(session_id: str, file_path: str) -> str:
         logger.warning(f"Preview prepare failed: {e}")
 
     try:
-        session.document.save(file_path)
-        logger.info(f"docx_save success: {file_path}")
+        backup_path = session._save_with_optional_backup(
+            file_path,
+            backup=backup,
+            backup_dir=backup_dir or None,
+            backup_suffix=backup_suffix or None,
+        )
+        logger.info(f"docx_save success: {file_path}, backup={backup_path}")
     except Exception as e:
         logger.exception(f"docx_save failed: {e}")
         raise RuntimeError(f"Failed to save document: {str(e)}")
@@ -189,7 +219,16 @@ def docx_save(session_id: str, file_path: str) -> str:
     except Exception as e:
          logger.warning(f"Preview refresh failed: {e}")
 
-    return f"Document saved successfully to {file_path}"
+    result = {
+        "status": "success",
+        "message": f"Document saved successfully to {file_path}",
+        "data": {
+            "file_path": file_path,
+            "backup_path": backup_path,
+            "backup": backup,
+        },
+    }
+    return json.dumps(result)
 
 def docx_get_context(session_id: str) -> str:
     """
@@ -247,9 +286,34 @@ def docx_get_context(session_id: str) -> str:
         "last_created_id": session.last_created_id,
         "last_accessed_id": session.last_accessed_id,
         "file_path": session.file_path,
-        "auto_save": session.auto_save
+        "auto_save": session.auto_save,
+        "backup_on_save": session.backup_on_save,
     }
     return json.dumps(info, indent=2)
+
+
+def docx_list_sessions() -> str:
+    """List active sessions with metadata."""
+    from docx_mcp_server.server import session_manager
+
+    sessions = session_manager.list_sessions()
+    return json.dumps({
+        "status": "success",
+        "message": f"Active sessions: {len(sessions)}",
+        "data": sessions,
+    }, ensure_ascii=False, indent=2)
+
+
+def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
+    """Clean up expired/idle sessions. If max_idle_seconds is provided, use it; otherwise use default ttl."""
+    from docx_mcp_server.server import session_manager
+
+    cleaned = session_manager.cleanup_expired(max_idle_seconds=max_idle_seconds or None)
+    return json.dumps({
+        "status": "success",
+        "message": f"Cleaned up {cleaned} expired sessions",
+        "data": {"cleaned": cleaned, "max_idle_seconds": max_idle_seconds},
+    }, ensure_ascii=False, indent=2)
 
 
 def register_tools(mcp: FastMCP):
@@ -258,3 +322,5 @@ def register_tools(mcp: FastMCP):
     mcp.tool()(docx_close)
     mcp.tool()(docx_save)
     mcp.tool()(docx_get_context)
+    mcp.tool()(docx_list_sessions)
+    mcp.tool()(docx_cleanup_sessions)
