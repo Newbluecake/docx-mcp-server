@@ -7,6 +7,25 @@ from mcp.server.fastmcp import FastMCP
 logger = logging.getLogger(__name__)
 
 
+def _extract_element_id(response: str) -> str:
+    """
+    Extract element_id from JSON response or return as-is if plain string.
+
+    Args:
+        response: JSON response string or plain element ID
+
+    Returns:
+        str: Element ID
+    """
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
+
+
 def docx_add_formatted_paragraph(
     session_id: str,
     text: str,
@@ -59,10 +78,12 @@ def docx_add_formatted_paragraph(
 
     try:
         # Step 1: Create paragraph
-        para_id = docx_add_paragraph(session_id, "", style=style)
+        para_response = docx_add_paragraph(session_id, "", style=style)
+        para_id = _extract_element_id(para_response)
 
         # Step 2: Add run with text
-        run_id = docx_add_run(session_id, text, paragraph_id=para_id)
+        run_response = docx_add_run(session_id, text, paragraph_id=para_id)
+        run_id = _extract_element_id(run_response)
 
         # Step 3: Apply font formatting if specified
         if any([bold, italic, size, color_hex]):
@@ -319,10 +340,12 @@ def docx_smart_fill_table(
         # Find table
         try:
             # Try as index first
-            table_id = docx_get_table(session_id, int(table_identifier))
+            table_response = docx_get_table(session_id, int(table_identifier))
+            table_id = _extract_element_id(table_response)
         except (ValueError, TypeError):
             # Try as search text
-            table_id = docx_find_table(session_id, table_identifier)
+            table_response = docx_find_table(session_id, table_identifier)
+            table_id = _extract_element_id(table_response)
 
         session = session_manager.get_session(session_id)
         table = session.get_object(table_id)

@@ -2,6 +2,7 @@
 
 import sys
 import os
+import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
@@ -14,6 +15,17 @@ from docx_mcp_server.server import (
     docx_read_content,
     docx_close
 )
+
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
 
 def test_copy_simple_paragraph():
     """Test copying a simple paragraph."""

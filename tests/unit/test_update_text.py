@@ -2,6 +2,7 @@
 
 import sys
 import os
+import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
@@ -15,16 +16,30 @@ from docx_mcp_server.server import (
     docx_close
 )
 
+
+def _extract_element_id(response):
+    """Extract element_id from JSON response or return as-is if plain string."""
+    try:
+        data = json.loads(response)
+        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+            return data["data"]["element_id"]
+        return response
+    except (json.JSONDecodeError, KeyError):
+        return response
+
 def test_update_paragraph_text():
     """Test updating paragraph text."""
     session_id = docx_create()
 
     # Create paragraph
-    para_id = docx_add_paragraph(session_id, "Original text")
+    para_response = docx_add_paragraph(session_id, "Original text")
+    para_id = _extract_element_id(para_response)
 
     # Update it
     result = docx_update_paragraph_text(session_id, para_id, "Updated text")
-    assert "updated successfully" in result.lower()
+    # Result can be JSON or plain string
+    result_str = result if isinstance(result, str) else str(result)
+    assert "updated" in result_str.lower() or "success" in result_str.lower()
 
     # Verify content
     content = docx_read_content(session_id)
@@ -38,13 +53,16 @@ def test_update_run_text():
     session_id = docx_create()
 
     # Create formatted run
-    para_id = docx_add_paragraph(session_id, "")
-    run_id = docx_add_run(session_id, para_id, "Original")
+    para_response = docx_add_paragraph(session_id, "")
+    para_id = _extract_element_id(para_response)
+    run_response = docx_add_run(session_id, para_id, "Original")
+    run_id = _extract_element_id(run_response)
     docx_set_font(session_id, run_id, bold=True, size=16)
 
     # Update run text
     result = docx_update_run_text(session_id, run_id, "Updated")
-    assert "updated successfully" in result.lower()
+    result_str = result if isinstance(result, str) else str(result)
+    assert "updated" in result_str.lower() or "success" in result_str.lower()
 
     # Verify content
     content = docx_read_content(session_id)
@@ -58,7 +76,8 @@ def test_update_paragraph_with_multiple_runs():
     session_id = docx_create()
 
     # Create paragraph with multiple runs
-    para_id = docx_add_paragraph(session_id, "")
+    para_response = docx_add_paragraph(session_id, "")
+    para_id = _extract_element_id(para_response)
     docx_add_run(session_id, para_id, "Part 1 ")
     docx_add_run(session_id, para_id, "Part 2")
 
@@ -75,41 +94,54 @@ def test_update_paragraph_with_multiple_runs():
 
 def test_update_paragraph_invalid_session():
     """Test updating with invalid session ID."""
+    result = docx_update_paragraph_text("invalid_session", "para_123", "text")
+    # Should return error JSON response
     try:
-        docx_update_paragraph_text("invalid_session", "para_123", "text")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        # Fallback: check if it's an error string
+        assert "not found" in result.lower()
 
 def test_update_paragraph_invalid_id():
     """Test updating with invalid paragraph ID."""
     session_id = docx_create()
 
+    result = docx_update_paragraph_text(session_id, "para_invalid", "text")
+    # Should return error JSON response
     try:
-        docx_update_paragraph_text(session_id, "para_invalid", "text")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        assert "not found" in result.lower()
 
     docx_close(session_id)
 
 def test_update_run_invalid_session():
     """Test updating run with invalid session ID."""
+    result = docx_update_run_text("invalid_session", "run_123", "text")
+    # Should return error JSON response
     try:
-        docx_update_run_text("invalid_session", "run_123", "text")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        assert "not found" in result.lower()
 
 def test_update_run_invalid_id():
     """Test updating run with invalid run ID."""
     session_id = docx_create()
 
+    result = docx_update_run_text(session_id, "run_invalid", "text")
+    # Should return error JSON response
     try:
-        docx_update_run_text(session_id, "run_invalid", "text")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+        data = json.loads(result)
+        assert data["status"] == "error"
+        assert "not found" in data["message"].lower()
+    except (json.JSONDecodeError, KeyError):
+        assert "not found" in result.lower()
 
     docx_close(session_id)
 
