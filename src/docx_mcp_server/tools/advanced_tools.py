@@ -6,6 +6,11 @@ from mcp.server.fastmcp import FastMCP
 from docx.shared import Inches
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
 from docx_mcp_server.utils.text_tools import TextTools
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +35,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
             If None, searches entire document body.
 
     Returns:
-        str: Summary message with count of replacements made.
+        str: JSON response with count of replacements made.
 
     Raises:
         ValueError: If session_id or scope_id is invalid.
@@ -67,7 +72,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_replace_text failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Use shared scope resolution logic
     tools = TextTools()
@@ -75,7 +80,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
         obj = session.get_object(scope_id)
         if not obj:
             logger.error(f"docx_replace_text failed: Scope object {scope_id} not found")
-            raise ValueError(f"Scope object {scope_id} not found")
+            return create_error_response(f"Scope object {scope_id} not found", error_type="ElementNotFound")
         targets = tools.collect_paragraphs_from_scope(obj)
     else:
         targets = tools.collect_paragraphs_from_scope(None, session.document)
@@ -86,7 +91,13 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
             count += 1
 
     logger.debug(f"docx_replace_text success: replaced {count} occurrences")
-    return f"Replaced {count} occurrences of '{old_text}'"
+    return create_success_response(
+        message=f"Replaced {count} occurrences of '{old_text}'",
+        replacements=count,
+        old_text=old_text,
+        new_text=new_text,
+        scope_id=scope_id
+    )
 
 def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: str = None) -> str:
     """
@@ -109,7 +120,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
             If None, applies to entire document body.
 
     Returns:
-        str: Summary message with total replacement count.
+        str: JSON response with total replacement count.
 
     Raises:
         ValueError: If JSON is invalid or session not found.
@@ -121,13 +132,13 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_batch_replace_text failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     try:
         replacements = json.loads(replacements_json)
     except json.JSONDecodeError as e:
         logger.error(f"docx_batch_replace_text failed: Invalid JSON - {e}")
-        raise ValueError("Invalid JSON for replacements")
+        return create_error_response("Invalid JSON for replacements", error_type="ValidationError")
 
     # Use shared scope resolution logic
     tools = TextTools()
@@ -135,7 +146,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         obj = session.get_object(scope_id)
         if not obj:
             logger.error(f"docx_batch_replace_text failed: Scope object {scope_id} not found")
-            raise ValueError(f"Scope object {scope_id} not found")
+            return create_error_response(f"Scope object {scope_id} not found", error_type="ElementNotFound")
         targets = tools.collect_paragraphs_from_scope(obj)
     else:
         targets = tools.collect_paragraphs_from_scope(None, session.document)
@@ -143,7 +154,12 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     count = tools.batch_replace_text(targets, replacements)
 
     logger.debug(f"docx_batch_replace_text success: replaced {count} occurrences")
-    return f"Batch replacement completed. Replaced {count} occurrences."
+    return create_success_response(
+        message=f"Batch replacement completed. Replaced {count} occurrences.",
+        replacements=count,
+        patterns=len(replacements),
+        scope_id=scope_id
+    )
 
 def docx_insert_image(session_id: str, image_path: str, width: float = None, height: float = None, parent_id: str = None) -> str:
     """
@@ -165,7 +181,7 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
         parent_id (str, optional): ID of parent paragraph. If None, creates new paragraph.
 
     Returns:
-        str: Element ID of the container paragraph (format: "para_xxxxx").
+        str: JSON response with element ID of the container paragraph or run.
 
     Raises:
         ValueError: If session_id is invalid or image_path not found.
@@ -199,11 +215,11 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_insert_image failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     if not os.path.exists(image_path):
         logger.error(f"docx_insert_image failed: Image file not found - {image_path}")
-        raise ValueError(f"Image file not found: {image_path}")
+        return create_error_response(f"Image file not found: {image_path}", error_type="FileNotFound")
 
     # Determine parent
     parent = session.document
@@ -223,16 +239,14 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
                  session.cursor.element_id = r_id
                  session.cursor.position = "after"
 
-                 # Attach context
-                 result_msg = r_id
-                 try:
-                     context = session.get_cursor_context()
-                     result_msg = f"{r_id}\n\n{context}"
-                 except Exception as e:
-                     logger.warning(f"Failed to get cursor context: {e}")
-
                  logger.debug(f"docx_insert_image success: created run {r_id} in paragraph {parent_id}")
-                 return result_msg
+                 return create_context_aware_response(
+                     session,
+                     message="Image inserted into paragraph successfully",
+                     element_id=r_id,
+                     parent_id=parent_id,
+                     image_path=image_path
+                 )
             elif hasattr(parent_obj, "add_picture"):
                  # Maybe it's a run already? No, runs don't have add_picture, they ARE the container
                  # Actually run.add_picture exists.
@@ -253,16 +267,13 @@ def docx_insert_image(session_id: str, image_path: str, width: float = None, hei
     session.cursor.parent_id = "document_body"
     session.cursor.position = "after"
 
-    # Attach context
-    result_msg = p_id
-    try:
-        context = session.get_cursor_context()
-        result_msg = f"{p_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
-
     logger.debug(f"docx_insert_image success: created paragraph {p_id}")
-    return result_msg
+    return create_context_aware_response(
+        session,
+        message="Image inserted successfully",
+        element_id=p_id,
+        image_path=image_path
+    )
 
 
 def register_tools(mcp: FastMCP):

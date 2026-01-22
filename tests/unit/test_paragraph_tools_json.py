@@ -260,7 +260,6 @@ def test_error_response_structure():
     assert "error_type" in data["data"]
 
 
-@pytest.mark.skip(reason="Requires table_tools refactoring (T-003)")
 def test_add_paragraph_to_parent():
     """Test adding paragraph to a parent container (cell)."""
     from docx_mcp_server.tools.table_tools import docx_add_table, docx_get_cell

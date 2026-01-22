@@ -7,10 +7,16 @@ from docx.table import Table, _Cell
 from docx.oxml import OxmlElement
 from docx.shared import Inches
 from docx_mcp_server.core.cursor import Cursor
+from docx_mcp_server.core.response import (
+    create_context_aware_response,
+    create_error_response,
+    create_success_response,
+    CursorInfo
+)
 
 logger = logging.getLogger(__name__)
 
-def docx_cursor_get(session_id: str) -> dict:
+def docx_cursor_get(session_id: str) -> str:
     """
     Get the current cursor position and state.
 
@@ -18,11 +24,12 @@ def docx_cursor_get(session_id: str) -> dict:
         session_id (str): Active session ID.
 
     Returns:
-        dict: Cursor state containing:
+        str: JSON response with cursor state containing:
             - parent_id: ID of the container
             - element_id: ID of the reference element (if any)
             - position: "before", "after", "inside_start", "inside_end"
             - description: Human readable description
+            - context: Current cursor context
     """
     from docx_mcp_server.server import session_manager
 
@@ -31,26 +38,26 @@ def docx_cursor_get(session_id: str) -> dict:
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_cursor_get failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     cursor = session.cursor
 
-    result = {
-        "parent_id": cursor.parent_id,
-        "element_id": cursor.element_id,
-        "position": cursor.position,
-        "description": f"Cursor is {cursor.position} {cursor.element_id or cursor.parent_id}"
-    }
-
     # Add context
+    context_text = "Context unavailable"
     try:
-        result["context"] = session.get_cursor_context()
+        context_text = session.get_cursor_context()
     except Exception as e:
         logger.warning(f"Failed to get cursor context: {e}")
-        result["context"] = "Context unavailable"
 
     logger.debug(f"docx_cursor_get success: position={cursor.position}")
-    return result
+    return create_success_response(
+        message="Cursor position retrieved successfully",
+        parent_id=cursor.parent_id,
+        element_id=cursor.element_id,
+        position=cursor.position,
+        description=f"Cursor is {cursor.position} {cursor.element_id or cursor.parent_id}",
+        context=context_text
+    )
 
 def docx_cursor_move(
     session_id: str,
@@ -70,7 +77,7 @@ def docx_cursor_move(
             - "inside_end": Place cursor at end of container.
 
     Returns:
-        str: Success message with new location description.
+        str: JSON response with success message and cursor context.
     """
     from docx_mcp_server.server import session_manager
 
@@ -79,35 +86,34 @@ def docx_cursor_move(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_cursor_move failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Validate position
     if position not in ["before", "after", "inside_start", "inside_end"]:
         logger.error(f"docx_cursor_move failed: Invalid position {position}")
-        raise ValueError(f"Invalid position: {position}")
+        return create_error_response(f"Invalid position: {position}", error_type="ValidationError")
 
     # Special case: selecting the document body
     if element_id == "document_body":
         if position in ["before", "after"]:
             logger.error(f"docx_cursor_move failed: Cannot place cursor before/after document body")
-            raise ValueError("Cannot place cursor before/after document body")
+            return create_error_response("Cannot place cursor before/after document body", error_type="ValidationError")
         session.cursor.parent_id = "document_body"
         session.cursor.element_id = None
         session.cursor.position = position
         logger.debug(f"docx_cursor_move success: moved to {position} of document")
-        result_msg = f"Cursor moved to {position} of document"
-        try:
-            context = session.get_cursor_context()
-            result_msg += f"\n\n{context}"
-        except Exception as e:
-            logger.warning(f"Failed to get cursor context: {e}")
-        return result_msg
+        return create_context_aware_response(
+            session,
+            message=f"Cursor moved to {position} of document",
+            element_id=element_id,
+            position=position
+        )
 
     # Get object to verify it exists and determine parent
     obj = session.get_object(element_id)
     if not obj:
         logger.error(f"docx_cursor_move failed: Element {element_id} not found")
-        raise ValueError(f"Element {element_id} not found")
+        return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")
 
     if position in ["inside_start", "inside_end"]:
         # Element must be a container (Body is handled above, Cell is the other main one)
@@ -156,13 +162,12 @@ def docx_cursor_move(
                      session.cursor.parent_id = p_id
 
     logger.debug(f"docx_cursor_move success: {position} {element_id}")
-    result_msg = f"Cursor moved {position} {element_id}"
-    try:
-        context = session.get_cursor_context()
-        result_msg += f"\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
-    return result_msg
+    return create_context_aware_response(
+        session,
+        message=f"Cursor moved {position} {element_id}",
+        element_id=element_id,
+        position=position
+    )
 
 
 def docx_insert_paragraph_at_cursor(
@@ -179,7 +184,7 @@ def docx_insert_paragraph_at_cursor(
         style (str, optional): Style name.
 
     Returns:
-        str: ID of the new paragraph.
+        str: JSON response with ID of the new paragraph and cursor context.
     """
     from docx_mcp_server.server import session_manager
 
@@ -188,7 +193,7 @@ def docx_insert_paragraph_at_cursor(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_insert_paragraph_at_cursor failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     cursor = session.cursor
 
@@ -200,7 +205,7 @@ def docx_insert_paragraph_at_cursor(
         ref_obj = session.get_object(cursor.element_id)
         if not ref_obj:
             logger.error(f"docx_insert_paragraph_at_cursor failed: Reference element {cursor.element_id} no longer exists")
-            raise ValueError(f"Reference element {cursor.element_id} no longer exists")
+            return create_error_response(f"Reference element {cursor.element_id} no longer exists", error_type="ElementNotFound")
 
         if cursor.position in ["before", "after"]:
             # Parent is the parent of the reference object
@@ -224,7 +229,7 @@ def docx_insert_paragraph_at_cursor(
             parent = session.get_object(cursor.parent_id)
             if not parent:
                 logger.error(f"docx_insert_paragraph_at_cursor failed: Parent {cursor.parent_id} not found")
-                raise ValueError(f"Parent {cursor.parent_id} not found")
+                return create_error_response(f"Parent {cursor.parent_id} not found", error_type="ElementNotFound")
 
     # 2. Create the new paragraph
     # We always use parent.add_paragraph() first to ensure proper creation
@@ -232,7 +237,7 @@ def docx_insert_paragraph_at_cursor(
         new_para = parent.add_paragraph(text, style)
     except AttributeError as e:
         logger.error(f"docx_insert_paragraph_at_cursor failed: Target container does not support adding paragraphs")
-        raise ValueError(f"Target container ({type(parent).__name__}) does not support adding paragraphs")
+        return create_error_response(f"Target container ({type(parent).__name__}) does not support adding paragraphs", error_type="InvalidElementType")
 
     # 3. Move it if necessary
     if cursor.position == "inside_end":
@@ -276,16 +281,12 @@ def docx_insert_paragraph_at_cursor(
 
     session.cursor.position = "after"
 
-    # Attach cursor context
-    result_msg = para_id
-    try:
-        context = session.get_cursor_context()
-        result_msg = f"{para_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
-
     logger.debug(f"docx_insert_paragraph_at_cursor success: {para_id}")
-    return result_msg
+    return create_context_aware_response(
+        session,
+        message="Paragraph inserted at cursor successfully",
+        element_id=para_id
+    )
 
 
 def docx_insert_table_at_cursor(
@@ -302,7 +303,7 @@ def docx_insert_table_at_cursor(
         cols (int): Number of columns.
 
     Returns:
-        str: ID of the new table.
+        str: JSON response with ID of the new table and cursor context.
     """
     from docx_mcp_server.server import session_manager
 
@@ -311,7 +312,7 @@ def docx_insert_table_at_cursor(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_insert_table_at_cursor failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     cursor = session.cursor
 
@@ -323,7 +324,7 @@ def docx_insert_table_at_cursor(
         ref_obj = session.get_object(cursor.element_id)
         if not ref_obj:
             logger.error(f"docx_insert_table_at_cursor failed: Reference element {cursor.element_id} no longer exists")
-            raise ValueError(f"Reference element {cursor.element_id} no longer exists")
+            return create_error_response(f"Reference element {cursor.element_id} no longer exists", error_type="ElementNotFound")
 
         if cursor.position in ["before", "after"]:
             if hasattr(ref_obj, "_parent"):
@@ -341,7 +342,7 @@ def docx_insert_table_at_cursor(
             parent = session.get_object(cursor.parent_id)
             if not parent:
                 logger.error(f"docx_insert_table_at_cursor failed: Parent {cursor.parent_id} not found")
-                raise ValueError(f"Parent {cursor.parent_id} not found")
+                return create_error_response(f"Parent {cursor.parent_id} not found", error_type="ElementNotFound")
 
     # Create table
     try:
@@ -355,7 +356,7 @@ def docx_insert_table_at_cursor(
             raise e
     except AttributeError as e:
         logger.error(f"docx_insert_table_at_cursor failed: Target container does not support adding tables")
-        raise ValueError(f"Target container ({type(parent).__name__}) does not support adding tables")
+        return create_error_response(f"Target container ({type(parent).__name__}) does not support adding tables", error_type="InvalidElementType")
 
     # Move it
     if cursor.position == "inside_start":
@@ -383,16 +384,12 @@ def docx_insert_table_at_cursor(
     if parent == session.document:
         session.cursor.parent_id = "document_body"
 
-    # Attach context
-    result_msg = table_id
-    try:
-        context = session.get_cursor_context()
-        result_msg = f"{table_id}\n\n{context}"
-    except Exception as e:
-        logger.warning(f"Failed to get cursor context: {e}")
-
     logger.debug(f"docx_insert_table_at_cursor success: {table_id}")
-    return result_msg
+    return create_context_aware_response(
+        session,
+        message="Table inserted at cursor successfully",
+        element_id=table_id
+    )
 
 def register_tools(mcp: FastMCP):
     """Register cursor tools"""
