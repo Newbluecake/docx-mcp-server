@@ -388,13 +388,17 @@ def docx_smart_fill_table(
 
         # Fill table
         start_row = 1 if has_header else 0
-        docx_fill_table(session_id, data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
+        fill_result = docx_fill_table(session_id, data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
+        fill_data = json.loads(fill_result)
 
         result = {
             "status": "success",
             "rows_filled": len(data_array),
             "rows_added": max(0, data_rows - existing_rows) if auto_resize else 0,
-            "preserve_formatting": preserve_formatting
+            "preserve_formatting": preserve_formatting,
+            "filled_range": fill_data.get("data", {}).get("filled_range", {}),
+            "skipped_regions": fill_data.get("data", {}).get("skipped_regions", []),
+            "structure_info": fill_data.get("data", {}).get("structure_info", {})
         }
 
         logger.info(f"Smart fill completed: {result}")
