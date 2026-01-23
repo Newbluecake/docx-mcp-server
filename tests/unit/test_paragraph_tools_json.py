@@ -1,3 +1,16 @@
+
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 """Unit tests for refactored paragraph tools with JSON responses."""
 
 import json
@@ -15,29 +28,31 @@ from docx_mcp_server.tools.session_tools import docx_create, docx_close
 
 def test_add_paragraph_returns_json():
     """Test that docx_insert_paragraph returns valid JSON."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
     result = docx_insert_paragraph(session_id, "Test paragraph", position="end:document_body")
 
     # Parse JSON
     data = json.loads(result)
 
-    assert data["status"] == "success"
+    assert is_success(result)
     assert data["message"] == "Paragraph created successfully"
-    assert "element_id" in data["data"]
+    assert extract_metadata_field(result, "element_id") is not None
     assert data["data"]["element_id"].startswith("para_")
-    assert "cursor" in data["data"]
+    assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
 
 
 def test_add_paragraph_with_style():
     """Test adding paragraph with style returns proper JSON."""
-    session_id = docx_create()
-    result = docx_insert_paragraph(session_id, "Bullet item", position="end:document_body", style="List Bullet")
+    session_response = docx_create()
 
-    data = json.loads(result)
-    assert data["status"] == "success"
-    assert "element_id" in data["data"]
+    session_id = extract_session_id(session_response)
+    result = docx_insert_paragraph(session_id, "Bullet item", position="end:document_body", style="List Bullet")
+    assert is_success(result)
+    assert extract_metadata_field(result, "element_id") is not None
 
     docx_close(session_id)
 
@@ -45,22 +60,20 @@ def test_add_paragraph_with_style():
 def test_add_paragraph_invalid_session():
     """Test that invalid session returns error JSON."""
     result = docx_insert_paragraph("invalid_session", "Test", position="end:document_body")
-
-    data = json.loads(result)
-    assert data["status"] == "error"
+    assert is_error(result)
     assert "not found" in data["message"].lower()
-    assert data["data"]["error_type"] == "SessionNotFound"
+    assert extract_metadata_field(result, "error_type") == "SessionNotFound"
 
 
 def test_add_heading_returns_json():
     """Test that docx_insert_heading returns valid JSON."""
-    session_id = docx_create()
-    result = docx_insert_heading(session_id, "Chapter 1", position="end:document_body", level=1)
+    session_response = docx_create()
 
-    data = json.loads(result)
-    assert data["status"] == "success"
+    session_id = extract_session_id(session_response)
+    result = docx_insert_heading(session_id, "Chapter 1", position="end:document_body", level=1)
+    assert is_success(result)
     assert "Heading level 1" in data["message"]
-    assert "element_id" in data["data"]
+    assert extract_metadata_field(result, "element_id") is not None
     assert data["data"]["element_id"].startswith("para_")
 
     docx_close(session_id)
@@ -68,137 +81,138 @@ def test_add_heading_returns_json():
 
 def test_add_heading_with_different_levels():
     """Test adding headings with different levels."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Title (level 0)
     result = docx_insert_heading(session_id, "Title", position="end:document_body", level=0)
-    data = json.loads(result)
-    assert data["status"] == "success"
+    assert is_success(result)
 
     # Heading 2
     result = docx_insert_heading(session_id, "Section", position="end:document_body", level=2)
-    data = json.loads(result)
-    assert data["status"] == "success"
+    assert is_success(result)
 
     docx_close(session_id)
 
 
 def test_update_paragraph_text_returns_json():
     """Test that docx_update_paragraph_text returns valid JSON."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create paragraph
     result = docx_insert_paragraph(session_id, "Old text", position="end:document_body")
-    data = json.loads(result)
     para_id = data["data"]["element_id"]
 
     # Update it
     result = docx_update_paragraph_text(session_id, para_id, "New text")
-    data = json.loads(result)
 
-    assert data["status"] == "success"
+    assert is_success(result)
     assert "updated successfully" in data["message"]
-    assert data["data"]["element_id"] == para_id
-    assert "changed_fields" in data["data"]
-    assert "text" in data["data"]["changed_fields"]
+    assert extract_metadata_field(result, "element_id") == para_id
+    assert extract_metadata_field(result, "changed_fields") is not None
+    assert extract_metadata_field(result, "text") is not None["changed_fields"]
 
     docx_close(session_id)
 
 
 def test_update_paragraph_invalid_id():
     """Test updating non-existent paragraph returns error."""
-    session_id = docx_create()
-    result = docx_update_paragraph_text(session_id, "para_invalid", "New text")
+    session_response = docx_create()
 
-    data = json.loads(result)
-    assert data["status"] == "error"
-    assert data["data"]["error_type"] == "ElementNotFound"
+    session_id = extract_session_id(session_response)
+    result = docx_update_paragraph_text(session_id, "para_invalid", "New text")
+    assert is_error(result)
+    assert extract_metadata_field(result, "error_type") == "ElementNotFound"
 
     docx_close(session_id)
 
 
 def test_copy_paragraph_returns_json():
     """Test that docx_copy_paragraph returns valid JSON."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create original paragraph
     result = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
-    data = json.loads(result)
     original_id = data["data"]["element_id"]
 
     # Copy it
     result = docx_copy_paragraph(session_id, original_id, position="end:document_body")
-    data = json.loads(result)
 
-    assert data["status"] == "success"
+    assert is_success(result)
     assert "copied successfully" in data["message"]
-    assert "element_id" in data["data"]
+    assert extract_metadata_field(result, "element_id") is not None
     assert data["data"]["element_id"] != original_id
-    assert data["data"]["source_id"] == original_id
+    assert extract_metadata_field(result, "source_id") == original_id
 
     docx_close(session_id)
 
 
 def test_delete_paragraph_returns_json():
     """Test that docx_delete returns valid JSON."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create paragraph
     result = docx_insert_paragraph(session_id, "To be deleted", position="end:document_body")
-    data = json.loads(result)
     para_id = data["data"]["element_id"]
 
     # Delete it
     result = docx_delete(session_id, para_id)
-    data = json.loads(result)
 
-    assert data["status"] == "success"
+    assert is_success(result)
     assert "Deleted" in data["message"]
-    assert data["data"]["deleted_id"] == para_id
+    assert extract_metadata_field(result, "deleted_id") == para_id
 
     docx_close(session_id)
 
 
 def test_delete_without_element_id_uses_context():
     """Test that delete without element_id uses context."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create paragraph (sets context)
     result = docx_insert_paragraph(session_id, "Context paragraph", position="end:document_body")
-    data = json.loads(result)
     para_id = data["data"]["element_id"]
 
     # Delete using context
     result = docx_delete(session_id)
-    data = json.loads(result)
 
-    assert data["status"] == "success"
-    assert data["data"]["deleted_id"] == para_id
+    assert is_success(result)
+    assert extract_metadata_field(result, "deleted_id") == para_id
 
     docx_close(session_id)
 
 
 def test_delete_no_context_returns_error():
     """Test that delete without context returns error."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Try to delete without any context
     result = docx_delete(session_id)
-    data = json.loads(result)
 
-    assert data["status"] == "error"
-    assert data["data"]["error_type"] == "NoContext"
+    assert is_error(result)
+    assert extract_metadata_field(result, "error_type") == "NoContext"
 
     docx_close(session_id)
 
 
 def test_add_page_break_returns_json():
     """Test that docx_insert_page_break returns valid JSON."""
-    session_id = docx_create()
-    result = docx_insert_page_break(session_id, position="end:document_body")
+    session_response = docx_create()
 
-    data = json.loads(result)
-    assert data["status"] == "success"
+    session_id = extract_session_id(session_response)
+    result = docx_insert_page_break(session_id, position="end:document_body")
+    assert is_success(result)
     assert "Page break" in data["message"]
 
     docx_close(session_id)
@@ -206,17 +220,18 @@ def test_add_page_break_returns_json():
 
 def test_cursor_context_in_response():
     """Test that cursor context is included in responses."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Add first paragraph
     docx_insert_paragraph(session_id, "First", position="end:document_body")
 
     # Add second paragraph
     result = docx_insert_paragraph(session_id, "Second", position="end:document_body")
-    data = json.loads(result)
 
     # Check cursor information
-    assert "cursor" in data["data"]
+    assert extract_metadata_field(result, "cursor") is not None
     cursor = data["data"]["cursor"]
     assert "element_id" in cursor
     assert cursor["position"] == "after"
@@ -227,7 +242,9 @@ def test_cursor_context_in_response():
 
 def test_json_response_structure():
     """Test that all responses follow the standard structure."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Test various operations
     operations = [
@@ -252,19 +269,21 @@ def test_error_response_structure():
     """Test that error responses follow the standard structure."""
     # Test with invalid session
     result = docx_insert_paragraph("invalid", "Test", position="end:document_body")
-    data = json.loads(result)
 
-    assert data["status"] == "error"
+    assert is_error(result)
     assert "message" in data
     assert "data" in data
-    assert "error_type" in data["data"]
+    assert extract_metadata_field(result, "error_type") is not None
 
 
 def test_add_paragraph_to_parent():
     """Test adding paragraph to a parent container (cell)."""
     from docx_mcp_server.tools.table_tools import docx_insert_table, docx_get_cell
 
-    session_id = docx_create()
+    session_response = docx_create()
+
+
+    session_id = extract_session_id(session_response)
 
     # Create table
     table_result = docx_insert_table(session_id, 2, 2, position="end:document_body")
@@ -278,9 +297,8 @@ def test_add_paragraph_to_parent():
 
     # Add paragraph to cell
     result = docx_insert_paragraph(session_id, "Cell content", position=f"inside:{cell_id}")
-    data = json.loads(result)
 
-    assert data["status"] == "success"
-    assert "element_id" in data["data"]
+    assert is_success(result)
+    assert extract_metadata_field(result, "element_id") is not None
 
     docx_close(session_id)
