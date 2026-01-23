@@ -1,6 +1,12 @@
 import pytest
 import json
+import sys
+import os
 from unittest.mock import MagicMock, patch, mock_open
+
+# Add parent directory to path for helpers import
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from docx_mcp_server.server import (
     docx_get_table,
     docx_find_table,
@@ -13,17 +19,7 @@ from docx_mcp_server.server import (
     docx_create,
     docx_insert_table
 )
-
-
-def _extract_element_id(response):
-    """Extract element_id from JSON response or return as-is if plain string."""
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
-            return data["data"]["element_id"]
-        return response
-    except (json.JSONDecodeError, KeyError):
-        return response
+from helpers import extract_session_id, extract_element_id
 
 def test_list_files():
     with patch("os.listdir", return_value=["template.docx", "ignore.txt", "~$temp.docx"]):
@@ -37,11 +33,12 @@ def test_list_files():
 
 def test_table_operations_flow():
     # 1. Create session
-    sid = docx_create()
+    session_response = docx_create()
+    sid = extract_session_id(session_response)
 
     # 2. Add table
     t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
-    t_id = _extract_element_id(t_response)
+    t_id = extract_element_id(t_response)
     session = session_manager.get_session(sid)
     table = session.get_object(t_id)
     assert len(table.rows) == 2
@@ -56,9 +53,10 @@ def test_table_operations_flow():
     assert len(table.columns) == 3
 
 def test_fill_table():
-    sid = docx_create()
+    session_response = docx_create()
+    sid = extract_session_id(session_response)
     t_response = docx_insert_table(sid, rows=1, cols=2, position="end:document_body")
-    t_id = _extract_element_id(t_response)
+    t_id = extract_element_id(t_response)
 
     # Data for 2 rows (will need to add 1 row)
     data = [
@@ -77,13 +75,14 @@ def test_fill_table():
     assert table.rows[1].cells[1].text == "Value 2"
 
 def test_copy_table():
-    sid = docx_create()
+    session_response = docx_create()
+    sid = extract_session_id(session_response)
     t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
-    t_id = _extract_element_id(t_response)
+    t_id = extract_element_id(t_response)
 
     # Copy it
     t_copy_response = docx_copy_table(sid, t_id, position="end:document_body")
-    t_copy_id = _extract_element_id(t_copy_response)
+    t_copy_id = extract_element_id(t_copy_response)
 
     assert t_copy_id != t_id
     assert t_copy_id.startswith("table_")
@@ -97,9 +96,10 @@ def test_copy_table():
     assert len(t_copy.columns) == 2
 
 def test_find_table():
-    sid = docx_create()
+    session_response = docx_create()
+    sid = extract_session_id(session_response)
     t_response = docx_insert_table(sid, rows=1, cols=1, position="end:document_body")
-    t_id = _extract_element_id(t_response)
+    t_id = extract_element_id(t_response)
 
     # Set text
     session = session_manager.get_session(sid)
@@ -108,7 +108,7 @@ def test_find_table():
 
     # Find it
     found_response = docx_find_table(sid, "Revenue")
-    found_id = _extract_element_id(found_response)
+    found_id = extract_element_id(found_response)
     # Note: found_id might be different string if registered again, or same?
     # The register_object generates new ID every time unless we cache.
     # The current implementation generates new ID.
