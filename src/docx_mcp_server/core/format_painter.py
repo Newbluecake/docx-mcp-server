@@ -205,3 +205,103 @@ class FormatPainter:
         except Exception as e:
             logger.error(f"Error accessing table OXML structure: {e}")
             raise
+
+    def copy_row_format(self, source_row, target_row) -> None:
+        """
+        Copy formatting from source row to target row (cell by cell).
+
+        Args:
+            source_row: Source _Row object
+            target_row: Target _Row object
+        """
+        logger.debug("Copying row format")
+
+        # Ensure both rows have the same number of cells
+        min_cells = min(len(source_row.cells), len(target_row.cells))
+
+        for i in range(min_cells):
+            try:
+                self.copy_cell_format(source_row.cells[i], target_row.cells[i])
+            except Exception as e:
+                logger.warning(f"Failed to copy format for cell {i}: {e}")
+
+    def copy_col_format(self, table: Table, source_col_index: int, target_col_index: int) -> None:
+        """
+        Copy formatting from source column to target column (cell by cell).
+
+        Args:
+            table: Table object
+            source_col_index: Source column index (0-based)
+            target_col_index: Target column index (0-based)
+        """
+        logger.debug(f"Copying column format from {source_col_index} to {target_col_index}")
+
+        for row in table.rows:
+            try:
+                if source_col_index < len(row.cells) and target_col_index < len(row.cells):
+                    self.copy_cell_format(row.cells[source_col_index], row.cells[target_col_index])
+            except Exception as e:
+                logger.warning(f"Failed to copy format for row cell: {e}")
+
+    def copy_cell_format(self, source_cell, target_cell) -> None:
+        """
+        Copy formatting from source cell to target cell.
+
+        Includes:
+        - Paragraph formatting (alignment, spacing)
+        - Run formatting (font, size, color, bold, italic)
+        - Cell background color
+        - Cell borders
+
+        Args:
+            source_cell: Source _Cell object
+            target_cell: Target _Cell object
+        """
+        import copy
+        from docx.oxml.ns import qn
+
+        logger.debug("Copying cell format")
+
+        try:
+            # Copy paragraph formatting from first paragraph if exists
+            if len(source_cell.paragraphs) > 0 and len(target_cell.paragraphs) > 0:
+                src_para = source_cell.paragraphs[0]
+                tgt_para = target_cell.paragraphs[0]
+                self._copy_paragraph_format(src_para, tgt_para)
+
+                # Copy run formatting if both have runs
+                if len(src_para.runs) > 0 and len(tgt_para.runs) > 0:
+                    self._copy_run_format(src_para.runs[0], tgt_para.runs[0])
+
+            # Copy cell properties (background color, borders)
+            src_tcPr = source_cell._tc.get_or_add_tcPr()
+            tgt_tcPr = target_cell._tc.get_or_add_tcPr()
+
+            # Copy shading (background color)
+            src_shd = src_tcPr.find(qn('w:shd'))
+            if src_shd is not None:
+                try:
+                    old_shd = tgt_tcPr.find(qn('w:shd'))
+                    if old_shd is not None:
+                        tgt_tcPr.remove(old_shd)
+                    tgt_tcPr.append(copy.deepcopy(src_shd))
+                    logger.debug("Copied cell shading")
+                except Exception as e:
+                    logger.warning(f"Failed to copy cell shading: {e}")
+
+            # Copy borders
+            src_borders = src_tcPr.find(qn('w:tcBorders'))
+            if src_borders is not None:
+                try:
+                    old_borders = tgt_tcPr.find(qn('w:tcBorders'))
+                    if old_borders is not None:
+                        tgt_tcPr.remove(old_borders)
+                    tgt_tcPr.append(copy.deepcopy(src_borders))
+                    logger.debug("Copied cell borders")
+                except Exception as e:
+                    logger.warning(f"Failed to copy cell borders: {e}")
+
+        except Exception as e:
+            logger.error(f"Error copying cell format: {e}")
+            raise
+

@@ -140,3 +140,159 @@ class ElementManipulator:
     def insert_at_index(parent_xml: BaseOxmlElement, new_xml: BaseOxmlElement, index: int):
         """Insert new_xml at specific index in parent."""
         parent_xml.insert(index, new_xml)
+
+    @staticmethod
+    def insert_row_at(table: Table, index: int, copy_format_from: Optional[int] = None) -> Any:
+        """
+        Insert a new row at the specified index in a table.
+
+        Args:
+            table: python-docx Table object
+            index: Insertion position (0-based), must be in range [0, len(table.rows)]
+            copy_format_from: Optional row index to copy formatting from
+
+        Returns:
+            The newly inserted _Row object
+
+        Raises:
+            IndexError: If index is out of valid range
+        """
+        from docx.oxml.table import CT_Row
+        from docx.table import _Row
+
+        num_rows = len(table.rows)
+        if index < 0 or index > num_rows:
+            raise IndexError(f"Row index {index} out of range (table has {num_rows} rows, valid range: 0-{num_rows})")
+
+        # Create a new row by adding to the end first
+        new_row = table.add_row()
+
+        # If we need to insert at a specific position (not at the end)
+        if index < num_rows:
+            # Remove the row from the end
+            table._tbl.remove(new_row._tr)
+            # Insert at the desired position
+            table._tbl.insert(index, new_row._tr)
+            # Re-wrap the row object at the correct position
+            new_row = table.rows[index]
+
+        # Copy format if requested
+        if copy_format_from is not None:
+            if copy_format_from < 0 or copy_format_from >= len(table.rows):
+                # If copy_format_from is out of range, skip formatting
+                pass
+            else:
+                from docx_mcp_server.core.format_painter import FormatPainter
+                painter = FormatPainter()
+                source_row = table.rows[copy_format_from]
+                painter.copy_row_format(source_row, new_row)
+
+        return new_row
+
+    @staticmethod
+    def insert_col_at(table: Table, index: int, copy_format_from: Optional[int] = None) -> None:
+        """
+        Insert a new column at the specified index in a table.
+
+        Args:
+            table: python-docx Table object
+            index: Insertion position (0-based), must be in range [0, len(table.columns)]
+            copy_format_from: Optional column index to copy formatting from
+
+        Raises:
+            IndexError: If index is out of valid range
+        """
+        from docx.oxml.table import CT_Tc
+        from docx.oxml.ns import qn
+        from docx.shared import Inches
+
+        num_cols = len(table.columns)
+        if index < 0 or index > num_cols:
+            raise IndexError(f"Column index {index} out of range (table has {num_cols} columns, valid range: 0-{num_cols})")
+
+        # Insert a new cell in each row at the specified index
+        for row in table.rows:
+            # Create a new cell element
+            new_tc = CT_Tc()
+            # Add a paragraph to the cell (required)
+            new_tc._new_p()
+
+            # Insert the cell at the specified index
+            row._tr.insert(index, new_tc)
+
+        # Update table grid (column width definitions)
+        tbl_grid = table._tbl.tblGrid
+        if tbl_grid is not None:
+            from docx.oxml.table import CT_TblGridCol
+            new_grid_col = CT_TblGridCol()
+            # Set default width (1 inch)
+            new_grid_col.w = Inches(1.0)
+            tbl_grid.insert(index, new_grid_col)
+
+        # Copy format if requested
+        if copy_format_from is not None:
+            if copy_format_from < 0 or copy_format_from >= len(table.columns):
+                # If copy_format_from is out of range, skip formatting
+                pass
+            else:
+                from docx_mcp_server.core.format_painter import FormatPainter
+                painter = FormatPainter()
+                painter.copy_col_format(table, copy_format_from, index)
+
+    @staticmethod
+    def delete_row(table: Table, index: int) -> None:
+        """
+        Delete a row from the table at the specified index.
+
+        Args:
+            table: python-docx Table object
+            index: Row index to delete (0-based)
+
+        Raises:
+            IndexError: If index is out of valid range
+            ValueError: If attempting to delete the last row
+        """
+        num_rows = len(table.rows)
+
+        if num_rows == 1:
+            raise ValueError("Cannot delete the last row")
+
+        if index < 0 or index >= num_rows:
+            raise IndexError(f"Row index {index} out of range (table has {num_rows} rows)")
+
+        # Get the row and remove it from the table
+        row = table.rows[index]
+        table._tbl.remove(row._tr)
+
+    @staticmethod
+    def delete_col(table: Table, index: int) -> None:
+        """
+        Delete a column from the table at the specified index.
+
+        Args:
+            table: python-docx Table object
+            index: Column index to delete (0-based)
+
+        Raises:
+            IndexError: If index is out of valid range
+            ValueError: If attempting to delete the last column
+        """
+        num_cols = len(table.columns)
+
+        if num_cols == 1:
+            raise ValueError("Cannot delete the last column")
+
+        if index < 0 or index >= num_cols:
+            raise IndexError(f"Column index {index} out of range (table has {num_cols} columns)")
+
+        # Remove the cell at the specified index from each row
+        for row in table.rows:
+            if index < len(row.cells):
+                cell = row.cells[index]
+                row._tr.remove(cell._tc)
+
+        # Update table grid (column width definitions)
+        tbl_grid = table._tbl.tblGrid
+        if tbl_grid is not None and index < len(tbl_grid.gridCol_lst):
+            grid_col = tbl_grid.gridCol_lst[index]
+            tbl_grid.remove(grid_col)
