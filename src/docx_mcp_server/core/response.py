@@ -60,8 +60,18 @@ def create_markdown_response(
 
     # Add extra metadata fields
     for key, value in extra_metadata.items():
-        # Convert key from snake_case to Title Case
-        display_key = key.replace('_', ' ').title()
+        # Convert key from snake_case to Title Case with acronym handling
+        words = key.split('_')
+        title_words = []
+        acronyms = {'id', 'url', 'html', 'xml', 'api'}
+
+        for word in words:
+            if word.lower() in acronyms:
+                title_words.append(word.upper())
+            else:
+                title_words.append(word.capitalize())
+
+        display_key = ' '.join(title_words)
         lines.append(f"**{display_key}**: {value}")
 
     # Show diff if requested

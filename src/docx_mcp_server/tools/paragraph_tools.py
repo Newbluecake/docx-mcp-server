@@ -4,7 +4,8 @@ from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
     create_markdown_response,
-    create_error_response
+    create_error_response,
+    create_context_aware_response
 )
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
 from docx_mcp_server.core.xml_util import ElementManipulator
