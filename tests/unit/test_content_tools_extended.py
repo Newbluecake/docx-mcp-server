@@ -25,7 +25,7 @@ from helpers import (
 
 
 def test_read_content_return_json_and_ids():
-    sid = docx_create()
+    sid = extract_session_id(docx_create())
     docx_insert_paragraph(sid, "alpha", position="end:document_body")
     docx_insert_paragraph(sid, "beta", position="end:document_body")
 
@@ -39,7 +39,7 @@ def test_read_content_return_json_and_ids():
 
 
 def test_find_paragraphs_with_context():
-    sid = docx_create()
+    sid = extract_session_id(docx_create())
     docx_insert_paragraph(sid, "one", position="end:document_body")
     docx_insert_paragraph(sid, "two match", position="end:document_body")
     docx_insert_paragraph(sid, "three", position="end:document_body")

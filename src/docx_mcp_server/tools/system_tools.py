@@ -6,7 +6,7 @@ import time
 import platform
 import logging
 from mcp.server.fastmcp import FastMCP
-from docx_mcp_server.core.response import create_success_response, create_error_response
+from docx_mcp_server.core.response import create_markdown_response, create_error_response
 from docx_mcp_server.utils.logger import LEVEL_NAMES, get_global_log_level, set_global_log_level
 
 SERVER_START_TIME = time.time()
@@ -45,13 +45,12 @@ def docx_get_log_level() -> str:
     """
     level = get_global_log_level()
     return create_markdown_response(
-            session=session,
-            message="Retrieved current log level",
-            operation="Operation",
-            show_context=True,
+        session=None,
+        message="Retrieved current log level",
+        operation="Get Log Level",
+        show_context=False,
         level=level,
-    
-        )
+    )
 
 
 def docx_set_log_level(level: str) -> str:
@@ -71,13 +70,12 @@ def docx_set_log_level(level: str) -> str:
     normalized = get_global_log_level()
     logging.getLogger(__name__).info(f"Log level changed to {normalized}")
     return create_markdown_response(
-            session=session,
-            message="Log level updated",
-            operation="Operation",
-            show_context=True,
+        session=None,
+        message="Log level updated",
+        operation="Set Log Level",
+        show_context=False,
         level=normalized,
-    
-        )
+    )
 
 
 def register_tools(mcp: FastMCP):

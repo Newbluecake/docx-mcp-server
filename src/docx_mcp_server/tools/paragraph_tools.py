@@ -164,12 +164,14 @@ def docx_insert_heading(session_id: str, text: str, position: str, level: int = 
 
         session.update_context(h_id, action="create")
 
-        builder = ContextBuilder(session)
-        data = builder.build_response_data(heading, h_id)
-
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Heading level {level} created successfully",
-            **data
+            element_id=h_id,
+            operation="Insert Heading",
+            show_context=True,
+            level=level,
+            position=position
         )
     except Exception as e:
         logger.exception(f"docx_insert_heading failed: {e}")
