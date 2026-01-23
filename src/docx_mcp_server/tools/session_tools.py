@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from docx_mcp_server.core.response import create_markdown_response, create_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def docx_create(
             Requires file_path to be set. Defaults to False.
 
     Returns:
-        str: Unique session_id (UUID format) for subsequent operations.
+        str: Markdown-formatted response with session_id.
 
     Raises:
         FileNotFoundError: If file_path is specified but file does not exist.
@@ -75,10 +76,23 @@ def docx_create(
             backup_suffix=backup_suffix or None,
         )
         logger.info(f"docx_create success: session_id={session_id}")
-        return session_id
+
+        return create_markdown_response(
+            session=None,
+            message=f"Session created successfully: {session_id}",
+            element_id=None,
+            operation="Create Session",
+            show_context=False,
+            session_id=session_id,
+            file_path=file_path or "New blank document",
+            auto_save=auto_save
+        )
     except Exception as e:
         logger.exception(f"docx_create failed: {e}")
-        raise
+        return create_error_response(
+            message=f"Failed to create session: {str(e)}",
+            error_type="CreationError"
+        )
 
 def docx_close(session_id: str) -> str:
     """
@@ -96,7 +110,7 @@ def docx_close(session_id: str) -> str:
         session_id (str): Active session ID to close.
 
     Returns:
-        str: Success message confirming session closure.
+        str: Markdown-formatted success message confirming session closure.
 
     Examples:
         Complete document workflow:
@@ -122,10 +136,19 @@ def docx_close(session_id: str) -> str:
     logger.info(f"docx_close called: session_id={session_id}")
     success = session_manager.close_session(session_id)
     if success:
-        return f"Session {session_id} closed successfully"
+        return create_markdown_response(
+            session=None,
+            message=f"Session {session_id} closed successfully",
+            operation="Close Session",
+            show_context=False,
+            session_id=session_id
+        )
     else:
         logger.warning(f"docx_close: Session {session_id} not found")
-        return f"Session {session_id} not found"
+        return create_error_response(
+            message=f"Session {session_id} not found",
+            error_type="SessionNotFound"
+        )
 
 def docx_save(
     session_id: str,
@@ -151,7 +174,7 @@ def docx_save(
             Parent directory must exist. Use relative paths for portability.
 
     Returns:
-        str: Success message with the saved file path.
+        str: Markdown-formatted success message with the saved file path.
 
     Raises:
         ValueError: If session_id is invalid or session has expired.
@@ -189,7 +212,10 @@ def docx_save(
     session = session_manager.get_session(session_id)
     if not session:
         logger.error(f"docx_save failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found or expired")
+        return create_error_response(
+            message=f"Session {session_id} not found or expired",
+            error_type="SessionNotFound"
+        )
 
     # Security check: Ensure we are writing to an allowed location if needed.
     # For now, we assume the user (Claude) acts with the user's permissions.
@@ -211,7 +237,10 @@ def docx_save(
         logger.info(f"docx_save success: {file_path}, backup={backup_path}")
     except Exception as e:
         logger.exception(f"docx_save failed: {e}")
-        raise RuntimeError(f"Failed to save document: {str(e)}")
+        return create_error_response(
+            message=f"Failed to save document: {str(e)}",
+            error_type="SaveError"
+        )
 
     # LIVE PREVIEW: Refresh (reload file in Word)
     try:
@@ -219,16 +248,15 @@ def docx_save(
     except Exception as e:
          logger.warning(f"Preview refresh failed: {e}")
 
-    result = {
-        "status": "success",
-        "message": f"Document saved successfully to {file_path}",
-        "data": {
-            "file_path": file_path,
-            "backup_path": backup_path,
-            "backup": backup,
-        },
-    }
-    return json.dumps(result)
+    return create_markdown_response(
+        session=None,
+        message=f"Document saved successfully to {file_path}",
+        operation="Save Document",
+        show_context=False,
+        file_path=file_path,
+        backup_path=backup_path,
+        backup=backup
+    )
 
 def docx_get_context(session_id: str) -> str:
     """
@@ -246,14 +274,7 @@ def docx_get_context(session_id: str) -> str:
         session_id (str): Active session ID returned by docx_create().
 
     Returns:
-        str: JSON string with session context information:
-            {
-                "session_id": "...",
-                "last_created_id": "para_xxx",
-                "last_accessed_id": "table_xxx",
-                "file_path": "./doc.docx",
-                "auto_save": false
-            }
+        str: Markdown-formatted session context information.
 
     Raises:
         ValueError: If session_id is invalid or session has expired.
@@ -279,17 +300,23 @@ def docx_get_context(session_id: str) -> str:
 
     session = session_manager.get_session(session_id)
     if not session:
-        raise ValueError(f"Session {session_id} not found")
+        return create_error_response(
+            message=f"Session {session_id} not found",
+            error_type="SessionNotFound"
+        )
 
-    info = {
-        "session_id": session.session_id,
-        "last_created_id": session.last_created_id,
-        "last_accessed_id": session.last_accessed_id,
-        "file_path": session.file_path,
-        "auto_save": session.auto_save,
-        "backup_on_save": session.backup_on_save,
-    }
-    return json.dumps(info, indent=2)
+    return create_markdown_response(
+        session=None,
+        message="Session context retrieved successfully",
+        operation="Get Context",
+        show_context=False,
+        session_id=session.session_id,
+        last_created_id=session.last_created_id or "None",
+        last_accessed_id=session.last_accessed_id or "None",
+        file_path=session.file_path or "None",
+        auto_save=session.auto_save,
+        backup_on_save=session.backup_on_save
+    )
 
 
 def docx_list_sessions() -> str:
@@ -297,11 +324,14 @@ def docx_list_sessions() -> str:
     from docx_mcp_server.server import session_manager
 
     sessions = session_manager.list_sessions()
-    return json.dumps({
-        "status": "success",
-        "message": f"Active sessions: {len(sessions)}",
-        "data": sessions,
-    }, ensure_ascii=False, indent=2)
+    return create_markdown_response(
+        session=None,
+        message=f"Active sessions: {len(sessions)}",
+        operation="List Sessions",
+        show_context=False,
+        active_sessions=len(sessions),
+        sessions=json.dumps(sessions, indent=2)
+    )
 
 
 def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
@@ -309,11 +339,14 @@ def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
     from docx_mcp_server.server import session_manager
 
     cleaned = session_manager.cleanup_expired(max_idle_seconds=max_idle_seconds or None)
-    return json.dumps({
-        "status": "success",
-        "message": f"Cleaned up {cleaned} expired sessions",
-        "data": {"cleaned": cleaned, "max_idle_seconds": max_idle_seconds},
-    }, ensure_ascii=False, indent=2)
+    return create_markdown_response(
+        session=None,
+        message=f"Cleaned up {cleaned} expired sessions",
+        operation="Cleanup Sessions",
+        show_context=False,
+        cleaned=cleaned,
+        max_idle_seconds=max_idle_seconds
+    )
 
 
 def register_tools(mcp: FastMCP):
