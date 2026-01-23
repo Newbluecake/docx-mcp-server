@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import time
+import tempfile
+import shutil
 from typing import Optional, Any
 from .base import PreviewController
 
@@ -10,6 +12,19 @@ logger = logging.getLogger(__name__)
 
 # Try to import pywin32, but don't fail if missing (handled by PreviewManager)
 try:
+    import win32com
+    # FIX: Force gen_path to a writable user temp directory to avoid
+    # "C:\windows\gen_py" permission errors or missing directory errors.
+    # This overrides any global registry settings that usually cause this crash.
+    _safe_gen_path = os.path.join(tempfile.gettempdir(), "docx_mcp_gen_py")
+    if not os.path.exists(_safe_gen_path):
+        try:
+            os.makedirs(_safe_gen_path, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Failed to create safe gen_py dir: {e}")
+
+    win32com.__gen_path__ = _safe_gen_path
+
     import win32com.client
     import pywintypes
     HAS_PYWIN32 = True
