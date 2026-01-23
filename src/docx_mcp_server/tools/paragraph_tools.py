@@ -3,9 +3,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_markdown_response,
+    create_error_response
 )
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
 from docx_mcp_server.core.xml_util import ElementManipulator
@@ -88,16 +87,15 @@ def docx_insert_paragraph(session_id: str, text: str, position: str, style: str 
         # Update session cursor state for consistency
         session.cursor.element_id = p_id
         session.cursor.position = "after"
-        # Try to set parent_id for cursor if possible (ContextBuilder handles response, but session state matters too)
-        # We leave strict session cursor management to the specific tools or implicit updates
 
-        # Build Enhanced Response
-        builder = ContextBuilder(session)
-        data = builder.build_response_data(paragraph, p_id)
-
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Paragraph created successfully",
-            **data # Unpacks element_id, cursor (with visual tree)
+            element_id=p_id,
+            operation="Insert Paragraph",
+            show_context=True,
+            position=position,
+            style=style or "Normal"
         )
 
     except Exception as e:
