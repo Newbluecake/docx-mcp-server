@@ -11,6 +11,19 @@ from docx_mcp_server.core.response import (
     create_success_response
 )
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 
 def test_create_change_tracked_response():
     """Test creating response with change tracking."""
@@ -33,12 +46,12 @@ def test_create_change_tracked_response():
 
     data = json.loads(response)
 
-    assert data["status"] == "success"
+    assert is_success(result)
     assert data["message"] == "Updated successfully"
-    assert data["data"]["element_id"] == "para_123"
-    assert "changes" in data["data"]
+    assert extract_metadata_field(result, "element_id") == "para_123"
+    assert extract_metadata_field(result, "changes") is not None
     assert data["data"]["changes"]["before"]["text"] == "old text"
-    assert data["data"]["commit_id"] == "commit-456"
+    assert extract_metadata_field(result, "commit_id") == "commit-456"
 
 
 def test_change_tracked_response_with_extra_data():
@@ -58,9 +71,9 @@ def test_change_tracked_response_with_extra_data():
 
     data = json.loads(response)
 
-    assert data["status"] == "success"
-    assert data["data"]["custom_field"] == "custom_value"
-    assert data["data"]["another_field"] == 123
+    assert is_success(result)
+    assert extract_metadata_field(result, "custom_field") == "custom_value"
+    assert extract_metadata_field(result, "another_field") == 123
 
 
 def test_backward_compatibility():
@@ -73,6 +86,6 @@ def test_backward_compatibility():
 
     data = json.loads(response)
 
-    assert data["status"] == "success"
-    assert data["data"]["element_id"] == "elem_123"
-    assert data["data"]["custom_data"] == "value"
+    assert is_success(result)
+    assert extract_metadata_field(result, "element_id") == "elem_123"
+    assert extract_metadata_field(result, "custom_data") == "value"

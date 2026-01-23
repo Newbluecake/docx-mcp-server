@@ -17,10 +17,6 @@ from helpers import (
     is_error
 )
 
-def extract_element_id(response):
-    data = json.loads(response)
-    return data["data"]["element_id"]
-
 def test_add_table_position_after():
     session_response = docx_create()
 

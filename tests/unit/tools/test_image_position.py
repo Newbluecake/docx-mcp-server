@@ -31,12 +31,6 @@ def temp_image():
     if os.path.exists(path):
         os.unlink(path)
 
-def extract_element_id(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]["element_id"]
-
 def test_insert_image_position_after(temp_image):
     session_response = docx_create()
 

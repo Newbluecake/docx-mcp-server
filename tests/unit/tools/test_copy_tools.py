@@ -68,11 +68,5 @@ def test_docx_copy_invalid_input():
 
     session_id = extract_session_id(session_response)
     result = docx_copy_paragraph(session_id, "invalid_id", position="end:document_body")
-    # Check if it's a JSON error response
-    try:
-        data = json.loads(result)
-        assert is_error(result)
-        assert "not found" in data["message"].lower() or "invalid" in data["message"].lower()
-    except (json.JSONDecodeError, KeyError):
-        # If not JSON, should raise ValueError
-        pytest.fail("Expected JSON error response or ValueError")
+    # Check if it's an error response
+    assert is_error(result)

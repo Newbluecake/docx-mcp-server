@@ -6,6 +6,19 @@ from docx_mcp_server.tools.system_tools import (
     docx_set_log_level,
 )
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 
 def test_set_log_level_updates_root():
     result = json.loads(docx_set_log_level("DEBUG"))
