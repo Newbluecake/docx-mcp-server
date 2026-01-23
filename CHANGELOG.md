@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-01-23
+
+### ✨ Features
+
+- **Table Row/Column Operations**: Added precise table manipulation capabilities.
+  - `docx_insert_row_at()`: Insert rows at specific positions (after:N, before:N, start, end) with optional format copying.
+  - `docx_insert_col_at()`: Insert columns at specific positions with optional format copying.
+  - `docx_delete_row()`: Delete rows by index with automatic element_id cleanup.
+  - `docx_delete_col()`: Delete columns by index with automatic element_id cleanup.
+- **Format Painter Enhancements**: Extended FormatPainter with row/column/cell format copying methods.
+- **Registry Cleaner**: New service for automatic cleanup of invalidated element_ids after deletions.
+- **Enhanced ElementManipulator**: Added low-level XML operations for table row/column manipulation.
+
+### 🔧 Technical Improvements
+
+- All new tools follow standardized JSON response format with status, message, and data fields.
+- Comprehensive error handling with specific error types (ValidationError, IndexError, ElementNotFound).
+- Boundary protection: prevents deletion of last row/column to maintain table integrity.
+- Deep copy of cell XML structure ensures proper namespace preservation during column insertion.
+- 25 comprehensive unit tests covering all scenarios and edge cases.
+
 ## [0.1.3] - 2026-01-21
 
 ### ✨ Features

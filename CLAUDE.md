@@ -514,7 +514,7 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 
 ## 完整工具参考
 
-本服务器提供 47 个 MCP 工具（v2.0 新增 5 个复合工具），按功能领域分为 11 个模块：
+本服务器提供 51 个 MCP 工具（v2.2 新增 4 个表格行列操作工具），按功能领域分为 11 个模块：
 
 ### 0. Composite Tools（复合工具，5 个）⭐ 新增
 
@@ -565,7 +565,7 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 | `docx_update_run_text(session_id, run_id, new_text)` | 更新 Run 文本 |
 | `docx_set_font(session_id, run_id, size=None, bold=None, italic=None, color_hex=None)` | 设置字体属性 |
 
-### 5. Table Tools（表格操作，9 个）
+### 5. Table Tools（表格操作，13 个）⭐ v2.2 新增 4 个
 
 | 工具 | 说明 |
 |------|------|
@@ -574,8 +574,12 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 | `docx_find_table(session_id, text)` | 查找包含指定文本的表格 |
 | `docx_get_cell(session_id, table_id, row, col)` | 获取单元格 |
 | `docx_insert_paragraph_to_cell(session_id, text, position)` | 向单元格添加段落（position 必选） |
-| `docx_insert_table_row(session_id, position)` | 添加行（position 必选） |
-| `docx_insert_table_col(session_id, position)` | 添加列（position 必选） |
+| `docx_insert_table_row(session_id, position)` | 添加行到表格末尾（position 必选） |
+| `docx_insert_table_col(session_id, position)` | 添加列到表格末尾（position 必选） |
+| `docx_insert_row_at(session_id, table_id, position, row_index, copy_format)` | ⭐ 在指定位置插入行（支持 after:N, before:N, start, end） |
+| `docx_insert_col_at(session_id, table_id, position, col_index, copy_format)` | ⭐ 在指定位置插入列（支持 after:N, before:N, start, end） |
+| `docx_delete_row(session_id, table_id, row_index)` | ⭐ 删除指定行（自动清理 element_id） |
+| `docx_delete_col(session_id, table_id, col_index)` | ⭐ 删除指定列（自动清理 element_id） |
 | `docx_fill_table(session_id, data, table_id=None, start_row=0)` | 批量填充表格数据 |
 | `docx_copy_table(session_id, table_id, position)` | 深拷贝表格 |
 

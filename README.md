@@ -160,8 +160,12 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 ### 表格操作
 
 - `docx_insert_table(session_id, rows, cols, position)` - 创建表格（position 必选）
-- `docx_insert_table_row(session_id, position)` - 添加行（position 必选）
-- `docx_insert_table_col(session_id, position)` - 添加列（position 必选）
+- `docx_insert_table_row(session_id, position)` - 添加行到表格末尾（position 必选）
+- `docx_insert_table_col(session_id, position)` - 添加列到表格末尾（position 必选）
+- `docx_insert_row_at(session_id, table_id, position, row_index=None, copy_format=False)` - 在指定位置插入行（支持 after:N, before:N, start, end）
+- `docx_insert_col_at(session_id, table_id, position, col_index=None, copy_format=False)` - 在指定位置插入列（支持 after:N, before:N, start, end）
+- `docx_delete_row(session_id, table_id, row_index)` - 删除指定行（自动清理 element_id）
+- `docx_delete_col(session_id, table_id, col_index)` - 删除指定列（自动清理 element_id）
 - `docx_fill_table(session_id, data, table_id=None, start_row=0)` - 批量填充表格数据
 - `docx_get_cell(session_id, table_id, row, col)` - 获取单元格
 - `docx_insert_paragraph_to_cell(session_id, text, position)` - 向单元格添加段落（position 必选）

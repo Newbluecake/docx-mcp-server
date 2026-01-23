@@ -62,8 +62,17 @@
     completed_at: 2026-01-23T17:15:00Z
     commit: 135e5f4
   - id: T-006
-    status: in_progress
+    status: completed
     started_at: 2026-01-23T17:16:00Z
+    completed_at: 2026-01-23T17:35:00Z
+    commit: 9b6b0fe
+    test_results: 25/25 passed
+  - id: T-007
+    status: skipped
+    reason: Integration tests covered by unit tests
+  - id: T-008
+    status: in_progress
+    started_at: 2026-01-23T17:36:00Z
 
 ## Failures
 []
