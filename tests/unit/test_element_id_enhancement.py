@@ -19,6 +19,19 @@ from docx_mcp_server.tools.content_tools import (
 )
 from docx_mcp_server.tools.composite_tools import docx_get_structure_summary
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 
 @pytest.fixture
 def session_manager():
@@ -277,10 +290,9 @@ class TestToolsWithElementId:
 
         # Call without include_ids parameter (should default to True)
         result = docx_read_content(global_session_id, return_json=True)
-        data = json.loads(result)
 
         # Verify element_ids are included by default
-        assert data["status"] == "success"
+        assert is_success(result)
         assert "data" in data
         assert len(data["data"]) == 2
         for para in data["data"]:
@@ -296,10 +308,9 @@ class TestToolsWithElementId:
 
         # Call with include_ids=False
         result = docx_read_content(global_session_id, return_json=True, include_ids=False)
-        data = json.loads(result)
 
         # Verify element_ids are NOT included
-        assert data["status"] == "success"
+        assert is_success(result)
         assert "data" in data
         assert len(data["data"]) == 2
         for para in data["data"]:

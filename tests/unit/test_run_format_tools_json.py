@@ -43,7 +43,7 @@ def test_add_run_returns_json():
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") is not None
-    assert data["data"]["element_id"].startswith("run_")
+    assert extract_metadata_field(result, "element_id").startswith("run_")
     assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
@@ -79,8 +79,8 @@ def test_set_font_returns_json():
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == run_id
     assert extract_metadata_field(result, "changed_properties") is not None
-    assert extract_metadata_field(result, "bold") is not None["changed_properties"]
-    assert extract_metadata_field(result, "color") is not None["changed_properties"]
+    assert extract_metadata_field(result, "bold") is not None
+    assert extract_metadata_field(result, "color") is not None
 
     docx_close(session_id)
 

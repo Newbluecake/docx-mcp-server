@@ -10,10 +10,25 @@ from docx_mcp_server.tools.session_tools import docx_create, docx_close
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
 from docx_mcp_server.tools.table_tools import docx_insert_table
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 
 def test_read_content_with_pagination():
     """Test reading content with pagination"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add multiple paragraphs
@@ -38,7 +53,9 @@ def test_read_content_with_pagination():
 
 def test_find_paragraphs_with_limit():
     """Test finding paragraphs with result limit"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add many matching paragraphs
@@ -57,7 +74,9 @@ def test_find_paragraphs_with_limit():
 
 def test_extract_template_structure_with_limits():
     """Test extracting structure with item limits"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add content
@@ -93,7 +112,9 @@ def test_extract_template_structure_with_limits():
 
 def test_extract_template_structure_no_content():
     """Test extracting structure without content"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         docx_insert_heading(session_id, "Test Heading", position="end:document_body", level=1)
