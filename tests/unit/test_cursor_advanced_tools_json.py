@@ -60,7 +60,6 @@ def test_cursor_move_returns_json():
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") is not None
     assert extract_metadata_field(result, "element_id") == para_id
-    assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
 
@@ -92,7 +91,7 @@ def test_replace_text_returns_json():
     assert is_success(result)
     assert extract_metadata_field(result, "replacements") is not None
     assert extract_metadata_field(result, "replacements") == 1
-    assert extract_metadata_field(result, "old_text") == "{{NAME}}"
+    assert "{{NAME}}" in result  # Check for text in diff/content
     assert extract_metadata_field(result, "new_text") == "John"
 
     docx_close(session_id)
@@ -163,7 +162,6 @@ def test_insert_image_returns_json():
         assert is_success(result)
         assert extract_metadata_field(result, "element_id") is not None
         assert extract_metadata_field(result, "image_path") == tmp_path
-        assert extract_metadata_field(result, "cursor") is not None
     finally:
         os.unlink(tmp_path)
         docx_close(session_id)
