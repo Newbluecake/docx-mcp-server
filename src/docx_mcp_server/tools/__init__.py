@@ -9,6 +9,7 @@ def register_all_tools(mcp: FastMCP):
     from . import paragraph_tools
     from . import run_tools
     from . import table_tools
+    from . import table_rowcol_tools
     from . import format_tools
     from . import advanced_tools
     from . import system_tools
@@ -26,6 +27,7 @@ def register_all_tools(mcp: FastMCP):
     paragraph_tools.register_tools(mcp)
     run_tools.register_tools(mcp)
     table_tools.register_tools(mcp)
+    table_rowcol_tools.register_tools(mcp)
     format_tools.register_tools(mcp)
     advanced_tools.register_tools(mcp)
     system_tools.register_tools(mcp)
