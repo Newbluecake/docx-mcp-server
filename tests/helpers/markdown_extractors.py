@@ -19,12 +19,17 @@ def extract_session_id(response: str) -> Optional[str]:
         Session ID string or None if not found
 
     Example:
-        >>> response = "**Session Id**: abc123\\n..."
+        >>> response = "**Session ID**: abc123\\n..."
         >>> extract_session_id(response)
         'abc123'
     """
-    # Try to extract from Markdown format: **Session Id**: xxx
-    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response)
+    # Try to extract from Markdown format: **Session ID**: xxx
+    match = re.search(r'\*\*Session ID\*\*:\s*(\S+)', response)
+    if match:
+        return match.group(1)
+
+    # Legacy/Fallback: try **Session Id** (case insensitive)
+    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response, re.IGNORECASE)
     if match:
         return match.group(1)
 

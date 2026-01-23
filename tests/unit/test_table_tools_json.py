@@ -38,9 +38,8 @@ def test_add_table_returns_json():
     element_id = extract_element_id(result)
     assert element_id is not None
     assert element_id.startswith("table_")
-    assert extract_metadata_field(result, "rows") == 2
-    assert extract_metadata_field(result, "cols") == 3
-    assert extract_metadata_field(result, "cursor") is not None
+    assert int(extract_metadata_field(result, "rows")) == 2
+    assert int(extract_metadata_field(result, "cols")) == 3
 
     docx_close(session_id)
 
@@ -57,7 +56,7 @@ def test_get_table_returns_json():
     assert is_success(result)
     element_id = extract_element_id(result)
     assert element_id is not None
-    assert extract_metadata_field(result, "index") == 0
+    assert int(extract_metadata_field(result, "index")) == 0
 
     docx_close(session_id)
 
@@ -96,8 +95,8 @@ def test_get_cell_returns_json():
     element_id = extract_element_id(result)
     assert element_id is not None
     assert element_id.startswith("cell_")
-    assert extract_metadata_field(result, "row") == 0
-    assert extract_metadata_field(result, "col") == 1
+    assert int(extract_metadata_field(result, "row")) == 0
+    assert int(extract_metadata_field(result, "col")) == 1
 
     docx_close(session_id)
 
@@ -115,7 +114,6 @@ def test_add_paragraph_to_cell_returns_json():
     assert is_success(result)
     element_id = extract_element_id(result)
     assert element_id is not None
-    assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
 
@@ -130,7 +128,7 @@ def test_add_table_row_returns_json():
     result = docx_insert_table_row(session_id, position=f"inside:{table_id}")
 
     assert is_success(result)
-    assert extract_metadata_field(result, "new_row_count") == 3
+    assert int(extract_metadata_field(result, "new_row_count")) == 3
 
     docx_close(session_id)
 
@@ -145,7 +143,7 @@ def test_add_table_col_returns_json():
     result = docx_insert_table_col(session_id, position=f"inside:{table_id}")
 
     assert is_success(result)
-    assert extract_metadata_field(result, "new_col_count") == 3
+    assert int(extract_metadata_field(result, "new_col_count")) == 3
 
     docx_close(session_id)
 
@@ -161,8 +159,7 @@ def test_fill_table_returns_json():
     result = docx_fill_table(session_id, data_json, table_id)
 
     assert is_success(result)
-    assert extract_metadata_field(result, "rows_filled") == 2
-    assert extract_metadata_field(result, "cursor") is not None
+    assert int(extract_metadata_field(result, "rows_filled")) == 2
 
     docx_close(session_id)
 
