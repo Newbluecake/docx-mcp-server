@@ -45,7 +45,17 @@ class Win32PreviewController(PreviewController):
         # Try to ensure COM cache exists to avoid "No such file or directory" errors
         self._ensure_com_cache()
 
-        self.app_prog_ids = ["Word.Application", "KWPS.Application"]
+        # Determine app priority based on environment variable
+        # Valid values: "word" (default), "wps"
+        preferred_app = os.environ.get("DOCX_PREVIEW_APP", "").strip().lower()
+
+        if preferred_app == "wps":
+            logger.info("Configured to prefer WPS Office")
+            self.app_prog_ids = ["KWPS.Application", "Word.Application"]
+        else:
+            # Default: Prefer Word, fallback to WPS
+            self.app_prog_ids = ["Word.Application", "KWPS.Application"]
+
         self.last_app_used = None
         self._was_open_cache = {} # Cache state between prepare and refresh: {path: (app_instance, was_visible)}
 
