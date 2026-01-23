@@ -44,10 +44,14 @@ def docx_get_log_level() -> str:
     Get current server log level.
     """
     level = get_global_log_level()
-    return create_success_response(
-        message="Retrieved current log level",
+    return create_markdown_response(
+            session=session,
+            message="Retrieved current log level",
+            operation="Operation",
+            show_context=True,
         level=level,
-    )
+    
+        )
 
 
 def docx_set_log_level(level: str) -> str:
@@ -66,10 +70,14 @@ def docx_set_log_level(level: str) -> str:
 
     normalized = get_global_log_level()
     logging.getLogger(__name__).info(f"Log level changed to {normalized}")
-    return create_success_response(
-        message="Log level updated",
+    return create_markdown_response(
+            session=session,
+            message="Log level updated",
+            operation="Operation",
+            show_context=True,
         level=normalized,
-    )
+    
+        )
 
 
 def register_tools(mcp: FastMCP):

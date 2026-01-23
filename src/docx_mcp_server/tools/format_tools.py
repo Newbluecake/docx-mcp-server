@@ -8,9 +8,8 @@ from docx_mcp_server.core.properties import set_properties
 from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.format_template import TemplateManager
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_markdown_response,
+    create_error_response
 )
 
 logger = logging.getLogger(__name__)
@@ -373,11 +372,14 @@ def docx_set_margins(
             section.right_margin = Inches(right)
 
         logger.debug(f"docx_set_margins success")
-        return create_context_aware_response(
-            session,
+        return create_markdown_response(
+            session=session,
             message="Margins updated successfully",
+            operation="Operation",
+            show_context=True,
             include_cursor=False,
             margins={"top": top, "bottom": bottom, "left": left, "right": right}
+        
         )
     except Exception as e:
         logger.exception(f"docx_set_margins failed: {e}")

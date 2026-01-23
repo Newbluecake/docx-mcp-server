@@ -204,6 +204,9 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         return create_error_response(f"Object {paragraph_id} is not a paragraph", error_type="InvalidElementType")
 
     try:
+        # Capture old content for diff
+        old_text = paragraph.text
+
         # Clear existing runs and set new text
         paragraph.clear()
         paragraph.add_run(new_text)
@@ -212,15 +215,16 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         session.cursor.element_id = paragraph_id
         session.cursor.position = "after"
 
-        # Use enhanced builder for consistency?
-        # Yes, let's upgrade this too to show the new state
-        builder = ContextBuilder(session)
-        data = builder.build_response_data(paragraph, paragraph_id)
-
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Paragraph {paragraph_id} updated successfully",
-            changed_fields=["text"],
-            **data
+            element_id=paragraph_id,
+            operation="Update Paragraph Text",
+            show_context=True,
+            show_diff=True,
+            old_content=old_text,
+            new_content=new_text,
+            changed_fields=["text"]
         )
     except Exception as e:
         logger.exception(f"docx_update_paragraph_text failed: {e}")
@@ -308,10 +312,14 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str, position: str) -> st
         builder = ContextBuilder(session)
         data = builder.build_response_data(new_para, new_para_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Paragraph copied successfully",
+            operation="Operation",
+            show_context=True,
             source_id=paragraph_id,
             **data
+        
         )
     except Exception as e:
         logger.exception(f"docx_copy_paragraph failed: {e}")
@@ -412,10 +420,13 @@ def docx_insert_page_break(session_id: str, position: str) -> str:
         p_id = session.register_object(paragraph, "para")
         session.update_context(p_id, action="create")
 
-        return create_context_aware_response(
-            session,
+        return create_markdown_response(
+            session=session,
             message="Page break inserted",
+            operation="Operation",
+            show_context=True,
             element_id=p_id
+        
         )
     except Exception as e:
         logger.exception(f"docx_insert_page_break failed: {e}")

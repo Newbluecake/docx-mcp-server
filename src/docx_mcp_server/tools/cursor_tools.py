@@ -2,9 +2,8 @@
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_markdown_response,
+    create_error_response
 )
 
 logger = logging.getLogger(__name__)
@@ -43,14 +42,18 @@ def docx_cursor_get(session_id: str) -> str:
         logger.warning(f"Failed to get cursor context: {e}")
 
     logger.debug(f"docx_cursor_get success: position={cursor.position}")
-    return create_success_response(
-        message="Cursor position retrieved successfully",
+    return create_markdown_response(
+            session=session,
+            message="Cursor position retrieved successfully",
+            operation="Operation",
+            show_context=True,
         parent_id=cursor.parent_id,
         element_id=cursor.element_id,
         position=cursor.position,
         description=f"Cursor is {cursor.position} {cursor.element_id or cursor.parent_id}",
         context=context_text
-    )
+    
+        )
 
 def docx_cursor_move(
     session_id: str,

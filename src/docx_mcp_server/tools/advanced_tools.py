@@ -7,9 +7,8 @@ from docx.shared import Inches
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
 from docx_mcp_server.utils.text_tools import TextTools
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_markdown_response,
+    create_error_response
 )
 
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
@@ -89,16 +88,30 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
         targets = tools.collect_paragraphs_from_scope(None, session.document)
 
     count = 0
+    affected_paragraphs = []
     for p in targets:
         if replace_text_in_paragraph(p, old_text, new_text):
             count += 1
+            # Track affected paragraphs for context
+            p_id = session._get_element_id(p, auto_register=True)
+            affected_paragraphs.append(p_id)
 
     logger.debug(f"docx_replace_text success: replaced {count} occurrences")
-    return create_success_response(
+
+    # For batch operations, show context of first affected paragraph if any
+    element_id = affected_paragraphs[0] if affected_paragraphs else None
+
+    return create_markdown_response(
+        session=session,
         message=f"Replaced {count} occurrences of '{old_text}'",
+        element_id=element_id,
+        operation="Replace Text",
+        show_context=True,
+        show_diff=True,
+        old_content=old_text,
+        new_content=new_text,
         replacements=count,
-        old_text=old_text,
-        new_text=new_text,
+        affected_paragraphs=affected_paragraphs,
         scope_id=scope_id
     )
 
@@ -157,8 +170,24 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     count = tools.batch_replace_text(targets, replacements)
 
     logger.debug(f"docx_batch_replace_text success: replaced {count} occurrences")
-    return create_success_response(
+
+    # For batch operations, show first target paragraph if available
+    element_id = None
+    if targets:
+        element_id = session._get_element_id(targets[0], auto_register=True)
+
+    # Create a summary of replacements for diff display
+    replacements_summary = "\n".join([f"{old} → {new}" for old, new in replacements.items()])
+
+    return create_markdown_response(
+        session=session,
         message=f"Batch replacement completed. Replaced {count} occurrences.",
+        element_id=element_id,
+        operation="Batch Replace Text",
+        show_context=True,
+        show_diff=True,
+        old_content=f"Multiple patterns ({len(replacements)} patterns)",
+        new_content=replacements_summary,
         replacements=count,
         patterns=len(replacements),
         scope_id=scope_id
@@ -263,11 +292,15 @@ def docx_insert_image(session_id: str, image_path: str, position: str, width: fl
             builder = ContextBuilder(session)
             data = builder.build_response_data(run, r_id)
 
-            return create_success_response(
-                message="Image inserted into paragraph successfully",
+            return create_markdown_response(
+            session=session,
+            message="Image inserted into paragraph successfully",
+            operation="Operation",
+            show_context=True,
                 image_path=image_path,
                 **data
-            )
+            
+        )
         except Exception as e:
             logger.exception(f"docx_insert_image failed (add run): {e}")
             return create_error_response(f"Failed to add image to paragraph: {str(e)}", error_type="CreationError")
@@ -303,11 +336,15 @@ def docx_insert_image(session_id: str, image_path: str, position: str, width: fl
             builder = ContextBuilder(session)
             data = builder.build_response_data(paragraph, p_id)
 
-            return create_success_response(
-                message="Image inserted successfully",
+            return create_markdown_response(
+            session=session,
+            message="Image inserted successfully",
+            operation="Operation",
+            show_context=True,
                 image_path=image_path,
                 **data
-            )
+            
+        )
         except Exception as e:
             logger.exception(f"docx_insert_image failed (new para): {e}")
             return create_error_response(f"Failed to insert image: {str(e)}", error_type="CreationError")

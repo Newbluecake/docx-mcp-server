@@ -3,6 +3,7 @@
 import sys
 import os
 import json
+import re
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
@@ -18,7 +19,12 @@ from docx_mcp_server.server import (
 
 
 def _extract_element_id(response):
-    """Extract element_id from JSON response or return as-is if plain string."""
+    """Extract element_id from Markdown response."""
+    # Try to extract from Markdown format: **Element ID**: para_xxx
+    match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+    if match:
+        return match.group(1)
+    # Fallback: try JSON format (legacy)
     try:
         data = json.loads(response)
         if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
@@ -27,9 +33,22 @@ def _extract_element_id(response):
     except (json.JSONDecodeError, KeyError):
         return response
 
+
+def _extract_session_id(response):
+    """Extract session_id from Markdown response."""
+    # Try to extract from Markdown format: **Session Id**: xxx
+    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response)
+    if match:
+        return match.group(1)
+    # Fallback: return as-is if it looks like a session ID (short alphanumeric string)
+    if isinstance(response, str) and len(response) < 100 and '\n' not in response:
+        return response.strip()
+    return None
+
 def test_update_paragraph_text():
     """Test updating paragraph text."""
-    session_id = docx_create()
+    session_response = docx_create()
+    session_id = _extract_session_id(session_response)
 
     # Create paragraph
     para_response = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
@@ -50,7 +69,8 @@ def test_update_paragraph_text():
 
 def test_update_run_text():
     """Test updating run text while preserving formatting."""
-    session_id = docx_create()
+    session_response = docx_create()
+    session_id = _extract_session_id(session_response)
 
     # Create formatted run
     para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
@@ -73,7 +93,8 @@ def test_update_run_text():
 
 def test_update_paragraph_with_multiple_runs():
     """Test updating paragraph replaces all runs."""
-    session_id = docx_create()
+    session_response = docx_create()
+    session_id = _extract_session_id(session_response)
 
     # Create paragraph with multiple runs
     para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
@@ -106,7 +127,8 @@ def test_update_paragraph_invalid_session():
 
 def test_update_paragraph_invalid_id():
     """Test updating with invalid paragraph ID."""
-    session_id = docx_create()
+    session_response = docx_create()
+    session_id = _extract_session_id(session_response)
 
     result = docx_update_paragraph_text(session_id, "para_invalid", "text")
     # Should return error JSON response
@@ -132,7 +154,8 @@ def test_update_run_invalid_session():
 
 def test_update_run_invalid_id():
     """Test updating run with invalid run ID."""
-    session_id = docx_create()
+    session_response = docx_create()
+    session_id = _extract_session_id(session_response)
 
     result = docx_update_run_text(session_id, "run_invalid", "text")
     # Should return error JSON response

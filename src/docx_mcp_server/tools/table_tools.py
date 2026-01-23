@@ -10,9 +10,8 @@ from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.table_analyzer import TableStructureAnalyzer
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
-    create_error_response,
-    create_success_response
+    create_markdown_response,
+    create_error_response
 )
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
 from docx_mcp_server.core.xml_util import ElementManipulator
@@ -368,9 +367,13 @@ def docx_insert_paragraph_to_cell(session_id: str, text: str, position: str) -> 
         builder = ContextBuilder(session)
         data = builder.build_response_data(paragraph, p_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Paragraph added to cell",
+            operation="Operation",
+            show_context=True,
             **data
+        
         )
     except Exception as e:
         logger.exception(f"docx_insert_paragraph_to_cell failed: {e}")
@@ -680,10 +683,14 @@ def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
         builder = ContextBuilder(session)
         data = builder.build_response_data(new_table, t_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Table copied successfully",
+            operation="Operation",
+            show_context=True,
             source_id=table_id,
             **data
+        
         )
     except Exception as e:
         logger.exception(f"docx_copy_table failed: {e}")
@@ -723,12 +730,16 @@ def docx_get_table_structure(session_id: str, table_id: str) -> str:
         ascii_viz = TableStructureAnalyzer.generate_ascii_visualization(table)
         structure_info = TableStructureAnalyzer.detect_irregular_structure(table, session=session)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Table structure retrieved successfully",
+            operation="Operation",
+            show_context=True,
             element_id=table_id,
             ascii_visualization=ascii_viz,
             structure_info=structure_info,
-            rows=len(table.rows),
+            rows=len(table.rows
+        ),
             cols=len(table.columns) if table.rows else 0
         )
     except Exception as e:

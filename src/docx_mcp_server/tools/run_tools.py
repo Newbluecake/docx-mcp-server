@@ -3,7 +3,7 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from docx.shared import Pt, RGBColor
 from docx_mcp_server.core.response import (
-    create_context_aware_response,
+    create_markdown_response,
     create_error_response
 )
 from docx_mcp_server.services.navigation import PositionResolver
@@ -107,10 +107,13 @@ def docx_insert_run(session_id: str, text: str, position: str) -> str:
         session.cursor.position = "after"
 
         logger.debug(f"docx_insert_run success: {r_id}")
-        return create_context_aware_response(
-            session,
+        return create_markdown_response(
+            session=session,
             message="Run added successfully",
+            operation="Operation",
+            show_context=True,
             element_id=r_id
+        
         )
     except Exception as e:
         logger.exception(f"docx_insert_run failed: {e}")
@@ -178,6 +181,9 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
         return create_error_response(f"Object {run_id} is not a run", error_type="InvalidElementType")
 
     try:
+        # Capture old content for diff
+        old_text = run.text
+
         # Update text while preserving formatting
         run.text = new_text
 
@@ -186,10 +192,15 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
         session.cursor.position = "after"
 
         logger.debug(f"docx_update_run_text success: {run_id}")
-        return create_context_aware_response(
-            session,
+        return create_markdown_response(
+            session=session,
             message="Run text updated successfully",
             element_id=run_id,
+            operation="Update Run Text",
+            show_context=True,
+            show_diff=True,
+            old_content=old_text,
+            new_content=new_text,
             changed_fields=["text"]
         )
     except Exception as e:
@@ -299,11 +310,14 @@ def docx_set_font(
         session.cursor.position = "after"
 
         logger.debug(f"docx_set_font success: {run_id}")
-        return create_context_aware_response(
-            session,
+        return create_markdown_response(
+            session=session,
             message="Font updated successfully",
+            operation="Operation",
+            show_context=True,
             element_id=run_id,
             changed_properties=changed
+        
         )
     except Exception as e:
         logger.exception(f"docx_set_font failed: {e}")

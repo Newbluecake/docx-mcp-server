@@ -7,7 +7,7 @@ This module provides tools for viewing and managing document history.
 import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.response import (
-    create_success_response,
+    create_markdown_response,
     create_error_response
 )
 
@@ -74,11 +74,15 @@ def docx_rollback(session_id: str, commit_id: str = None) -> str:
     try:
         rollback_info = session.rollback(commit_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Rollback completed successfully",
+            operation="Operation",
+            show_context=True,
             rolled_back_commits=rollback_info["rolled_back_commits"],
             restored_elements=rollback_info["restored_elements"],
             current_index=session.current_commit_index
+        
         )
     except ValueError as e:
         return create_error_response(str(e), error_type="RollbackError")
@@ -113,11 +117,15 @@ def docx_checkout(session_id: str, commit_id: str) -> str:
     try:
         checkout_info = session.checkout(commit_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message="Checkout completed successfully",
+            operation="Operation",
+            show_context=True,
             target_commit=checkout_info["target_commit"],
             applied_commits=checkout_info["applied_commits"],
             current_index=session.current_commit_index
+        
         )
     except ValueError as e:
         return create_error_response(str(e), error_type="CheckoutError")
