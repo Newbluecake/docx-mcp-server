@@ -13,7 +13,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 
 from docx_mcp_server.tools.session_tools import (

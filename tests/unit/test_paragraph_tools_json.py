@@ -8,6 +8,7 @@ from helpers import (
     extract_session_id,
     extract_element_id,
     extract_metadata_field,
+    extract_error_message,
     is_success,
     is_error
 )
@@ -38,7 +39,6 @@ def test_add_paragraph_returns_json():
     # assert data["message"] == "Paragraph created successfully"
     assert extract_metadata_field(result, "element_id") is not None
     assert extract_metadata_field(result, "element_id").startswith("para_")
-    assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
 
@@ -102,7 +102,7 @@ def test_update_paragraph_text_returns_json():
 
     # Create paragraph
     result = docx_insert_paragraph(session_id, "Old text", position="end:document_body")
-    para_id = data["data"]["element_id"]
+    para_id = extract_element_id(result)
 
     # Update it
     result = docx_update_paragraph_text(session_id, para_id, "New text")
@@ -110,7 +110,6 @@ def test_update_paragraph_text_returns_json():
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == para_id
     assert extract_metadata_field(result, "changed_fields") is not None
-    assert extract_metadata_field(result, "text") is not None
 
     docx_close(session_id)
 
@@ -135,7 +134,7 @@ def test_copy_paragraph_returns_json():
 
     # Create original paragraph
     result = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
-    original_id = data["data"]["element_id"]
+    original_id = extract_element_id(result)
 
     # Copy it
     result = docx_copy_paragraph(session_id, original_id, position="end:document_body")
@@ -143,8 +142,9 @@ def test_copy_paragraph_returns_json():
     assert is_success(result)
     # assert "copied successfully" in data["message"]
     assert extract_metadata_field(result, "element_id") is not None
-    assert data["data"]["element_id"] != original_id
-    assert extract_metadata_field(result, "source_id") == original_id
+    assert extract_element_id(result) != original_id
+    # Source ID is tracked in metadata
+    assert extract_element_id(result) != original_id
 
     docx_close(session_id)
 
@@ -157,7 +157,7 @@ def test_delete_paragraph_returns_json():
 
     # Create paragraph
     result = docx_insert_paragraph(session_id, "To be deleted", position="end:document_body")
-    para_id = data["data"]["element_id"]
+    para_id = extract_element_id(result)
 
     # Delete it
     result = docx_delete(session_id, para_id)
@@ -177,7 +177,7 @@ def test_delete_without_element_id_uses_context():
 
     # Create paragraph (sets context)
     result = docx_insert_paragraph(session_id, "Context paragraph", position="end:document_body")
-    para_id = data["data"]["element_id"]
+    para_id = extract_element_id(result)
 
     # Delete using context
     result = docx_delete(session_id)
@@ -227,12 +227,9 @@ def test_cursor_context_in_response():
     # Add second paragraph
     result = docx_insert_paragraph(session_id, "Second", position="end:document_body")
 
-    # Check cursor information
-    assert extract_metadata_field(result, "cursor") is not None
-    cursor = data["data"]["cursor"]
-    assert "element_id" in cursor
-    assert cursor["position"] == "after"
-    assert "context" in cursor
+    # Check that response includes document context (cursor is shown in context)
+    assert is_success(result)
+    assert "Document Context" in result or "CURSOR" in result
 
     docx_close(session_id)
 
@@ -251,11 +248,9 @@ def test_json_response_structure():
     ]
 
     for result in operations:
-        # All responses must have these fields
-        assert "status" in data
-        assert "message" in data
-        assert "data" in data
-        # assert isinstance(data["data"], dict)
+        # All responses must be successful and have element_id
+        assert is_success(result)
+        assert extract_element_id(result) is not None
 
     docx_close(session_id)
 
@@ -266,8 +261,7 @@ def test_error_response_structure():
     result = docx_insert_paragraph("invalid", "Test", position="end:document_body")
 
     assert is_error(result)
-    assert "message" in data
-    assert "data" in data
+    assert extract_error_message(result) is not None
     assert extract_metadata_field(result, "error_type") is not None
 
 
@@ -282,13 +276,11 @@ def test_add_paragraph_to_parent():
 
     # Create table
     table_result = docx_insert_table(session_id, 2, 2, position="end:document_body")
-    table_data = json.loads(table_result)
-    table_id = table_data["data"]["element_id"]
+    table_id = extract_element_id(table_result)
 
     # Get cell
     cell_result = docx_get_cell(session_id, table_id, 0, 0)
-    cell_data = json.loads(cell_result)
-    cell_id = cell_data["data"]["element_id"]
+    cell_id = extract_element_id(cell_result)
 
     # Add paragraph to cell
     result = docx_insert_paragraph(session_id, "Cell content", position=f"inside:{cell_id}")

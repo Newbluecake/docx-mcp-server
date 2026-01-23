@@ -15,7 +15,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 
 
@@ -53,7 +54,7 @@ def test_replace_text_split_runs():
 
 def test_docx_insert_image():
     with patch("os.path.exists", return_value=True):
-        sid = docx_create()
+        sid = extract_session_id(docx_create())
         # Mock add_picture on run
         with patch("docx.text.run.Run.add_picture") as mock_add_pic:
              # Insert
@@ -68,7 +69,7 @@ def test_docx_insert_image():
              assert session.last_created_id == clean_id
 
 def test_context_and_delete():
-    sid = docx_create()
+    sid = extract_session_id(docx_create())
     session = session_manager.get_session(sid)
 
     # Check context

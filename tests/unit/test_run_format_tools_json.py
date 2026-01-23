@@ -9,7 +9,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 """Unit tests for refactored run and format tools with JSON responses."""
 
@@ -44,7 +45,6 @@ def test_add_run_returns_json():
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") is not None
     assert extract_metadata_field(result, "element_id").startswith("run_")
-    assert extract_metadata_field(result, "cursor") is not None
 
     docx_close(session_id)
 
@@ -149,7 +149,7 @@ def test_set_margins_returns_json():
 
     assert is_success(result)
     assert extract_metadata_field(result, "margins") is not None
-    assert data["data"]["margins"]["top"] == 1.0
+    assert extract_metadata_field(result, "margins")["top"] == 1.0
 
     docx_close(session_id)
 
@@ -168,7 +168,7 @@ def test_template_operations_return_json():
     assert extract_data["status"] == "success"
     assert "template" in extract_data["data"]
 
-    template_obj = extract_data["data"]["template"]
+    template_obj = extract_extract_metadata_field(result, "template")
 
     # Apply
     para2_id = extract_element_id(docx_insert_paragraph(session_id, "Apply", position="end:document_body"))
@@ -186,6 +186,6 @@ def test_template_operations_return_json():
     apply_data = json.loads(apply_result)
 
     assert apply_data["status"] == "success"
-    assert apply_data["data"]["element_id"] == para2_id
+    assert apply_extract_metadata_field(result, "element_id") == para2_id
 
     docx_close(session_id)

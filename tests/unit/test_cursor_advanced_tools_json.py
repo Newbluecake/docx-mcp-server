@@ -14,7 +14,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 from docx_mcp_server.tools.cursor_tools import (
     docx_cursor_get,
@@ -124,7 +125,7 @@ def test_batch_replace_text_returns_json():
 
     assert is_success(result)
     assert extract_metadata_field(result, "replacements") is not None
-    assert data["data"]["replacements"] >= 2
+    assert extract_metadata_field(result, "replacements") >= 2
     assert extract_metadata_field(result, "patterns") == 2
 
     docx_close(session_id)

@@ -15,12 +15,13 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 
 
 def test_list_tables_with_start_element_and_max_results():
-    sid = docx_create()
+    sid = extract_session_id(docx_create())
     try:
         # Add paragraphs and tables
         p1 = docx_insert_paragraph(sid, "before tables", position="end:document_body")
@@ -42,7 +43,7 @@ def test_list_tables_with_start_element_and_max_results():
 
 
 def test_read_content_start_element_id_skips_prior_blocks():
-    sid = docx_create()
+    sid = extract_session_id(docx_create())
     try:
         docx_insert_paragraph(sid, "p0", position="end:document_body")
         anchor = docx_insert_paragraph(sid, "anchor", position="end:document_body")
@@ -50,7 +51,7 @@ def test_read_content_start_element_id_skips_prior_blocks():
         docx_insert_paragraph(sid, "p2", position="end:document_body")
 
         anchor_id = extract_element_id(anchor) if isinstance(anchor, str) else anchor
-        result = json.loads(docx_read_content(sid, start_element_id=anchor_id, return_json=True))
+        result = docx_read_content(sid, start_element_id=anchor_id, return_json=True)
         texts = [e["text"] for e in result["data"]]
         assert texts[0] == "p1"
         assert len(texts) == 2

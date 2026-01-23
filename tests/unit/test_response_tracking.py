@@ -21,7 +21,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 
 
@@ -50,7 +51,7 @@ def test_create_change_tracked_response():
     assert data["message"] == "Updated successfully"
     assert extract_metadata_field(result, "element_id") == "para_123"
     assert extract_metadata_field(result, "changes") is not None
-    assert data["data"]["changes"]["before"]["text"] == "old text"
+    assert extract_metadata_field(result, "changes")["before"]["text"] == "old text"
     assert extract_metadata_field(result, "commit_id") == "commit-456"
 
 

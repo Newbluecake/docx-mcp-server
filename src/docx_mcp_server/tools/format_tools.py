@@ -9,7 +9,9 @@ from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.format_template import TemplateManager
 from docx_mcp_server.core.response import (
     create_markdown_response,
-    create_error_response
+    create_error_response,
+    create_context_aware_response,
+    create_success_response
 )
 
 logger = logging.getLogger(__name__)

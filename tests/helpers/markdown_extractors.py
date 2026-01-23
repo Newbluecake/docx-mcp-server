@@ -96,12 +96,35 @@ def extract_status(response: str) -> str:
     return 'unknown'
 
 
+def _snake_to_title_case(snake_str: str) -> str:
+    """Convert snake_case to Title Case, preserving acronyms.
+
+    Args:
+        snake_str: Snake case string (e.g., "element_id", "new_row_count")
+
+    Returns:
+        Title case string with acronyms preserved (e.g., "Element ID", "New Row Count")
+    """
+    # Special cases for acronyms that should stay uppercase
+    acronyms = {'id': 'ID', 'url': 'URL', 'html': 'HTML', 'xml': 'XML', 'api': 'API'}
+
+    words = snake_str.split('_')
+    title_words = []
+    for word in words:
+        if word.lower() in acronyms:
+            title_words.append(acronyms[word.lower()])
+        else:
+            title_words.append(word.capitalize())
+
+    return ' '.join(title_words)
+
+
 def extract_metadata_field(response: str, field_name: str) -> Optional[Any]:
     """Extract a specific metadata field from Markdown response.
 
     Args:
         response: Markdown response string
-        field_name: Field name to extract (e.g., "new_row_count", "inserted_at")
+        field_name: Field name to extract (e.g., "new_row_count", "inserted_at", "element_id")
 
     Returns:
         Field value or None if not found
@@ -110,9 +133,12 @@ def extract_metadata_field(response: str, field_name: str) -> Optional[Any]:
         >>> response = "**New Row Count**: 4\\n..."
         >>> extract_metadata_field(response, "new_row_count")
         '4'
+        >>> response = "**Element ID**: para_123\\n..."
+        >>> extract_metadata_field(response, "element_id")
+        'para_123'
     """
     # Convert snake_case to Title Case for Markdown format
-    display_name = field_name.replace('_', ' ').title()
+    display_name = _snake_to_title_case(field_name)
 
     # Try to extract from Markdown format: **Field Name**: value
     pattern = rf'\*\*{re.escape(display_name)}\*\*:\s*(.+?)(?:\n|$)'

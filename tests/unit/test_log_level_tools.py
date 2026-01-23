@@ -21,20 +21,20 @@ from helpers import (
 
 
 def test_set_log_level_updates_root():
-    result = json.loads(docx_set_log_level("DEBUG"))
-    assert result["status"] == "success"
-    assert result["data"]["level"] == "DEBUG"
+    result = docx_set_log_level("DEBUG")
+    assert is_success(result)
+    assert extract_metadata_field(result, "level") == "DEBUG"
     assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
 
 
 def test_set_log_level_rejects_invalid():
-    result = json.loads(docx_set_log_level("NOPE"))
-    assert result["status"] == "error"
-    assert result["data"].get("error_type") == "ValidationError"
+    result = docx_set_log_level("NOPE")
+    assert is_error(result)
+    assert extract_metadata_field(result, "error_type") == "ValidationError"
 
 
 def test_get_log_level_matches_root():
     logging.getLogger().setLevel(logging.ERROR)
-    result = json.loads(docx_get_log_level())
-    assert result["status"] == "success"
-    assert result["data"]["level"] == "ERROR"
+    result = docx_get_log_level()
+    assert is_success(result)
+    assert extract_metadata_field(result, "level") == "ERROR"

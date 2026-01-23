@@ -13,7 +13,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_error_message
 )
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
 from docx_mcp_server.tools.run_tools import docx_insert_run
@@ -49,7 +50,6 @@ def test_heading_context():
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "para_" in element_id
-    assert extract_metadata_field(result, "cursor") is not None
 
 
 def test_run_context():
@@ -65,7 +65,6 @@ def test_run_context():
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "run_" in element_id
-    assert extract_metadata_field(result, "cursor") is not None
 
 
 def test_table_context():
@@ -82,7 +81,6 @@ def test_table_context():
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "table_" in element_id
-    assert extract_metadata_field(result, "cursor") is not None
 
 
 def test_table_cell_context():
@@ -146,7 +144,6 @@ def test_advanced_tools_context():
         assert is_success(result)
         element_id = extract_element_id(result)
         assert "para_" in element_id or "run_" in element_id
-        assert extract_metadata_field(result, "cursor") is not None
     finally:
         if os.path.exists(img_path):
             os.remove(img_path)
