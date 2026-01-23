@@ -2,9 +2,24 @@ import pytest
 import json
 from docx_mcp_server.server import docx_create, docx_insert_paragraph, docx_batch_replace_text
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 def test_docx_batch_replace_tool():
     """Test the batch replace tool via server API."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create content
     docx_insert_paragraph(session_id, "Hello {NAME}, today is {DAY}.", position="end:document_body")
