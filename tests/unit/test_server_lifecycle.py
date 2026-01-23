@@ -38,7 +38,7 @@ class TestServerLifecycle(unittest.TestCase):
 
         try:
             result = docx_save(session_id, tmp_path)
-            self.assertIn("saved successfully", result)
+            self.assertTrue(is_success(result))
             self.assertTrue(os.path.exists(tmp_path))
             # Basic check if it's a zip file (docx format)
             with open(tmp_path, 'rb') as f:
@@ -53,12 +53,12 @@ class TestServerLifecycle(unittest.TestCase):
 
         session_id = extract_session_id(session_response)
         result = docx_close(session_id)
-        self.assertIn("closed successfully", result)
+        self.assertTrue(is_success(result))
         self.assertNotIn(session_id, session_manager.sessions)
 
     def test_save_invalid_session(self):
-        with self.assertRaises(ValueError):
-            docx_save("invalid_id", "test.docx")
+        result = docx_save("invalid_id", "test.docx")
+        self.assertTrue(is_error(result))
 
 if __name__ == '__main__':
     unittest.main()
