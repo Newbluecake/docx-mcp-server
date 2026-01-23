@@ -1,5 +1,6 @@
 import pytest
 import json
+import re
 from unittest.mock import MagicMock, patch
 from docx_mcp_server.server import (
     docx_create,
@@ -11,7 +12,12 @@ from docx_mcp_server.server import (
 
 
 def _extract_element_id(response):
-    """Extract element_id from JSON response or return as-is if plain string."""
+    """Extract element_id from Markdown response."""
+    # Try to extract from Markdown format: **Element ID**: para_xxx
+    match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+    if match:
+        return match.group(1)
+    # Fallback: try JSON format (legacy)
     try:
         data = json.loads(response)
         if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
@@ -20,17 +26,32 @@ def _extract_element_id(response):
     except (json.JSONDecodeError, KeyError):
         return response
 
+
+def _extract_session_id(response):
+    """Extract session_id from Markdown response."""
+    # Try to extract from Markdown format: **Session Id**: xxx
+    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response)
+    if match:
+        return match.group(1)
+    # Fallback: return as-is if it looks like a session ID (short alphanumeric string)
+    if isinstance(response, str) and len(response) < 100 and '\n' not in response:
+        return response.strip()
+    return None
+
+
 def test_create_with_autosave(tmp_path):
     test_file = str(tmp_path / "test.docx")
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
-        sid = docx_create(file_path=test_file, auto_save=True)
+        response = docx_create(file_path=test_file, auto_save=True)
+        sid = _extract_session_id(response)
         session = session_manager.get_session(sid)
         assert session.auto_save is True
         assert session.file_path == test_file
 
 def test_implicit_context_flow():
     # 1. Create session
-    sid = docx_create()
+    response = docx_create()
+    sid = _extract_session_id(response)
     session = session_manager.get_session(sid)
 
     # 2. Add paragraph (should set last_created_id)
@@ -50,7 +71,8 @@ def test_implicit_context_flow():
     assert len(para_obj.runs) == 2 # "Hello" + " World" (first run created by add_paragraph)
 
 def test_set_properties_flow():
-    sid = docx_create()
+    response = docx_create()
+    sid = _extract_session_id(response)
     p_response = docx_insert_paragraph(sid, "Test Prop", position="end:document_body")
     p_id = _extract_element_id(p_response)
 
@@ -65,7 +87,8 @@ def test_set_properties_flow():
     assert para_obj.paragraph_format.alignment == WD_ALIGN_PARAGRAPH.CENTER
 
 def test_set_properties_implicit_context():
-    sid = docx_create()
+    response = docx_create()
+    sid = _extract_session_id(response)
     p_response = docx_insert_paragraph(sid, "Context Test", position="end:document_body")
     p_id = _extract_element_id(p_response)
 
