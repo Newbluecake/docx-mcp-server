@@ -112,6 +112,48 @@ class MainWindow(QMainWindow):
         self.config_group.setLayout(config_layout)
         main_layout.addWidget(self.config_group)
 
+        # --- Preview Settings Section ---
+        self.preview_group = QGroupBox()
+        preview_layout = QVBoxLayout()
+
+        # WPS Path
+        wps_layout = QHBoxLayout()
+        self.wps_label = QLabel()
+        wps_layout.addWidget(self.wps_label)
+        self.wps_input = QLineEdit()
+        self.wps_input.setPlaceholderText(self.tr("Auto-detect"))
+        wps_layout.addWidget(self.wps_input)
+        self.wps_browse_btn = QPushButton()
+        wps_layout.addWidget(self.wps_browse_btn)
+        preview_layout.addLayout(wps_layout)
+
+        # Word Path
+        word_layout = QHBoxLayout()
+        self.word_label = QLabel()
+        word_layout.addWidget(self.word_label)
+        self.word_input = QLineEdit()
+        self.word_input.setPlaceholderText(self.tr("Auto-detect"))
+        word_layout.addWidget(self.word_input)
+        self.word_browse_btn = QPushButton()
+        word_layout.addWidget(self.word_browse_btn)
+        preview_layout.addLayout(word_layout)
+
+        # Priority
+        priority_layout = QHBoxLayout()
+        self.priority_label = QLabel()
+        priority_layout.addWidget(self.priority_label)
+        self.priority_combo = QComboBox()
+        # Data: "auto", "wps", "word"
+        self.priority_combo.addItem("Auto", "auto")
+        self.priority_combo.addItem("Prefer WPS", "wps")
+        self.priority_combo.addItem("Prefer Word", "word")
+        priority_layout.addWidget(self.priority_combo)
+        priority_layout.addStretch()
+        preview_layout.addLayout(priority_layout)
+
+        self.preview_group.setLayout(preview_layout)
+        main_layout.addWidget(self.preview_group)
+
         # --- Control Section ---
         self.control_group = QGroupBox()
         control_layout = QHBoxLayout()
@@ -206,6 +248,19 @@ class MainWindow(QMainWindow):
         self.port_label.setText(self.tr("Port:"))
         self.log_level_label.setText(self.tr("Log Level:"))
 
+        # Preview Settings
+        self.preview_group.setTitle(self.tr("Preview Settings"))
+        self.wps_label.setText(self.tr("WPS Path:"))
+        self.wps_browse_btn.setText(self.tr("Browse..."))
+        self.word_label.setText(self.tr("Word Path:"))
+        self.word_browse_btn.setText(self.tr("Browse..."))
+        self.priority_label.setText(self.tr("Priority:"))
+
+        # Update combo items text while keeping user data
+        self.priority_combo.setItemText(0, self.tr("Auto"))
+        self.priority_combo.setItemText(1, self.tr("Prefer WPS"))
+        self.priority_combo.setItemText(2, self.tr("Prefer Word"))
+
         # Control
         self.control_group.setTitle(self.tr("Control"))
         if self.is_running:
@@ -226,6 +281,11 @@ class MainWindow(QMainWindow):
         # UI signals
         self.cwd_browse_btn.clicked.connect(self.browse_cwd)
         self.cwd_history_btn.clicked.connect(self.show_cwd_history)
+
+        # Preview signals
+        self.wps_browse_btn.clicked.connect(lambda: self.browse_exe(self.wps_input))
+        self.word_browse_btn.clicked.connect(lambda: self.browse_exe(self.word_input))
+
         self.start_btn.clicked.connect(self.toggle_server)
         self.inject_btn.clicked.connect(self.inject_config)
 
@@ -268,6 +328,15 @@ class MainWindow(QMainWindow):
         else:
             self.log_level_combo.setCurrentText("INFO")
 
+        # Load preview settings
+        self.wps_input.setText(self.settings.value("preview/wps_path", ""))
+        self.word_input.setText(self.settings.value("preview/word_path", ""))
+
+        priority = self.settings.value("preview/priority", "auto")
+        index = self.priority_combo.findData(priority)
+        if index >= 0:
+            self.priority_combo.setCurrentIndex(index)
+
         # T-009: Load search settings
         self.load_search_settings()
 
@@ -277,6 +346,11 @@ class MainWindow(QMainWindow):
         self.settings.setValue("host", host)
         self.settings.setValue("port", self.port_input.value())
         self.settings.setValue("log_level", self.log_level_combo.currentText())
+
+        # Save preview settings
+        self.settings.setValue("preview/wps_path", self.wps_input.text())
+        self.settings.setValue("preview/word_path", self.word_input.text())
+        self.settings.setValue("preview/priority", self.priority_combo.currentData())
 
         # T-009: Save search settings
         self.save_search_settings()
@@ -321,6 +395,21 @@ class MainWindow(QMainWindow):
         if dir_path:
             # Call new method to handle switching
             self.switch_cwd(dir_path)
+
+    def browse_exe(self, target_input: QLineEdit):
+        """Open file selection dialog for executables"""
+        current_path = target_input.text()
+        start_dir = os.path.dirname(current_path) if current_path and os.path.exists(current_path) else ""
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Select Executable"),
+            start_dir,
+            "Executables (*.exe);;All Files (*)"
+        )
+
+        if file_path:
+            target_input.setText(file_path)
 
     def switch_cwd(self, new_path: str):
         """
@@ -531,7 +620,21 @@ class MainWindow(QMainWindow):
             self.save_settings()
             self.start_btn.setEnabled(False) # Disable until started
             log_level = self.log_level_combo.currentText() or "INFO"
-            self.server_manager.start_server(host, port, cwd, log_level=log_level)
+
+            # Prepare env vars for preview config
+            env_vars = {}
+            wps_path = self.wps_input.text().strip()
+            word_path = self.word_input.text().strip()
+            priority = self.priority_combo.currentData()
+
+            if wps_path:
+                env_vars["DOCX_PREVIEW_WPS_PATH"] = wps_path
+            if word_path:
+                env_vars["DOCX_PREVIEW_WORD_PATH"] = word_path
+            if priority:
+                env_vars["DOCX_PREVIEW_PRIORITY"] = priority
+
+            self.server_manager.start_server(host, port, cwd, log_level=log_level, extra_env=env_vars)
         else:
             self.start_btn.setEnabled(False) # Disable until stopped
             self.server_manager.stop_server()

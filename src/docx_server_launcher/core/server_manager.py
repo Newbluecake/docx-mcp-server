@@ -22,7 +22,7 @@ class ServerManager(QObject):
         self.process.finished.connect(self._handle_finished)
         self.process.errorOccurred.connect(self._handle_error)
 
-    def start_server(self, host: str, port: int, cwd: str, log_level: str = "INFO"):
+    def start_server(self, host: str, port: int, cwd: str, log_level: str = "INFO", extra_env: dict = None):
         """
         Start the docx-mcp-server process.
 
@@ -31,6 +31,7 @@ class ServerManager(QObject):
             port: Port to listen on (e.g., 8000)
             cwd: Working directory for the server (where it will look for files)
             log_level: Log level to pass to the server (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+            extra_env: Optional dictionary of environment variables to set
         """
         if self.process.state() != QProcess.ProcessState.NotRunning:
             self.log_received.emit("Server is already running.")
@@ -66,6 +67,11 @@ class ServerManager(QObject):
         env = self.process.processEnvironment()
         # Force UTF-8 encoding for Python subprocess output
         env.insert("PYTHONIOENCODING", "utf-8:strict")
+
+        if extra_env:
+            for key, value in extra_env.items():
+                env.insert(key, str(value))
+
         self.process.setProcessEnvironment(env)
 
         self.log_received.emit(f"Starting server in {cwd}...")

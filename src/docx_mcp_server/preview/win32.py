@@ -46,10 +46,19 @@ class Win32PreviewController(PreviewController):
         self._ensure_com_cache()
 
         # Determine app priority based on environment variable
-        # Valid values: "word" (default), "wps"
-        preferred_app = os.environ.get("DOCX_PREVIEW_APP", "").strip().lower()
+        # Valid values: "word" (default), "wps", "auto"
+        priority_env = os.environ.get("DOCX_PREVIEW_PRIORITY", "auto").strip().lower()
+        # Legacy fallback
+        if not priority_env or priority_env == "auto":
+            legacy_app = os.environ.get("DOCX_PREVIEW_APP", "").strip().lower()
+            if legacy_app == "wps":
+                priority_env = "wps"
 
-        if preferred_app == "wps":
+        # Configured paths
+        self.wps_path = os.environ.get("DOCX_PREVIEW_WPS_PATH", "").strip()
+        self.word_path = os.environ.get("DOCX_PREVIEW_WORD_PATH", "").strip()
+
+        if priority_env == "wps":
             logger.info("Configured to prefer WPS Office")
             self.app_prog_ids = ["KWPS.Application", "Word.Application"]
         else:
@@ -91,14 +100,43 @@ class Win32PreviewController(PreviewController):
             logger.debug(f"COM cache generation skipped/failed (non-critical): {e}")
 
     def _get_active_app(self) -> Optional[Any]:
-        """Try to get a running instance of Word or WPS."""
+        """Try to get a running instance of Word or WPS, or launch it if configured."""
         for prog_id in self.app_prog_ids:
+            # 1. Try to connect to existing instance
             try:
                 app = win32com.client.GetActiveObject(prog_id)
                 self.last_app_used = prog_id
                 return app
             except Exception:
-                continue
+                pass
+
+            # 2. If not running, try to launch if we have a path
+            exe_path = None
+            if prog_id == "KWPS.Application":
+                exe_path = self.wps_path
+            elif prog_id == "Word.Application":
+                exe_path = self.word_path
+
+            if exe_path and os.path.exists(exe_path):
+                import subprocess
+                try:
+                    logger.info(f"Launching {prog_id} from {exe_path}...")
+                    subprocess.Popen(exe_path)
+
+                    # Wait up to 10 seconds for it to appear
+                    for i in range(10):
+                        time.sleep(1)
+                        try:
+                            app = win32com.client.GetActiveObject(prog_id)
+                            self.last_app_used = prog_id
+                            # If we just launched it, make sure it's visible?
+                            # Usually better to let it decide or handle in Open
+                            return app
+                        except Exception:
+                            continue
+                except Exception as e:
+                    logger.error(f"Failed to launch {prog_id}: {e}")
+
         return None
 
     def _normalize_path(self, path: str) -> str:
