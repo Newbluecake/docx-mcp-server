@@ -22,4 +22,4 @@ logs/
 *.docx
 .worktrees/
 test_config.ini
-.worktrees/
+.todos/
