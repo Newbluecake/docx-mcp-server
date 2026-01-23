@@ -27,9 +27,43 @@ class Win32PreviewController(PreviewController):
         if not HAS_PYWIN32:
             raise ImportError("pywin32 is required for Win32PreviewController")
 
+        # Try to ensure COM cache exists to avoid "No such file or directory" errors
+        self._ensure_com_cache()
+
         self.app_prog_ids = ["Word.Application", "KWPS.Application"]
         self.last_app_used = None
         self._was_open_cache = {} # Cache state between prepare and refresh: {path: (app_instance, was_visible)}
+
+    def _ensure_com_cache(self):
+        """Ensure pywin32 COM cache is generated to avoid attribute errors."""
+        try:
+            # The error "[Errno 2] No such file or directory: '...gen_py...'" happens
+            # when win32com tries to access a non-existent cache directory.
+            # Using EnsureDispatch forces the generation of this cache.
+            from win32com.client import gencache
+            # We don't keep the app open, just ensure the Python wrappers are generated
+            # This might start Word momentarily, but it's a one-time cost per environment setup
+            try:
+                # Use EnsureDispatch to force cache generation
+                _ = gencache.EnsureDispatch("Word.Application")
+                logger.debug("Successfully verified/generated Word COM cache")
+            except AttributeError:
+                # Sometimes EnsureDispatch fails if cache is corrupt; try to clean it
+                logger.warning("COM cache might be corrupt, attempting to rebuild...")
+                import shutil
+                try:
+                    # gencache.is_readonly might be true for system installs
+                    if not gencache.is_readonly:
+                        gencache.Rebuild()
+                        _ = gencache.EnsureDispatch("Word.Application")
+                        logger.info("Rebuilt COM cache successfully")
+                except Exception as rebuild_error:
+                    logger.warning(f"Failed to rebuild COM cache: {rebuild_error}")
+
+        except Exception as e:
+            # It's okay if this fails (e.g. Word not installed), we'll just proceed
+            # and _get_active_app will return None later.
+            logger.debug(f"COM cache generation skipped/failed (non-critical): {e}")
 
     def _get_active_app(self) -> Optional[Any]:
         """Try to get a running instance of Word or WPS."""
