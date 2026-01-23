@@ -3,7 +3,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.response import (
     create_markdown_response,
-    create_error_response
+    create_error_response,
+    create_context_aware_response
 )
 
 logger = logging.getLogger(__name__)

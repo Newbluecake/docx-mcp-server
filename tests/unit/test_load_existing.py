@@ -26,7 +26,8 @@ class TestLoadExisting:
         doc.save(str(file_path))
 
         # Test: Load it via docx_create
-        session_id = docx_create(file_path=str(file_path))
+        session_response = docx_create(file_path=str(file_path))
+        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # Verify content can be read (using our new tool later, or just save and check)
@@ -46,7 +47,8 @@ class TestLoadExisting:
         # Test that creating a session with a non-existent file creates a new document
         # intended to be saved to that path later.
         target_path = tmp_path / "new_doc.docx"
-        session_id = docx_create(file_path=str(target_path))
+        session_response = docx_create(file_path=str(target_path))
+        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # Verify it's an empty document (or default styles)
@@ -61,7 +63,8 @@ class TestLoadExisting:
         doc.add_paragraph("Line 2")
         doc.save(str(file_path))
 
-        session_id = docx_create(file_path=str(file_path))
+        session_response = docx_create(file_path=str(file_path))
+        session_id = extract_session_id(session_response)
 
         # Test read
         content = docx_read_content(session_id)
@@ -77,7 +80,8 @@ class TestLoadExisting:
         doc.add_paragraph("Last paragraph")
         doc.save(str(file_path))
 
-        session_id = docx_create(file_path=str(file_path))
+        session_response = docx_create(file_path=str(file_path))
+        session_id = extract_session_id(session_response)
 
         # Test find
         result_json = docx_find_paragraphs(session_id, "Target")
