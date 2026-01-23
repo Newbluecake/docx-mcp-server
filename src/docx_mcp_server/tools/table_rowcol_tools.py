@@ -215,7 +215,7 @@ def docx_insert_col_at(
                 )
 
         # Insert the column
-        ElementManipulator.insert_col_at(table, insert_index, copy_format_from=copy_format_from)
+        new_col_count = ElementManipulator.insert_col_at(table, insert_index, copy_format_from=copy_format_from)
 
         # Update context
         session.update_context(table_id, action="modify")
@@ -228,7 +228,7 @@ def docx_insert_col_at(
             message=f"Column inserted at position {insert_index}",
             element_id=table_id,
             table_id=table_id,
-            new_col_count=len(table.columns),
+            new_col_count=new_col_count,
             inserted_at=insert_index,
             copy_format=copy_format
         )
@@ -436,7 +436,7 @@ def docx_delete_col(
         invalidated_ids = RegistryCleaner.find_invalidated_ids(session, table, col_index=delete_index)
 
         # Delete the column
-        ElementManipulator.delete_col(table, delete_index)
+        new_col_count = ElementManipulator.delete_col(table, delete_index)
 
         # Clean up invalidated IDs
         RegistryCleaner.invalidate_ids(session, invalidated_ids)
@@ -452,7 +452,7 @@ def docx_delete_col(
             message=f"Column deleted at index {delete_index}",
             element_id=table_id,
             table_id=table_id,
-            new_col_count=len(table.columns),
+            new_col_count=new_col_count,
             deleted_index=delete_index,
             invalidated_ids=invalidated_ids
         )

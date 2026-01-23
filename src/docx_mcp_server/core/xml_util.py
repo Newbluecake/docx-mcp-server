@@ -190,7 +190,7 @@ class ElementManipulator:
         return new_row
 
     @staticmethod
-    def insert_col_at(table: Table, index: int, copy_format_from: Optional[int] = None) -> None:
+    def insert_col_at(table: Table, index: int, copy_format_from: Optional[int] = None) -> int:
         """
         Insert a new column at the specified index in a table.
 
@@ -199,23 +199,40 @@ class ElementManipulator:
             index: Insertion position (0-based), must be in range [0, len(table.columns)]
             copy_format_from: Optional column index to copy formatting from
 
+        Returns:
+            The new column count after insertion
+
         Raises:
             IndexError: If index is out of valid range
         """
-        from docx.oxml.table import CT_Tc
         from docx.oxml.ns import qn
         from docx.shared import Inches
+        import copy as copy_module
 
-        num_cols = len(table.columns)
+        # Get current column count from the first row (more reliable than table.columns)
+        num_cols = len(table.rows[0].cells) if len(table.rows) > 0 else 0
         if index < 0 or index > num_cols:
             raise IndexError(f"Column index {index} out of range (table has {num_cols} columns, valid range: 0-{num_cols})")
 
         # Insert a new cell in each row at the specified index
         for row in table.rows:
-            # Create a new cell element
-            new_tc = CT_Tc()
-            # Add a paragraph to the cell (required)
-            new_tc._new_p()
+            # Create a new cell by deep copying an existing cell's XML structure
+            # This ensures all namespaces and required elements are present
+            if len(row.cells) > 0:
+                # Copy the first cell as a template
+                template_tc = row.cells[0]._tc
+                new_tc = copy_module.deepcopy(template_tc)
+
+                # Clear the content of the new cell (remove all paragraphs except one empty one)
+                for p in list(new_tc.findall(qn('w:p'))):
+                    new_tc.remove(p)
+                # Add one empty paragraph
+                new_tc._new_p()
+            else:
+                # Fallback: create a minimal cell (shouldn't happen in practice)
+                from docx.oxml.table import CT_Tc
+                new_tc = CT_Tc()
+                new_tc._new_p()
 
             # Insert the cell at the specified index
             row._tr.insert(index, new_tc)
@@ -231,13 +248,17 @@ class ElementManipulator:
 
         # Copy format if requested
         if copy_format_from is not None:
-            if copy_format_from < 0 or copy_format_from >= len(table.columns):
+            new_col_count = len(table.rows[0].cells) if len(table.rows) > 0 else 0
+            if copy_format_from < 0 or copy_format_from >= new_col_count:
                 # If copy_format_from is out of range, skip formatting
                 pass
             else:
                 from docx_mcp_server.core.format_painter import FormatPainter
                 painter = FormatPainter()
                 painter.copy_col_format(table, copy_format_from, index)
+
+        # Return the new column count
+        return len(table.rows[0].cells) if len(table.rows) > 0 else 0
 
     @staticmethod
     def delete_row(table: Table, index: int) -> None:
@@ -265,7 +286,7 @@ class ElementManipulator:
         table._tbl.remove(row._tr)
 
     @staticmethod
-    def delete_col(table: Table, index: int) -> None:
+    def delete_col(table: Table, index: int) -> int:
         """
         Delete a column from the table at the specified index.
 
@@ -273,11 +294,15 @@ class ElementManipulator:
             table: python-docx Table object
             index: Column index to delete (0-based)
 
+        Returns:
+            The new column count after deletion
+
         Raises:
             IndexError: If index is out of valid range
             ValueError: If attempting to delete the last column
         """
-        num_cols = len(table.columns)
+        # Get current column count from the first row
+        num_cols = len(table.rows[0].cells) if len(table.rows) > 0 else 0
 
         if num_cols == 1:
             raise ValueError("Cannot delete the last column")
@@ -296,3 +321,6 @@ class ElementManipulator:
         if tbl_grid is not None and index < len(tbl_grid.gridCol_lst):
             grid_col = tbl_grid.gridCol_lst[index]
             tbl_grid.remove(grid_col)
+
+        # Return the new column count
+        return len(table.rows[0].cells) if len(table.rows) > 0 else 0
