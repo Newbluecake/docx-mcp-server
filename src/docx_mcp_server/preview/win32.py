@@ -159,8 +159,9 @@ class Win32PreviewController(PreviewController):
                         logger.warning("Word application disappeared, cannot re-open document.")
                         return False
 
-                # Open the document
-                app.Documents.Open(os.path.abspath(file_path))
+                # Open the document in Read-Only mode to serve as a true "Preview"
+                # and prevent accidental user edits during the session.
+                app.Documents.Open(os.path.abspath(file_path), ReadOnly=True)
 
                 # Restore visibility if needed (usually stays visible)
                 if was_visible and not app.Visible:
