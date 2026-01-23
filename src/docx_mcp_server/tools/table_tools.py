@@ -99,7 +99,8 @@ def docx_insert_table(session_id: str, rows: int, cols: int, position: str) -> s
         builder = ContextBuilder(session)
         data = builder.build_response_data(table, t_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Table created successfully ({rows}x{cols})",
             rows=rows,
             cols=cols,
@@ -133,7 +134,8 @@ def docx_get_table(session_id: str, index: int) -> str:
         builder = ContextBuilder(session)
         data = builder.build_response_data(table, t_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Table at index {index} retrieved",
             index=index,
             **data
@@ -188,7 +190,8 @@ def docx_list_tables(session_id: str, max_results: int = 50, start_element_id: s
                 "first_row_text": first_row_text,
             })
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Listed {len(results)} table(s)",
             count=len(results),
             tables=results,
@@ -258,13 +261,15 @@ def docx_find_table(session_id: str, text: str, max_results: int = 1, start_elem
 
         if max_results == 1:
             data = results[0]
-            return create_success_response(
+            return create_markdown_response(
+            session=session,
                 message=f"Table found containing '{text}'",
                 search_text=text,
                 **data
             )
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Found {len(results)} table(s) containing '{text}'",
             search_text=text,
             results=results
@@ -300,7 +305,8 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
         builder = ContextBuilder(session)
         data = builder.build_response_data(cell, c_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Cell ({row}, {col}) retrieved",
             row=row,
             col=col,
@@ -425,7 +431,8 @@ def docx_insert_table_row(session_id: str, position: str) -> str:
         builder = ContextBuilder(session)
         data = builder.build_response_data(table, table_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Row added to table",
             table_id=table_id,
             new_row_count=len(table.rows),
@@ -473,7 +480,8 @@ def docx_insert_table_col(session_id: str, position: str) -> str:
         builder = ContextBuilder(session)
         data = builder.build_response_data(table, table_id)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Column added to table",
             table_id=table_id,
             new_col_count=len(table.columns),
@@ -612,7 +620,8 @@ def docx_fill_table(
          builder = ContextBuilder(session)
          data = builder.build_response_data(table, table_id)
 
-         return create_success_response(
+         return create_markdown_response(
+            session=session,
              message=f"Table filled with {len(rows_data)} rows",
              rows_filled=len(rows_data),
              start_row=start_row,
