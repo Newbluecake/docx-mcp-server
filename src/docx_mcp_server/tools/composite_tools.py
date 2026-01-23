@@ -1,22 +1,30 @@
 """Composite tools for common scenarios - high-level operations"""
 import logging
 import json
+import re
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from docx_mcp_server.core.response import create_markdown_response, create_error_response
 
 logger = logging.getLogger(__name__)
 
 
 def _extract_element_id(response: str) -> str:
     """
-    Extract element_id from JSON response or return as-is if plain string.
+    Extract element_id from Markdown or JSON response.
 
     Args:
-        response: JSON response string or plain element ID
+        response: Markdown or JSON response string
 
     Returns:
         str: Element ID
     """
+    # Try Markdown format first (new format)
+    match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+    if match:
+        return match.group(1)
+
+    # Fallback to JSON format (legacy)
     try:
         data = json.loads(response)
         if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
@@ -24,6 +32,25 @@ def _extract_element_id(response: str) -> str:
         return response
     except (json.JSONDecodeError, KeyError):
         return response
+
+
+def _extract_metadata_field(response: str, field_name: str) -> Optional[str]:
+    """
+    Extract a metadata field from Markdown response.
+
+    Args:
+        response: Markdown response string
+        field_name: Field name to extract (e.g., "rows_filled")
+
+    Returns:
+        str: Field value or None if not found
+    """
+    display_name = field_name.replace('_', ' ').title()
+    pattern = rf'\*\*{re.escape(display_name)}\*\*:\s*(.+?)(?:\n|$)'
+    match = re.search(pattern, response)
+    if match:
+        return match.group(1).strip()
+    return None
 
 
 def docx_insert_formatted_paragraph(
@@ -394,24 +421,24 @@ def docx_smart_fill_table(
         # Fill table
         start_row = 1 if has_header else 0
         fill_result = docx_fill_table(session_id, data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
-        fill_data = json.loads(fill_result)
 
-        result = {
-            "status": "success",
-            "rows_filled": len(data_array),
-            "rows_added": max(0, data_rows - existing_rows) if auto_resize else 0,
-            "preserve_formatting": preserve_formatting,
-            "filled_range": fill_data.get("data", {}).get("filled_range", {}),
-            "skipped_regions": fill_data.get("data", {}).get("skipped_regions", []),
-            "structure_info": fill_data.get("data", {}).get("structure_info", {})
-        }
+        # Extract metadata from Markdown response
+        rows_filled_str = _extract_metadata_field(fill_result, "rows_filled")
+        rows_filled = int(rows_filled_str) if rows_filled_str else len(data_array)
 
-        logger.info(f"Smart fill completed: {result}")
-        return json.dumps(result)
+        logger.info(f"Smart fill completed: rows_filled={rows_filled}, rows_added={max(0, data_rows - existing_rows) if auto_resize else 0}")
+
+        return create_markdown_response(
+            session=session,
+            message=f"Smart filled table with {rows_filled} rows",
+            rows_filled=rows_filled,
+            rows_added=max(0, data_rows - existing_rows) if auto_resize else 0,
+            preserve_formatting=preserve_formatting
+        )
 
     except Exception as e:
         logger.exception(f"Smart fill table failed: {e}")
-        raise ValueError(f"Smart fill table failed: {e}")
+        return create_error_response(f"Smart fill table failed: {e}", error_type="SmartFillError")
 
 
 def docx_format_range(

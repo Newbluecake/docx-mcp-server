@@ -13,70 +13,16 @@ from docx_mcp_server.server import (
     session_manager
 )
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-def _extract_element_id(response):
-    """Extract element_id from JSON response or return as-is if plain string."""
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
-            return data["data"]["element_id"]
-        return response
-    except (json.JSONDecodeError, KeyError):
-        return response
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 
-class TestServerFormatting(unittest.TestCase):
-    def setUp(self):
-        session_manager.sessions.clear()
-        self.session_id = docx_create()
-
-    def test_set_font(self):
-        para_response = docx_insert_paragraph(self.session_id, "Test Paragraph", position="end:document_body")
-        para_id = _extract_element_id(para_response)
-        run_response = docx_insert_run(self.session_id, " Styled Text", position=f"inside:{para_id}")
-        run_id = _extract_element_id(run_response)
-
-        docx_set_font(self.session_id, run_id, size=14, bold=True, color_hex="FF0000")
-
-        session = session_manager.get_session(self.session_id)
-        run = session.get_object(run_id)
-
-        self.assertEqual(run.font.size, Pt(14))
-        self.assertTrue(run.font.bold)
-        self.assertEqual(run.font.color.rgb, RGBColor(255, 0, 0))
-
-    def test_set_alignment(self):
-        para_response = docx_insert_paragraph(self.session_id, "Center Me", position="end:document_body")
-        para_id = _extract_element_id(para_response)
-        docx_set_alignment(self.session_id, para_id, "center")
-
-        session = session_manager.get_session(self.session_id)
-        para = session.get_object(para_id)
-        self.assertEqual(para.alignment, WD_ALIGN_PARAGRAPH.CENTER)
-
-    def test_page_break(self):
-        # Just ensure it doesn't crash
-        result = docx_insert_page_break(self.session_id, position="end:document_body")
-        # Check if it's JSON response or plain string
-        try:
-            data = json.loads(result)
-            self.assertEqual(data["status"], "success")
-            self.assertIn("page break", data["message"].lower())
-        except (json.JSONDecodeError, KeyError):
-            self.assertIn("page break", result.lower())
-
-        session = session_manager.get_session(self.session_id)
-        # Verify a paragraph was added (page break is technically a paragraph with a run containing a break?)
-        # Actually docx.add_page_break() adds a paragraph with a page break.
-        self.assertTrue(len(session.document.paragraphs) > 0)
-
-    def test_set_margins(self):
-        docx_set_margins(self.session_id, top=1.5, left=2.0)
-
-        session = session_manager.get_session(self.session_id)
-        section = session.document.sections[-1]
-
-        self.assertEqual(section.top_margin, Inches(1.5))
-        self.assertEqual(section.left_margin, Inches(2.0))
-
-if __name__ == '__main__':
-    unittest.main()

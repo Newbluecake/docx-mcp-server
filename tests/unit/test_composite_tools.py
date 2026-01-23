@@ -12,14 +12,29 @@ from docx_mcp_server.tools.session_tools import docx_create, docx_close
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table
 
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
+
 
 def test_add_formatted_paragraph():
     """Test creating formatted paragraph in one step"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Create formatted paragraph
-        para_id = docx_insert_formatted_paragraph(
+        result = docx_insert_formatted_paragraph(
             session_id,
             "Test Text",
             position="end:document_body",
@@ -29,6 +44,7 @@ def test_add_formatted_paragraph():
             alignment="center"
         )
 
+        para_id = extract_element_id(result)
         assert para_id.startswith("para_")
 
     finally:
@@ -37,7 +53,9 @@ def test_add_formatted_paragraph():
 
 def test_quick_edit():
     """Test quick edit functionality"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add some paragraphs
@@ -62,7 +80,9 @@ def test_quick_edit():
 
 def test_get_structure_summary():
     """Test lightweight structure extraction"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add some content
@@ -90,11 +110,14 @@ def test_get_structure_summary():
 
 def test_smart_fill_table():
     """Test smart table filling"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Create table
-        docx_insert_table(session_id, 2, 3, position="end:document_body")
+        table_response = docx_insert_table(session_id, 2, 3, position="end:document_body")
+        table_id = extract_element_id(table_response)
 
         # Fill with data
         data = json.dumps([
@@ -103,17 +126,16 @@ def test_smart_fill_table():
             ["Bob", "25", "LA"]
         ])
 
-        result_json = docx_smart_fill_table(
+        result = docx_smart_fill_table(
             session_id,
-            "0",  # First table
+            table_id,  # Use table ID
             data,
             has_header=True,
             auto_resize=True
         )
 
-        result = json.loads(result_json)
-        assert result["status"] == "success"
-        assert result["rows_filled"] == 3
+        assert is_success(result)
+        assert extract_metadata_field(result, "rows_filled") == 3
 
     finally:
         docx_close(session_id)
@@ -121,7 +143,9 @@ def test_smart_fill_table():
 
 def test_format_range():
     """Test formatting a range of paragraphs"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Add paragraphs
@@ -147,7 +171,9 @@ def test_format_range():
 
 def test_quick_edit_no_matches():
     """Test quick edit with no matches"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         docx_insert_paragraph(session_id, "Test paragraph", position="end:document_body")
@@ -167,13 +193,14 @@ def test_quick_edit_no_matches():
 
 def test_smart_fill_table_with_table_id():
     """Test smart table filling using table ID instead of index"""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     try:
         # Create table and get its ID
         table_response = docx_insert_table(session_id, 2, 3, position="end:document_body")
-        table_data = json.loads(table_response)
-        table_id = table_data["data"]["element_id"]
+        table_id = extract_element_id(table_response)
 
         # Fill with data using table ID
         data = json.dumps([
@@ -183,7 +210,7 @@ def test_smart_fill_table_with_table_id():
             ["Charlie", "35", "SF"]
         ])
 
-        result_json = docx_smart_fill_table(
+        result = docx_smart_fill_table(
             session_id,
             table_id,  # Use table ID directly
             data,
@@ -191,10 +218,9 @@ def test_smart_fill_table_with_table_id():
             auto_resize=True
         )
 
-        result = json.loads(result_json)
-        assert result["status"] == "success"
-        assert result["rows_filled"] == 4
-        assert result["rows_added"] == 2  # Should add 2 rows (started with 2, need 4 total)
+        assert is_success(result)
+        assert extract_metadata_field(result, "rows_filled") == 4
+        assert extract_metadata_field(result, "rows_added") == 2  # Should add 2 rows (started with 2, need 4 total)
 
     finally:
         docx_close(session_id)

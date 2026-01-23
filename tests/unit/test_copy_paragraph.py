@@ -3,6 +3,19 @@
 import sys
 import os
 import json
+
+# Add parent directory to path for helpers import
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
@@ -17,27 +30,19 @@ from docx_mcp_server.server import (
 )
 
 
-def _extract_element_id(response):
-    """Extract element_id from JSON response or return as-is if plain string."""
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
-            return data["data"]["element_id"]
-        return response
-    except (json.JSONDecodeError, KeyError):
-        return response
-
 def test_copy_simple_paragraph():
     """Test copying a simple paragraph."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create original paragraph
     para_response = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
-    para_id = _extract_element_id(para_response)
+    para_id = extract_element_id(para_response)
 
     # Copy it
     new_para_response = docx_copy_paragraph(session_id, para_id, position="end:document_body")
-    new_para_id = _extract_element_id(new_para_response)
+    new_para_id = extract_element_id(new_para_response)
 
     # Verify it's a different ID
     assert new_para_id != para_id
@@ -51,19 +56,21 @@ def test_copy_simple_paragraph():
 
 def test_copy_formatted_paragraph():
     """Test copying a paragraph with formatting."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create formatted paragraph
     para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
-    para_id = _extract_element_id(para_response)
+    para_id = extract_element_id(para_response)
     run_response = docx_insert_run(session_id, "Bold text", position=f"inside:{para_id}")
-    run_id = _extract_element_id(run_response)
+    run_id = extract_element_id(run_response)
     docx_set_font(session_id, run_id, bold=True, size=14, color_hex="FF0000")
     docx_set_alignment(session_id, para_id, "center")
 
     # Copy it
     new_para_response = docx_copy_paragraph(session_id, para_id, position="end:document_body")
-    new_para_id = _extract_element_id(new_para_response)
+    new_para_id = extract_element_id(new_para_response)
 
     # Verify different IDs
     assert new_para_id != para_id
@@ -76,23 +83,25 @@ def test_copy_formatted_paragraph():
 
 def test_copy_paragraph_with_multiple_runs():
     """Test copying a paragraph with multiple runs."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create paragraph with multiple runs
     para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
-    para_id = _extract_element_id(para_response)
+    para_id = extract_element_id(para_response)
     run1_response = docx_insert_run(session_id, "Normal ", position=f"inside:{para_id}")
-    run1_id = _extract_element_id(run1_response)
+    run1_id = extract_element_id(run1_response)
     run2_response = docx_insert_run(session_id, "Bold ", position=f"inside:{para_id}")
-    run2_id = _extract_element_id(run2_response)
+    run2_id = extract_element_id(run2_response)
     docx_set_font(session_id, run2_id, bold=True)
     run3_response = docx_insert_run(session_id, "Italic", position=f"inside:{para_id}")
-    run3_id = _extract_element_id(run3_response)
+    run3_id = extract_element_id(run3_response)
     docx_set_font(session_id, run3_id, italic=True)
 
     # Copy it
     new_para_response = docx_copy_paragraph(session_id, para_id, position="end:document_body")
-    new_para_id = _extract_element_id(new_para_response)
+    new_para_id = extract_element_id(new_para_response)
 
     # Verify content
     content = docx_read_content(session_id)
@@ -105,19 +114,21 @@ def test_copy_paragraph_invalid_session():
     result = docx_copy_paragraph("invalid_session", "para_123", position="end:document_body")
     try:
         data = json.loads(result)
-        assert data["status"] == "error"
+        assert is_error(result)
         assert "not found" in data["message"].lower()
     except (json.JSONDecodeError, KeyError):
         assert "not found" in result.lower()
 
 def test_copy_paragraph_invalid_id():
     """Test copying with invalid paragraph ID."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     result = docx_copy_paragraph(session_id, "para_invalid", position="end:document_body")
     try:
         data = json.loads(result)
-        assert data["status"] == "error"
+        assert is_error(result)
         assert "not found" in data["message"].lower()
     except (json.JSONDecodeError, KeyError):
         assert "not found" in result.lower()
