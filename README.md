@@ -17,6 +17,78 @@
 - **布局控制**：调整页边距和插入分页符
 - **Windows GUI**：提供独立的 Windows 启动器，无需配置环境即可使用
 
+## 响应格式
+
+**v2.0 重大更新**：所有 MCP 工具现在返回 **Markdown 格式**的响应（不再是 JSON），包含：
+
+- **结构化元数据**：操作状态、元素 ID、操作类型等
+- **ASCII 可视化**：使用 Unicode 框线字符展示文档结构
+- **上下文感知**：自动显示操作位置周围的文档元素
+- **Git diff 风格**：编辑操作显示修改前后的对比
+
+### 响应示例
+
+创建段落的响应：
+
+```markdown
+# 操作结果: Insert Paragraph
+
+**Status**: ✅ Success
+**Element ID**: para_abc123
+**Operation**: Insert Paragraph
+**Position**: end:document_body
+
+---
+
+## 📄 Document Context
+
+📄 Document Context (showing 3 elements around para_abc123)
+
+  ┌─────────────────────────────────────┐
+  │ Paragraph (para_xyz789)             │
+  ├─────────────────────────────────────┤
+  │ Previous paragraph text             │
+  └─────────────────────────────────────┘
+
+>>> [CURSOR] <<<
+
+  ┌─────────────────────────────────────┐
+  │ Paragraph (para_abc123) ⭐ CURRENT   │
+  ├─────────────────────────────────────┤
+  │ New paragraph text                  │
+  └─────────────────────────────────────┘
+
+  ┌─────────────────────────────────────┐
+  │ Paragraph (para_def456)             │
+  ├─────────────────────────────────────┤
+  │ Next paragraph text                 │
+  └─────────────────────────────────────┘
+```
+
+### 解析响应
+
+对于需要提取数据的场景，可以使用正则表达式：
+
+```python
+import re
+
+# 提取元素 ID
+match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+element_id = match.group(1) if match else None
+
+# 检查操作状态
+is_success = '**Status**: ✅ Success' in response
+is_error = '**Status**: ❌ Error' in response
+
+# 提取元数据字段
+def extract_field(response, field_name):
+    pattern = rf'\*\*{field_name}\*\*:\s*(.+?)(?:\n|$)'
+    match = re.search(pattern, response)
+    return match.group(1).strip() if match else None
+```
+
+**注意**：测试辅助函数可在 `tests/helpers/markdown_extractors.py` 中找到。
+
 ## 快速开始
 
 ### 安装
@@ -184,10 +256,52 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 
 ## 使用示例
 
-### 示例 1：提取模板结构
+### 示例 1：创建和编辑文档
 
 ```python
-session_id = docx_create(file_path="/path/to/template.docx")
+import re
+
+# 辅助函数：从 Markdown 响应中提取元素 ID
+def extract_element_id(response):
+    match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+    return match.group(1) if match else None
+
+# 辅助函数：从 Markdown 响应中提取 session ID
+def extract_session_id(response):
+    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response)
+    return match.group(1) if match else None
+
+# 创建新文档
+session_response = docx_create()
+session_id = extract_session_id(session_response)
+
+# 添加标题
+heading_response = docx_insert_heading(
+    session_id,
+    "文档标题",
+    position="end:document_body",
+    level=1
+)
+heading_id = extract_element_id(heading_response)
+
+# 添加段落
+para_response = docx_insert_paragraph(
+    session_id,
+    "这是第一段内容",
+    position=f"after:{heading_id}"
+)
+para_id = extract_element_id(para_response)
+
+# 保存文档
+docx_save(session_id, "/path/to/output.docx")
+docx_close(session_id)
+```
+
+### 示例 2：提取模板结构
+
+```python
+session_response = docx_create(file_path="/path/to/template.docx")
+session_id = extract_session_id(session_response)
 
 # 提取文档结构（智能识别标题、表格、段落）
 structure_json = docx_extract_template_structure(session_id)
@@ -232,30 +346,35 @@ for element in structure["document_structure"]:
 }
 ```
 
-### 示例 2：高级编辑功能
+### 示例 3：高级编辑功能
 
-#### 2.1 模板填充（智能替换）
+#### 3.1 模板填充（智能替换）
 
 ```python
-session_id = docx_create(file_path="/path/to/template.docx")
+session_response = docx_create(file_path="/path/to/template.docx")
+session_id = extract_session_id(session_response)
 
 # 智能替换 {{name}} 占位符，即使它跨越了多个 Run
 docx_replace_text(session_id, "{{name}}", "张三")
 docx_replace_text(session_id, "{{date}}", "2026-01-20")
 
 docx_save(session_id, "/path/to/result.docx")
+docx_close(session_id)
 ```
 
-#### 2.2 表格克隆与填充
+#### 3.2 表格克隆与填充
 
 ```python
-session_id = docx_create()
+session_response = docx_create()
+session_id = extract_session_id(session_response)
 
 # 获取模板中的第一个表格
-table_id = docx_get_table(session_id, 0)
+table_response = docx_get_table(session_id, 0)
+table_id = extract_element_id(table_response)
 
 # 克隆表格用于填充新数据
-new_table_id = docx_copy_table(session_id, table_id)
+new_table_response = docx_copy_table(session_id, table_id, position="end:document_body")
+new_table_id = extract_element_id(new_table_response)
 
 # 批量填充数据
 data = json.dumps([
@@ -265,6 +384,7 @@ data = json.dumps([
 docx_fill_table(session_id, data, table_id=new_table_id, start_row=1)
 
 docx_save(session_id, "/path/to/report.docx")
+docx_close(session_id)
 ```
 
 ## 开发指南

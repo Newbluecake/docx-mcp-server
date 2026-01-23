@@ -71,52 +71,62 @@ docx_set_font(session_id, run_id, bold=True, size=14)
 docx_set_alignment(session_id, para_id, "center")
 ```
 
-### 4. 标准化 JSON 响应格式 ⭐ 新增
+### 4. 标准化 Markdown 响应格式 ⭐ v2.0 重大更新
 
-**v2.1 重大更新**：所有工具现在返回标准化的 JSON 响应，而非纯字符串或抛出异常。这使得 Agent 工作流能够更好地解析结果、处理错误和获取上下文信息。
+**v2.0 重大更新**：所有工具现在返回 **Markdown 格式**的响应（不再是 JSON），包含结构化元数据和 ASCII 可视化。这使得响应更易读、更直观，同时保持了可解析性。
 
 #### 响应结构
 
-所有工具返回以下 JSON 格式：
+所有工具返回以下 Markdown 格式：
 
-```json
-{
-  "status": "success",  // 或 "error"
-  "message": "操作成功的描述",
-  "data": {
-    "element_id": "para_abc123",  // 创建/修改的元素 ID
-    "cursor": {  // 光标位置信息（如适用）
-      "element_id": "para_abc123",
-      "position": "after",
-      "parent_id": "document_body",
-      "context": "Cursor: after paragraph 'Hello World' (para_abc123)"
-    },
-    // 其他操作特定的数据字段
-  }
-}
+```markdown
+# 操作结果: [Operation Name]
+
+**Status**: ✅ Success  // 或 ❌ Error
+**Element ID**: para_abc123
+**Operation**: Insert Paragraph
+**Position**: end:document_body
+
+---
+
+## 📄 Document Context
+
+📄 Document Context (showing 3 elements around para_abc123)
+
+  ┌─────────────────────────────────────┐
+  │ Paragraph (para_xyz789)             │
+  ├─────────────────────────────────────┤
+  │ Previous paragraph text             │
+  └─────────────────────────────────────┘
+
+>>> [CURSOR] <<<
+
+  ┌─────────────────────────────────────┐
+  │ Paragraph (para_abc123) ⭐ CURRENT   │
+  ├─────────────────────────────────────┤
+  │ New paragraph text                  │
+  └─────────────────────────────────────┘
 ```
 
 #### 成功响应示例
 
 ```python
+import re
+
 # 创建段落
 result = docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
-data = json.loads(result)
-# {
-#   "status": "success",
-#   "message": "Paragraph created successfully",
-#   "data": {
-#     "element_id": "para_abc123",
-#     "cursor": {
-#       "element_id": "para_abc123",
-#       "position": "after",
-#       "parent_id": "document_body",
-#       "context": "Cursor: after paragraph 'Hello World' (para_abc123)"
-#     }
-#   }
-# }
 
-para_id = data["data"]["element_id"]  # 提取元素 ID
+# 响应是 Markdown 格式：
+# # 操作结果: Insert Paragraph
+#
+# **Status**: ✅ Success
+# **Element ID**: para_abc123
+# **Operation**: Insert Paragraph
+# ...
+
+# 提取元素 ID
+match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', result)
+para_id = match.group(1) if match else None
 ```
 
 #### 错误响应示例
@@ -124,17 +134,20 @@ para_id = data["data"]["element_id"]  # 提取元素 ID
 ```python
 # 尝试获取不存在的元素
 result = docx_update_paragraph_text(session_id, "para_nonexistent", "New text")
-data = json.loads(result)
-# {
-#   "status": "error",
-#   "message": "Paragraph para_nonexistent not found",
-#   "data": {
-#     "error_type": "ElementNotFound"
-#   }
-# }
 
-if data["status"] == "error":
-    error_type = data["data"].get("error_type")
+# 响应是 Markdown 格式：
+# # 操作结果: Error
+#
+# **Status**: ❌ Error
+# **Error Type**: ElementNotFound
+# **Message**: Paragraph para_nonexistent not found
+
+# 检查错误
+is_error = '**Status**: ❌ Error' in result
+if is_error:
+    # 提取错误类型
+    match = re.search(r'\*\*Error Type\*\*:\s*(\w+)', result)
+    error_type = match.group(1) if match else None
     # 根据错误类型处理
 ```
 
@@ -153,57 +166,70 @@ if data["status"] == "error":
 #### Agent 使用模式
 
 ```python
-import json
+import re
 
-# 1. 解析响应
+# 辅助函数：提取元素 ID
+def extract_element_id(response):
+    match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', response)
+    return match.group(1) if match else None
+
+# 辅助函数：检查状态
+def is_success(response):
+    return '**Status**: ✅ Success' in response
+
+def is_error(response):
+    return '**Status**: ❌ Error' in response
+
+# 1. 执行操作
 result = docx_insert_paragraph(session_id, "Text", position="end:document_body")
-data = json.loads(result)
 
 # 2. 检查状态
-if data["status"] == "success":
-    element_id = data["data"]["element_id"]
+if is_success(result):
+    element_id = extract_element_id(result)
     # 继续操作
 else:
-    error_msg = data["message"]
-    error_type = data["data"].get("error_type")
+    # 提取错误信息
+    match = re.search(r'\*\*Message\*\*:\s*(.+?)(?:\n|$)', result)
+    error_msg = match.group(1) if match else "Unknown error"
     # 错误处理逻辑
 
-# 3. 获取光标上下文（如适用）
-if "cursor" in data["data"]:
-    cursor_context = data["data"]["cursor"]["context"]
-    # 显示给用户或用于决策
+# 3. 获取上下文（如适用）
+# 上下文信息已包含在 Markdown 响应的 Document Context 部分
 ```
 
 #### 迁移指南
 
-**旧代码（v2.0 及之前）**：
+**旧代码（v1.x - JSON 格式）**：
 ```python
 try:
-    para_id = docx_insert_paragraph(session_id, "Text", position="end:document_body")  # 返回纯字符串
-    # para_id = "para_abc123\n\nCursor: ..."
+    result = docx_insert_paragraph(session_id, "Text", position="end:document_body")
+    data = json.loads(result)  # 解析 JSON
+    para_id = data["data"]["element_id"]
 except ValueError as e:
-    # 处理异常
     print(f"Error: {e}")
 ```
 
-**新代码（v2.1+）**：
+**新代码（v2.0+ - Markdown 格式）**：
 ```python
-result = docx_insert_paragraph(session_id, "Text", position="end:document_body")  # 返回 JSON
-data = json.loads(result)
+import re
 
-if data["status"] == "success":
-    para_id = data["data"]["element_id"]  # 干净的 ID
-    cursor_context = data["data"]["cursor"]["context"]  # 分离的上下文
+result = docx_insert_paragraph(session_id, "Text", position="end:document_body")  # 返回 Markdown
+
+if is_success(result):
+    para_id = extract_element_id(result)  # 使用正则提取
+    # 可以直接查看 Markdown 响应中的可视化上下文
 else:
-    error_msg = data["message"]
-    error_type = data["data"]["error_type"]
+    # 错误信息在 Markdown 中清晰展示
+    match = re.search(r'\*\*Message\*\*:\s*(.+?)(?:\n|$)', result)
+    error_msg = match.group(1) if match else "Unknown error"
 ```
 
 **关键变化**：
-1. **不再抛出异常**：所有错误通过 JSON 响应返回
-2. **结构化数据**：element_id 和 cursor 信息分离，易于解析
+1. **Markdown 格式**：响应现在是人类可读的 Markdown，包含 ASCII 可视化
+2. **正则提取**：使用正则表达式提取元数据（element_id、status 等）
 3. **错误分类**：error_type 字段便于自动化错误处理
-4. **上下文感知**：cursor.context 提供人类可读的位置描述
+4. **上下文可视化**：Document Context 部分提供直观的文档结构展示
+5. **测试辅助**：`tests/helpers/markdown_extractors.py` 提供了提取函数
 
 ## 开发指南
 
