@@ -4,9 +4,10 @@ Unit tests for CLILauncher module.
 
 import json
 import pytest
+import subprocess
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from docx_server_launcher.core.cli_launcher import CLILauncher
 
 
@@ -244,6 +245,118 @@ class TestCommandBuilder:
         # Unclosed quote
         with pytest.raises(ValueError, match="Failed to parse"):
             launcher.build_command(config, '--prompt "Hello')
+
+
+class TestLaunchProcessManager:
+    """Test launch process management."""
+
+    def test_launch_success(self, tmp_path):
+        """Test successful Claude CLI launch."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen") as mock_popen:
+                # Mock process
+                mock_process = MagicMock()
+                mock_process.pid = 12345
+                mock_popen.return_value = mock_process
+
+                launcher = CLILauncher(log_dir=str(tmp_path))
+                success, msg = launcher.launch("http://127.0.0.1:8000/sse", "sse", "")
+
+                assert success is True
+                assert "started successfully" in msg.lower()
+                assert "12345" in msg
+
+                # Verify Popen was called
+                mock_popen.assert_called_once()
+                call_args = mock_popen.call_args
+                assert call_args[0][0][0] == "claude"
+                assert "--mcp-config" in call_args[0][0]
+
+    def test_launch_with_extra_params(self, tmp_path):
+        """Test launch with extra CLI parameters."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen") as mock_popen:
+                mock_process = MagicMock()
+                mock_process.pid = 12345
+                mock_popen.return_value = mock_process
+
+                launcher = CLILauncher(log_dir=str(tmp_path))
+                success, msg = launcher.launch(
+                    "http://127.0.0.1:8000/sse",
+                    "sse",
+                    "--model opus"
+                )
+
+                assert success is True
+
+                # Verify extra params in command
+                call_args = mock_popen.call_args
+                cmd = call_args[0][0]
+                assert "--model" in cmd
+                assert "opus" in cmd
+
+    def test_launch_cli_not_found(self, tmp_path):
+        """Test launch when CLI not found."""
+        with patch("shutil.which", return_value=None):
+            launcher = CLILauncher(log_dir=str(tmp_path))
+            success, msg = launcher.launch("http://127.0.0.1:8000/sse", "sse", "")
+
+            assert success is False
+            assert "not found" in msg.lower()
+
+    def test_launch_stdio_transport_error(self, tmp_path):
+        """Test launch with unsupported STDIO transport."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            launcher = CLILauncher(log_dir=str(tmp_path))
+            success, msg = launcher.launch("", "stdio", "")
+
+            assert success is False
+            assert "not supported" in msg.lower()
+
+    def test_launch_process_error(self, tmp_path):
+        """Test launch when subprocess fails."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen", side_effect=subprocess.SubprocessError("Launch failed")):
+                launcher = CLILauncher(log_dir=str(tmp_path))
+                success, msg = launcher.launch("http://127.0.0.1:8000/sse", "sse", "")
+
+                assert success is False
+                assert "failed to launch" in msg.lower()
+
+    def test_launch_invalid_params(self, tmp_path):
+        """Test launch with invalid extra parameters."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            launcher = CLILauncher(log_dir=str(tmp_path))
+            success, msg = launcher.launch(
+                "http://127.0.0.1:8000/sse",
+                "sse",
+                '--prompt "unclosed'
+            )
+
+            assert success is False
+            assert "parse" in msg.lower()
+
+    def test_launch_logging(self, tmp_path):
+        """Test that launch attempts are logged."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen") as mock_popen:
+                mock_process = MagicMock()
+                mock_process.pid = 12345
+                mock_popen.return_value = mock_process
+
+                launcher = CLILauncher(log_dir=str(tmp_path))
+                launcher.launch("http://127.0.0.1:8000/sse", "sse", "--model opus")
+
+                # Check log file exists and contains launch info
+                log_file = tmp_path / "launch.log"
+                assert log_file.exists()
+
+                log_content = log_file.read_text()
+                assert "Launch Attempt" in log_content
+                assert "Command:" in log_content
+                assert "MCP Config:" in log_content
+                assert "started successfully" in log_content
+
 
 
 
