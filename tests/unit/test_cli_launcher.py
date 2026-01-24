@@ -2,6 +2,7 @@
 Unit tests for CLILauncher module.
 """
 
+import json
 import pytest
 import time
 from pathlib import Path
@@ -180,6 +181,70 @@ class TestMCPConfigGeneration:
 
         with pytest.raises(ValueError, match="STDIO.*not supported"):
             launcher.generate_mcp_config("", "StDiO")
+
+
+class TestCommandBuilder:
+    """Test CLI command building."""
+
+    def test_build_command_no_params(self, tmp_path):
+        """Test command building without extra parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        cmd = launcher.build_command(config, "")
+
+        assert cmd == ["claude", "--mcp-config", json.dumps(config)]
+
+    def test_build_command_with_params(self, tmp_path):
+        """Test command building with extra parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        cmd = launcher.build_command(config, "--model opus --agent reviewer")
+
+        assert cmd == [
+            "claude",
+            "--mcp-config",
+            json.dumps(config),
+            "--model",
+            "opus",
+            "--agent",
+            "reviewer"
+        ]
+
+    def test_build_command_quoted_params(self, tmp_path):
+        """Test command building with quoted parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        cmd = launcher.build_command(config, '--prompt "Hello World"')
+
+        assert cmd == [
+            "claude",
+            "--mcp-config",
+            json.dumps(config),
+            "--prompt",
+            "Hello World"
+        ]
+
+    def test_build_command_whitespace_only(self, tmp_path):
+        """Test command building with whitespace-only extra params."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        cmd = launcher.build_command(config, "   ")
+
+        assert cmd == ["claude", "--mcp-config", json.dumps(config)]
+
+    def test_build_command_parse_error(self, tmp_path):
+        """Test command building with unparseable parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        # Unclosed quote
+        with pytest.raises(ValueError, match="Failed to parse"):
+            launcher.build_command(config, '--prompt "Hello')
+
 
 
 

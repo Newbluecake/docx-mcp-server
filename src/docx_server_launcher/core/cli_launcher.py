@@ -8,10 +8,11 @@ replacing the previous config file injection approach.
 import json
 import logging
 import os
+import shlex
 import shutil
 import time
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 from logging.handlers import RotatingFileHandler
 
 
@@ -154,5 +155,33 @@ class CLILauncher:
         }
 
         return config
+
+    def build_command(self, mcp_config: Dict[str, Any], extra_params: str = "") -> List[str]:
+        """
+        Build Claude CLI command with MCP config.
+
+        Args:
+            mcp_config: MCP configuration dictionary
+            extra_params: Additional CLI parameters (e.g., "--model opus")
+
+        Returns:
+            Command as list of strings
+
+        Raises:
+            ValueError: If extra_params cannot be parsed
+        """
+        # Build base command
+        cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
+
+        # Parse and append extra parameters
+        if extra_params and extra_params.strip():
+            try:
+                parsed_params = shlex.split(extra_params.strip())
+                cmd.extend(parsed_params)
+            except ValueError as e:
+                raise ValueError(f"Failed to parse extra parameters: {e}")
+
+        return cmd
+
 
 
