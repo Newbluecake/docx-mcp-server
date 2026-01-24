@@ -122,3 +122,37 @@ class CLILauncher:
             self._cache_time = None
             return False, "Claude CLI not found in PATH"
 
+    def generate_mcp_config(self, server_url: str, transport: str) -> Dict[str, Any]:
+        """
+        Generate MCP configuration dictionary.
+
+        Args:
+            server_url: MCP server URL (e.g., http://127.0.0.1:8000/sse)
+            transport: Transport type (sse, stdio, streamable-http)
+
+        Returns:
+            MCP configuration dictionary
+
+        Raises:
+            ValueError: If transport is 'stdio' (not supported for CLI launch)
+        """
+        # STDIO transport not supported for CLI launch
+        if transport.lower() == "stdio":
+            raise ValueError(
+                "STDIO transport not supported for CLI launch. "
+                "Use SSE or Streamable HTTP instead."
+            )
+
+        # Generate MCP config structure
+        config = {
+            "mcpServers": {
+                "docx-server": {
+                    "url": server_url,
+                    "transport": transport
+                }
+            }
+        }
+
+        return config
+
+

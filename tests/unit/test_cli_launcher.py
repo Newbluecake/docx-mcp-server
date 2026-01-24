@@ -129,3 +129,57 @@ class TestCLIDetection:
             assert launcher._cache_time is None
 
 
+class TestMCPConfigGeneration:
+    """Test MCP configuration generation."""
+
+    def test_generate_mcp_config_sse(self, tmp_path):
+        """Test MCP config generation for SSE transport."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = launcher.generate_mcp_config("http://127.0.0.1:8000/sse", "sse")
+
+        assert config == {
+            "mcpServers": {
+                "docx-server": {
+                    "url": "http://127.0.0.1:8000/sse",
+                    "transport": "sse"
+                }
+            }
+        }
+
+    def test_generate_mcp_config_http(self, tmp_path):
+        """Test MCP config generation for Streamable HTTP transport."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        config = launcher.generate_mcp_config(
+            "http://127.0.0.1:8080/mcp",
+            "streamable-http"
+        )
+
+        assert config == {
+            "mcpServers": {
+                "docx-server": {
+                    "url": "http://127.0.0.1:8080/mcp",
+                    "transport": "streamable-http"
+                }
+            }
+        }
+
+    def test_generate_mcp_config_stdio_error(self, tmp_path):
+        """Test that STDIO transport raises error."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        with pytest.raises(ValueError, match="STDIO.*not supported"):
+            launcher.generate_mcp_config("", "stdio")
+
+    def test_generate_mcp_config_case_insensitive(self, tmp_path):
+        """Test that transport type is case-insensitive."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        # Should raise error regardless of case
+        with pytest.raises(ValueError, match="STDIO.*not supported"):
+            launcher.generate_mcp_config("", "STDIO")
+
+        with pytest.raises(ValueError, match="STDIO.*not supported"):
+            launcher.generate_mcp_config("", "StDiO")
+
+
+
