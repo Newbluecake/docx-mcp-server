@@ -85,7 +85,23 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
         logger.error(f"docx_set_alignment failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    paragraph = session.get_object(paragraph_id)
+    try:
+
+
+        paragraph = session.get_object(paragraph_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not paragraph:
         logger.error(f"docx_set_alignment failed: Paragraph {paragraph_id} not found")
         return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
@@ -179,7 +195,23 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
             logger.error(f"docx_set_properties failed: No element context available")
             return create_error_response("No element context available. Please specify element_id.", error_type="NoContext")
 
-    obj = session.get_object(target_id)
+    try:
+
+
+        obj = session.get_object(target_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not obj:
         logger.error(f"docx_set_properties failed: Object {target_id} not found")
         return create_error_response(f"Object {target_id} not found", error_type="ElementNotFound")
@@ -268,12 +300,44 @@ def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
         logger.error(f"docx_format_copy failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    source = session.get_object(source_id)
+    try:
+
+
+        source = session.get_object(source_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not source:
         logger.error(f"docx_format_copy failed: Source object {source_id} not found")
         return create_error_response(f"Source object {source_id} not found", error_type="ElementNotFound")
 
-    target = session.get_object(target_id)
+    try:
+
+
+        target = session.get_object(target_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not target:
         logger.error(f"docx_format_copy failed: Target object {target_id} not found")
         return create_error_response(f"Target object {target_id} not found", error_type="ElementNotFound")
@@ -417,7 +481,23 @@ def docx_extract_format_template(session_id: str, element_id: str) -> str:
         logger.error(f"docx_extract_format_template failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    element = session.get_object(element_id)
+    try:
+
+
+        element = session.get_object(element_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not element:
         logger.error(f"docx_extract_format_template failed: Element {element_id} not found")
         return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")
@@ -472,7 +552,23 @@ def docx_apply_format_template(session_id: str, element_id: str, template_json: 
         logger.error(f"docx_apply_format_template failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    element = session.get_object(element_id)
+    try:
+
+
+        element = session.get_object(element_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not element:
         logger.error(f"docx_apply_format_template failed: Element {element_id} not found")
         return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")

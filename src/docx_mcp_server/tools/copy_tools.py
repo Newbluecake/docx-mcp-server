@@ -76,8 +76,19 @@ def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, positi
         logger.error(f"docx_copy_elements_range failed: Session {session_id} not found")
         raise ValueError(f"Session {session_id} not found")
 
-    start_el = session.get_object(start_id)
-    end_el = session.get_object(end_id)
+    try:
+        start_el = session.get_object(start_id)
+    except ValueError as e:
+        if "Special ID" in str(e) or "not available" in str(e):
+            raise ValueError(f"Start element: {str(e)}")
+        raise
+
+    try:
+        end_el = session.get_object(end_id)
+    except ValueError as e:
+        if "Special ID" in str(e) or "not available" in str(e):
+            raise ValueError(f"End element: {str(e)}")
+        raise
 
     if not start_el or not end_el:
         logger.error(f"docx_copy_elements_range failed: Start or end element not found")

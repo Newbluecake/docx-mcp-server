@@ -53,7 +53,18 @@ def docx_insert_row_at(
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Get the table object
-    table = session.get_object(table_id)
+    try:
+
+        table = session.get_object(table_id)
+
+    except ValueError as e:
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
@@ -173,7 +184,18 @@ def docx_insert_col_at(
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Get the table object
-    table = session.get_object(table_id)
+    try:
+
+        table = session.get_object(table_id)
+
+    except ValueError as e:
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
@@ -294,7 +316,18 @@ def docx_delete_row(
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Get the table object
-    table = session.get_object(table_id)
+    try:
+
+        table = session.get_object(table_id)
+
+    except ValueError as e:
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
@@ -406,7 +439,18 @@ def docx_delete_col(
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
     # Get the table object
-    table = session.get_object(table_id)
+    try:
+
+        table = session.get_object(table_id)
+
+    except ValueError as e:
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 

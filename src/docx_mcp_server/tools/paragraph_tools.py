@@ -199,7 +199,14 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    paragraph = session.get_object(paragraph_id)
+    try:
+        paragraph = session.get_object(paragraph_id)
+    except ValueError as e:
+        # Special ID resolution failed
+        if "Special ID" in str(e) or "not available" in str(e):
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+        raise
+
     if not paragraph:
         return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
@@ -248,7 +255,14 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str, position: str) -> st
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    source_para = session.get_object(paragraph_id)
+    try:
+        source_para = session.get_object(paragraph_id)
+    except ValueError as e:
+        # Special ID resolution failed
+        if "Special ID" in str(e) or "not available" in str(e):
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+        raise
+
     if not source_para:
         return create_error_response(f"Paragraph {paragraph_id} not found", error_type="ElementNotFound")
 
@@ -344,7 +358,14 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
     if not element_id:
         return create_error_response("No element specified and no context available", error_type="NoContext")
 
-    obj = session.get_object(element_id)
+    try:
+        obj = session.get_object(element_id)
+    except ValueError as e:
+        # Special ID resolution failed
+        if "Special ID" in str(e) or "not available" in str(e):
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+        raise
+
     if not obj:
         return create_error_response(f"Object {element_id} not found", error_type="ElementNotFound")
 

@@ -107,7 +107,18 @@ def docx_cursor_move(
         )
 
     # Get object to verify it exists and determine parent
-    obj = session.get_object(element_id)
+    try:
+
+        obj = session.get_object(element_id)
+
+    except ValueError as e:
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+        raise
+
     if not obj:
         logger.error(f"docx_cursor_move failed: Element {element_id} not found")
         return create_error_response(f"Element {element_id} not found", error_type="ElementNotFound")

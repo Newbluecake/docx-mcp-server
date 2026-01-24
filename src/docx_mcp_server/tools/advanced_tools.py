@@ -79,7 +79,18 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
     # Use shared scope resolution logic
     tools = TextTools()
     if scope_id:
-        obj = session.get_object(scope_id)
+        try:
+
+            obj = session.get_object(scope_id)
+
+        except ValueError as e:
+
+            if "Special ID" in str(e) or "not available" in str(e):
+
+                return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+            raise
+
         if not obj:
             logger.error(f"docx_replace_text failed: Scope object {scope_id} not found")
             return create_error_response(f"Scope object {scope_id} not found", error_type="ElementNotFound")
@@ -161,7 +172,18 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
     # Use shared scope resolution logic
     tools = TextTools()
     if scope_id:
-        obj = session.get_object(scope_id)
+        try:
+
+            obj = session.get_object(scope_id)
+
+        except ValueError as e:
+
+            if "Special ID" in str(e) or "not available" in str(e):
+
+                return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+            raise
+
         if not obj:
             logger.error(f"docx_batch_replace_text failed: Scope object {scope_id} not found")
             return create_error_response(f"Scope object {scope_id} not found", error_type="ElementNotFound")

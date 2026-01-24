@@ -288,7 +288,23 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    table = session.get_object(table_id)
+    try:
+
+
+        table = session.get_object(table_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 
@@ -647,7 +663,23 @@ def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
     if not session:
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    table = session.get_object(table_id)
+    try:
+
+
+        table = session.get_object(table_id)
+
+
+    except ValueError as e:
+
+
+        if "Special ID" in str(e) or "not available" in str(e):
+
+
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+
+
+        raise
+
     if not table:
         return create_error_response(f"Table {table_id} not found", error_type="ElementNotFound")
 

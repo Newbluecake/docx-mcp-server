@@ -171,7 +171,13 @@ def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
         logger.error(f"docx_update_run_text failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    run = session.get_object(run_id)
+    try:
+        run = session.get_object(run_id)
+    except ValueError as e:
+        if "Special ID" in str(e) or "not available" in str(e):
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+        raise
+
     if not run:
         logger.error(f"docx_update_run_text failed: Run {run_id} not found")
         return create_error_response(f"Run {run_id} not found", error_type="ElementNotFound")
@@ -276,7 +282,13 @@ def docx_set_font(
         logger.error(f"docx_set_font failed: Session {session_id} not found")
         return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
 
-    run = session.get_object(run_id)
+    try:
+        run = session.get_object(run_id)
+    except ValueError as e:
+        if "Special ID" in str(e) or "not available" in str(e):
+            return create_error_response(str(e), error_type="SpecialIDNotAvailable")
+        raise
+
     if not run:
         logger.error(f"docx_set_font failed: Run {run_id} not found")
         return create_error_response(f"Run {run_id} not found", error_type="ElementNotFound")
