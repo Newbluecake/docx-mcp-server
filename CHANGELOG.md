@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-01-24
+
+### ✨ Features
+
+- **Special Position IDs**: Added three special position identifiers to simplify consecutive operations.
+  - `last_insert`: References the last inserted element, eliminating the need to extract and pass element IDs in consecutive insertions.
+  - `last_update`: References the last updated element, useful for format copying and batch operations.
+  - `cursor`: References the current cursor position, enabling cursor-based insertions.
+- **Session State Management**: Enhanced session object with `last_insert_id` and `last_update_id` tracking.
+- **Position Resolution**: Extended `resolve_position()` method to handle special IDs with proper initialization checks.
+
+### 🔧 Technical Improvements
+
+- All insertion tools (`docx_insert_*`) now automatically update `last_insert_id`.
+- All update/formatting tools (`docx_update_*`, `docx_set_*`) now automatically update `last_update_id`.
+- New error type `SpecialIdNotInitialized` for better error handling when special IDs are used before initialization.
+- Comprehensive E2E tests covering all special ID scenarios (6 test cases).
+- Updated documentation with usage examples and development guidelines.
+
+### 📚 Documentation
+
+- Added "Special Position IDs" section to README.md with usage examples.
+- Updated CLAUDE.md with development guidelines for special IDs.
+- Added new error type to error classification table.
+
 ## [0.2.0] - 2026-01-23
 
 ### ✨ Features

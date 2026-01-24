@@ -15,6 +15,11 @@ class MockSession:
     def _get_element_id(self, obj, auto_register=False):
         return self.id_map.get(obj, "?")
 
+    def resolve_special_id(self, element_id):
+        """Resolve special IDs (last_insert, last_update, cursor) to actual IDs."""
+        # For testing, just return the ID as-is (no special IDs in these tests)
+        return element_id
+
 def test_resolve_append_default():
     doc = Document()
     session = MockSession(doc)

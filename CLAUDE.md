@@ -56,6 +56,61 @@ paragraph = session.get_object("para_a1b2c3d4")
 - `table_*` - 表格（Table）
 - `cell_*` - 单元格（Cell）
 
+#### 特殊位置 ID ⭐ v2.3 新增
+
+为了简化连续操作，系统维护三个特殊的位置 ID：
+
+| 特殊 ID | 维护位置 | 更新时机 | 用途 |
+|---------|---------|---------|------|
+| `last_insert` | `session.last_insert_id` | `docx_insert_*` 成功后 | 引用最后插入的元素 |
+| `last_update` | `session.last_update_id` | `docx_update_*`、`docx_set_*` 成功后 | 引用最后更新的元素 |
+| `cursor` | `session.cursor.element_id` | `docx_cursor_move` 调用后 | 引用光标位置 |
+
+**实现要点**：
+
+1. **解析特殊 ID**：在 `session.py` 的 `resolve_position()` 方法中处理
+2. **更新时机**：在工具成功执行后，调用 `session.update_last_insert()` 或 `session.update_last_update()`
+3. **错误处理**：使用前检查是否已初始化，未初始化返回 `SpecialIdNotInitialized` 错误
+4. **测试覆盖**：确保单元测试和 E2E 测试覆盖所有特殊 ID 场景
+
+**代码示例**：
+
+```python
+# 在工具中更新特殊 ID
+def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
+    session = session_manager.get_session(session_id)
+    # ... 插入逻辑 ...
+    para_id = session.register_object(paragraph, "para")
+
+    # 更新 last_insert
+    session.update_last_insert(para_id)
+
+    return create_context_aware_response(session, "Paragraph inserted", element_id=para_id)
+
+# 在 session.py 中解析特殊 ID
+def resolve_position(self, position: str) -> Tuple[str, str]:
+    if ":" not in position:
+        raise ValueError(f"Invalid position format: {position}")
+
+    relation, target = position.split(":", 1)
+
+    # 解析特殊 ID
+    if target == "last_insert":
+        if not self.last_insert_id:
+            raise ValueError("Special ID 'last_insert' not initialized")
+        target = self.last_insert_id
+    elif target == "last_update":
+        if not self.last_update_id:
+            raise ValueError("Special ID 'last_update' not initialized")
+        target = self.last_update_id
+    elif target == "cursor":
+        if not self.cursor.element_id:
+            raise ValueError("Special ID 'cursor' not initialized")
+        target = self.cursor.element_id
+
+    return relation, target
+```
+
 ### 3. 原子化操作设计
 
 每个工具只做一件事，避免复杂的组合参数：
@@ -162,6 +217,7 @@ if is_error:
 | `FileNotFound` | 文件不存在 | 图片路径错误 |
 | `CreationError` | 创建元素失败 | 内部错误 |
 | `UpdateError` | 更新元素失败 | 内部错误 |
+| `SpecialIdNotInitialized` | 特殊 ID 未初始化 | 在任何插入前使用 last_insert |
 
 #### Agent 使用模式
 

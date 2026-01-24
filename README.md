@@ -254,6 +254,62 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 - `docx_cursor_get(session_id)` - 获取当前光标位置
 - `docx_cursor_move(session_id, element_id, position)` - 移动光标到指定位置
 
+### 特殊位置 ID（Special Position IDs）⭐ v2.3 新增
+
+为了简化连续操作，系统提供了三个特殊的位置 ID，无需手动提取和传递元素 ID：
+
+| 特殊 ID | 说明 | 使用场景 |
+|---------|------|----------|
+| `last_insert` | 最后一次插入操作创建的元素 ID | 连续插入内容时，无需提取上一个元素的 ID |
+| `last_update` | 最后一次更新操作涉及的元素 ID | 格式复制、批量操作时引用刚修改的元素 |
+| `cursor` | 当前光标位置的元素 ID | 与光标系统配合，实现基于光标的插入 |
+
+**使用示例**：
+
+```python
+# 传统方式（需要提取 ID）
+p1_resp = docx_insert_paragraph(session_id, "First", position="end:document_body")
+p1_id = extract_element_id(p1_resp)  # 提取 ID
+p2_resp = docx_insert_paragraph(session_id, "Second", position=f"after:{p1_id}")
+p2_id = extract_element_id(p2_resp)  # 再次提取
+p3_resp = docx_insert_paragraph(session_id, "Third", position=f"after:{p2_id}")
+
+# 使用 last_insert（简化）
+docx_insert_paragraph(session_id, "First", position="end:document_body")
+docx_insert_paragraph(session_id, "Second", position="after:last_insert")
+docx_insert_paragraph(session_id, "Third", position="after:last_insert")
+# 无需提取 ID，代码更简洁
+```
+
+**格式复制示例**：
+
+```python
+# 创建源段落并格式化
+p1_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
+p1_id = extract_element_id(p1_resp)
+run1_resp = docx_insert_run(session_id, "Bold Text", position=f"inside:{p1_id}")
+run1_id = extract_element_id(run1_resp)
+docx_set_font(session_id, run1_id, bold=True, size=16)  # last_update = run1_id
+
+# 创建目标段落
+p2_resp = docx_insert_paragraph(session_id, "", position=f"after:{p1_id}")
+p2_id = extract_element_id(p2_resp)
+docx_insert_run(session_id, "Normal Text", position=f"inside:{p2_id}")  # last_insert = run2_id
+
+# 使用特殊 ID 复制格式（无需手动传递 run1_id 和 run2_id）
+docx_format_copy(session_id, source_id=run1_id, target_id="last_insert")
+```
+
+**注意事项**：
+
+1. **初始化检查**：在使用特殊 ID 前，必须先执行相应的操作（如插入或更新），否则会返回错误
+2. **作用域**：特殊 ID 在会话级别维护，跨工具调用有效
+3. **更新时机**：
+   - `last_insert`：在 `docx_insert_*` 系列工具成功后更新
+   - `last_update`：在 `docx_update_*`、`docx_set_*` 系列工具成功后更新
+   - `cursor`：通过 `docx_cursor_move` 显式更新
+4. **错误类型**：使用未初始化的特殊 ID 会返回 `SpecialIdNotInitialized` 错误
+
 ## 使用示例
 
 ### 示例 1：创建和编辑文档
