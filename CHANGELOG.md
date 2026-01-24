@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-01-25
+
+### ✨ Features
+
+- **GUI Launcher CLI Logging Enhancement**: Comprehensive logging and UI improvements for better debugging and user experience.
+  - **Structured Command Logging**: MCP server and Claude CLI startup commands are now logged in structured JSON format with timestamps.
+  - **CLI Parameter Checkboxes**: Added UI checkboxes for common Claude CLI parameters (--model, --agent, --verbose, --debug).
+  - **Configuration Persistence**: CLI parameter selections are automatically saved and restored across sessions using QSettings.
+  - **Error Dialog Copy Button**: Error messages now include a "Copy" button for easy bug reporting.
+  - **Sensitive Information Filtering**: Automatic redaction of API keys, tokens, passwords, and file paths in logs.
+  - **Log File Security**: Log files are created with restrictive permissions (600) for enhanced security.
+
+### 🔧 Technical Improvements
+
+- **New Modules**:
+  - `log_formatter.py`: Standardized log formatting with structured JSON output and sensitive info filtering.
+  - `config_manager.py`: Type-safe QSettings wrapper for CLI parameter persistence.
+- **Enhanced Modules**:
+  - `ServerManager`: Now logs MCP server startup commands in structured format.
+  - `CLILauncher`: Now logs Claude CLI commands with MCP config and extra parameters.
+  - `MainWindow`: Added CLI parameter UI, configuration persistence, and error dialog improvements.
+- **Testing**: 23 new tests (18 unit tests + 5 integration tests) with 100% pass rate.
+- **Deprecation Fixes**: Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)` to avoid deprecation warnings.
+
+### 📚 Documentation
+
+- Updated CHANGELOG.md with new features and improvements.
+- Comprehensive test coverage for all new functionality.
+
 ## [0.2.1] - 2026-01-24
 
 ### ✨ Features
