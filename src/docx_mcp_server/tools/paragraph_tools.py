@@ -221,21 +221,47 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         paragraph.clear()
         paragraph.add_run(new_text)
 
-        # Update cursor to point to this paragraph
-        session.cursor.element_id = paragraph_id
-        session.cursor.position = "after"
+        # Get the actual element ID (resolve special IDs to concrete IDs)
+        actual_para_id = session._get_element_id(paragraph, auto_register=False)
+        if not actual_para_id:
+            # Fallback: try to find in registry
+            for eid, obj in session.object_registry.items():
+                if obj is paragraph:
+                    actual_para_id = eid
+                    break
 
-        return create_markdown_response(
-            session=session,
-            message=f"Paragraph {paragraph_id} updated successfully",
-            element_id=paragraph_id,
-            operation="Update Paragraph Text",
-            show_context=True,
-            show_diff=True,
-            old_content=old_text,
-            new_content=new_text,
-            changed_fields=["text"]
-        )
+        if actual_para_id:
+            # Update context to track this as an update operation
+            session.update_context(actual_para_id, action="update")
+
+            # Update cursor to point to this paragraph
+            session.cursor.element_id = actual_para_id
+            session.cursor.position = "after"
+
+            return create_markdown_response(
+                session=session,
+                message=f"Paragraph updated successfully",
+                element_id=actual_para_id,
+                operation="Update Paragraph Text",
+                show_context=True,
+                show_diff=True,
+                old_content=old_text,
+                new_content=new_text,
+                changed_fields=["text"]
+            )
+        else:
+            # Shouldn't happen, but handle gracefully
+            return create_markdown_response(
+                session=session,
+                message=f"Paragraph updated successfully",
+                element_id=paragraph_id,
+                operation="Update Paragraph Text",
+                show_context=False,
+                show_diff=True,
+                old_content=old_text,
+                new_content=new_text,
+                changed_fields=["text"]
+            )
     except Exception as e:
         logger.exception(f"docx_update_paragraph_text failed: {e}")
         return create_error_response(f"Failed to update paragraph: {str(e)}", error_type="UpdateError")
