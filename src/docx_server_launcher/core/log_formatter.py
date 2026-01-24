@@ -7,7 +7,7 @@ and Claude CLI startup commands.
 
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -29,7 +29,13 @@ def filter_sensitive_info(text: str) -> str:
         text
     )
 
-    # Redact API keys
+    # Redact API keys (various formats)
+    text = re.sub(
+        r'(--api[_-]?key\s+)([^\s]+)',
+        r'\1[REDACTED]',
+        text,
+        flags=re.IGNORECASE
+    )
     text = re.sub(
         r'(api[_-]?key["\']?\s*[:=]\s*["\']?)([^\s"\']+)',
         r'\1[REDACTED]',
@@ -37,7 +43,13 @@ def filter_sensitive_info(text: str) -> str:
         flags=re.IGNORECASE
     )
 
-    # Redact tokens
+    # Redact tokens (various formats)
+    text = re.sub(
+        r'(--token\s+)([^\s]+)',
+        r'\1[REDACTED]',
+        text,
+        flags=re.IGNORECASE
+    )
     text = re.sub(
         r'(token["\']?\s*[:=]\s*["\']?)([^\s"\']+)',
         r'\1[REDACTED]',
@@ -45,7 +57,13 @@ def filter_sensitive_info(text: str) -> str:
         flags=re.IGNORECASE
     )
 
-    # Redact passwords
+    # Redact passwords (various formats)
+    text = re.sub(
+        r'(--password\s+)([^\s]+)',
+        r'\1[REDACTED]',
+        text,
+        flags=re.IGNORECASE
+    )
     text = re.sub(
         r'(password["\']?\s*[:=]\s*["\']?)([^\s"\']+)',
         r'\1[REDACTED]',
@@ -71,7 +89,7 @@ def format_mcp_command(command: str, args: List[str]) -> Dict[str, Any]:
     filtered_args = [filter_sensitive_info(arg) for arg in args]
 
     return {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "level": "INFO",
         "message": "Starting MCP server with command",
         "data": {
@@ -102,7 +120,7 @@ def format_cli_command(
     filtered_params = [filter_sensitive_info(p) for p in (extra_params or [])]
 
     return {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "level": "INFO",
         "message": "Launching Claude CLI",
         "data": {
