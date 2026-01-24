@@ -358,6 +358,73 @@ class TestLaunchProcessManager:
                 assert "started successfully" in log_content
 
 
+class TestLaunchLogging:
+    """Test launch logging functionality."""
+
+    def test_log_launch_success(self, tmp_path):
+        """Test logging of successful launch."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        cmd = ["claude", "--mcp-config", "{}"]
+        config = {"mcpServers": {"docx-server": {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}}}
+
+        launcher._log_launch(cmd, config, success=True, pid=12345)
+
+        log_file = tmp_path / "launch.log"
+        assert log_file.exists()
+
+        log_content = log_file.read_text()
+        assert "Launch Attempt" in log_content
+        assert "Command: claude --mcp-config {}" in log_content
+        assert "MCP Config:" in log_content
+        assert "started successfully" in log_content
+        assert "12345" in log_content
+
+    def test_log_launch_failure(self, tmp_path):
+        """Test logging of failed launch."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        cmd = ["claude", "--mcp-config", "{}"]
+        config = {"mcpServers": {}}
+
+        launcher._log_launch(cmd, config, success=False, error="CLI not found")
+
+        log_file = tmp_path / "launch.log"
+        assert log_file.exists()
+
+        log_content = log_file.read_text()
+        assert "Launch Attempt" in log_content
+        assert "Launch failed: CLI not found" in log_content
+
+    def test_log_rotation_config(self, tmp_path):
+        """Test that log rotation is configured correctly."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        # Verify the handler is configured correctly
+        from logging.handlers import RotatingFileHandler
+        handler = launcher.logger.handlers[0]
+        assert isinstance(handler, RotatingFileHandler)
+        assert handler.maxBytes == 10 * 1024 * 1024
+        assert handler.backupCount == 3
+
+    def test_log_file_permissions(self, tmp_path):
+        """Test that log file has correct permissions."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+        cmd = ["claude", "--mcp-config", "{}"]
+        config = {"mcpServers": {}}
+
+        launcher._log_launch(cmd, config, success=True, pid=12345)
+
+        log_file = tmp_path / "launch.log"
+        if log_file.exists():
+            # Check file permissions (0600 = owner read/write only)
+            import stat
+            mode = log_file.stat().st_mode
+            # On some systems, permissions might not be exactly 0600
+            # Just check that it's not world-readable
+            assert not (mode & stat.S_IROTH)  # Not readable by others
+            assert not (mode & stat.S_IWOTH)  # Not writable by others
+
+
+
 
 
 

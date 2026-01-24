@@ -184,6 +184,34 @@ class CLILauncher:
 
         return cmd
 
+    def _log_launch(self, command: List[str], mcp_config: Dict[str, Any],
+                    success: bool, error: str = "", pid: Optional[int] = None) -> None:
+        """
+        Log launch attempt to file.
+
+        Args:
+            command: Command that was executed
+            mcp_config: MCP configuration used
+            success: Whether launch was successful
+            error: Error message (if failed)
+            pid: Process ID (if successful)
+        """
+        try:
+            self.logger.info("=" * 40)
+            self.logger.info("Launch Attempt")
+            self.logger.info(f"Command: {' '.join(command)}")
+            self.logger.info(f"MCP Config: {json.dumps(mcp_config)}")
+
+            if success:
+                self.logger.info(f"Claude CLI started successfully (PID: {pid})")
+            else:
+                self.logger.error(f"Launch failed: {error}")
+
+            self.logger.info("=" * 40)
+        except Exception as e:
+            # Logging failure shouldn't break the launch process
+            print(f"Warning: Failed to log launch attempt: {e}")
+
     def launch(self, server_url: str, transport: str, extra_params: str = "") -> Tuple[bool, str]:
         """
         Launch Claude CLI with MCP configuration.
@@ -212,14 +240,6 @@ class CLILauncher:
             # Build command
             cmd = self.build_command(mcp_config, extra_params)
 
-            # Log launch attempt
-            self.logger.info("=" * 40)
-            self.logger.info("Launch Attempt")
-            self.logger.info(f"Command: {' '.join(cmd)}")
-            self.logger.info(f"MCP Config: {json.dumps(mcp_config)}")
-            if extra_params:
-                self.logger.info(f"Extra Params: {extra_params}")
-
             # Launch process (non-blocking)
             process = subprocess.Popen(
                 cmd,
@@ -230,10 +250,9 @@ class CLILauncher:
             )
 
             # Log success
-            success_msg = f"Claude CLI started successfully (PID: {process.pid})"
-            self.logger.info(success_msg)
-            self.logger.info("=" * 40)
+            self._log_launch(cmd, mcp_config, success=True, pid=process.pid)
 
+            success_msg = f"Claude CLI started successfully (PID: {process.pid})"
             return True, success_msg
 
         except ValueError as e:
