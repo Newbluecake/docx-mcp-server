@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSettings, QEventLoop, QTimer, QEvent
 from PyQt6.QtGui import QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor
 from docx_server_launcher.core.server_manager import ServerManager
-from docx_server_launcher.core.config_injector import ConfigInjector
+from docx_server_launcher.core.cli_launcher import CLILauncher
 from docx_server_launcher.core.working_directory_manager import WorkingDirectoryManager
 from docx_server_launcher.core.language_manager import LanguageManager
 
@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
         self.resize(600, 500)
 
         self.server_manager = ServerManager()
-        self.config_injector = ConfigInjector()
+        self.cli_launcher = CLILauncher()
         self.settings = QSettings("DocxMCP", "Launcher")
 
         self.cwd_manager = WorkingDirectoryManager(self.settings)
@@ -172,10 +172,21 @@ class MainWindow(QMainWindow):
 
         # --- Integration Section ---
         self.integration_group = QGroupBox()
-        integration_layout = QHBoxLayout()
+        integration_layout = QVBoxLayout()
 
-        self.inject_btn = QPushButton()
-        integration_layout.addWidget(self.inject_btn)
+        # Hint label
+        hint_label = QLabel()
+        hint_label.setObjectName("cli_params_hint")
+        integration_layout.addWidget(hint_label)
+
+        # CLI params input
+        self.cli_params_input = QLineEdit()
+        self.cli_params_input.setPlaceholderText("e.g., --model opus --agent reviewer")
+        integration_layout.addWidget(self.cli_params_input)
+
+        # Launch button
+        self.launch_btn = QPushButton()
+        integration_layout.addWidget(self.launch_btn)
 
         self.integration_group.setLayout(integration_layout)
         main_layout.addWidget(self.integration_group)
@@ -272,7 +283,13 @@ class MainWindow(QMainWindow):
 
         # Integration
         self.integration_group.setTitle(self.tr("Claude Desktop Integration"))
-        self.inject_btn.setText(self.tr("Inject Config to Claude..."))
+        hint_label = self.integration_group.findChild(QLabel, "cli_params_hint")
+        if hint_label:
+            hint_label.setText(self.tr("Extra CLI Parameters (optional):"))
+        self.cli_params_input.setPlaceholderText(
+            self.tr("e.g., --model opus --agent reviewer")
+        )
+        self.launch_btn.setText(self.tr("Launch Claude"))
 
         # Logs
         self.log_group.setTitle(self.tr("Logs"))
@@ -287,7 +304,7 @@ class MainWindow(QMainWindow):
         self.word_browse_btn.clicked.connect(lambda: self.browse_exe(self.word_input))
 
         self.start_btn.clicked.connect(self.toggle_server)
-        self.inject_btn.clicked.connect(self.inject_config)
+        self.launch_btn.clicked.connect(self.launch_claude)
 
         # ServerManager signals
         self.server_manager.server_started.connect(self.on_server_started)
@@ -337,6 +354,9 @@ class MainWindow(QMainWindow):
         if index >= 0:
             self.priority_combo.setCurrentIndex(index)
 
+        # Load CLI params
+        self.cli_params_input.setText(self.settings.value("cli/extra_params", ""))
+
         # T-009: Load search settings
         self.load_search_settings()
 
@@ -351,6 +371,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue("preview/wps_path", self.wps_input.text())
         self.settings.setValue("preview/word_path", self.word_input.text())
         self.settings.setValue("preview/priority", self.priority_combo.currentData())
+
+        # Save CLI params
+        self.settings.setValue("cli/extra_params", self.cli_params_input.text())
 
         # T-009: Save search settings
         self.save_search_settings()
@@ -671,35 +694,47 @@ class MainWindow(QMainWindow):
             self.log_area.verticalScrollBar().maximum()
         )
 
-    def inject_config(self):
-        default_path = self.config_injector.get_default_config_path()
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Select Claude Desktop Config"),
-            default_path if default_path else os.path.expanduser("~"),
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if not file_path:
-            return
-
-        host = "127.0.0.1"
+    def launch_claude(self):
+        """Launch Claude CLI with MCP configuration."""
+        # Get settings
+        host = "127.0.0.1"  # Always use localhost for CLI
         port = self.port_input.value()
         server_url = f"http://{host}:{port}/sse"
+        extra_params = self.cli_params_input.text().strip()
 
-        result = QMessageBox.question(
-            self,
-            self.tr("Confirm Injection"),
-            self.tr(f"This will update '{file_path}' to add 'docx-server' pointing to:\n{server_url}\n\nProceed?"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        # Launch
+        success, msg = self.cli_launcher.launch(server_url, "sse", extra_params)
 
-        if result == QMessageBox.StandardButton.Yes:
-            success = self.config_injector.inject(file_path, server_url)
-            if success:
-                QMessageBox.information(self, self.tr("Success"), self.tr("Configuration injected successfully.\nPlease restart Claude Desktop."))
+        if success:
+            QMessageBox.information(self, self.tr("Success"), msg)
+            self.save_settings()  # Save CLI params
+            self.append_log(f"INFO: {msg}")
+        else:
+            # Check error type and show appropriate dialog
+            if "not found" in msg.lower():
+                self.show_cli_not_found_dialog()
             else:
-                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update configuration file."))
+                QMessageBox.critical(self, self.tr("Error"), msg)
+            self.append_log(f"ERROR: {msg}")
+
+    def show_cli_not_found_dialog(self):
+        """Show dialog when Claude CLI is not found."""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle(self.tr("Claude CLI Not Found"))
+        msg.setText(self.tr("Claude CLI is required to use this feature."))
+        msg.setInformativeText(
+            self.tr(
+                "Installation Options:\n\n"
+                "1. Using npm (recommended):\n"
+                "   npm install -g @anthropic-ai/claude-code\n\n"
+                "2. Using pip:\n"
+                "   pip install claude-code\n\n"
+                "After installation, restart this application."
+            )
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
 
     def show_cwd_history(self):
         """Show history directory selection menu"""
