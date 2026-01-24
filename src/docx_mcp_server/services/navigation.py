@@ -176,10 +176,18 @@ class PositionResolver:
         if mode not in ["after", "before", "inside", "start", "end"]:
              raise ValueError(f"Invalid position mode: '{mode}'. Supported: after, before, inside, start, end")
 
-        target_obj = self.session.get_object(target_id)
+        # Resolve special IDs first
+        try:
+            resolved_id = self.session.resolve_special_id(target_id)
+        except ValueError as e:
+            # Re-raise with position context
+            raise ValueError(f"Position resolution failed: {str(e)}")
+
+        # Get the target object using resolved ID
+        target_obj = self.session.get_object(resolved_id)
         if not target_obj:
-             # Try getting it directly if it's special ID like document_body (though unlikely in v2)
-             if target_id == "document_body":
+             # Try getting it directly if it's special ID like document_body
+             if resolved_id == "document_body":
                  target_obj = self.session.document
              else:
                  raise ValueError(f"Target element '{target_id}' not found")

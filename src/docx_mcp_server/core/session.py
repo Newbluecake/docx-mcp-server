@@ -31,6 +31,9 @@ class Session:
     element_metadata: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     last_created_id: Optional[str] = None
     last_accessed_id: Optional[str] = None
+    # Special position IDs tracking
+    last_insert_id: Optional[str] = None
+    last_update_id: Optional[str] = None
     auto_save: bool = False
     backup_on_save: bool = False
     backup_dir: Optional[str] = None
@@ -61,6 +64,9 @@ class Session:
         self.last_accessed_id = element_id
         if action == "create":
             self.last_created_id = element_id
+            self.last_insert_id = element_id
+        elif action == "update":
+            self.last_update_id = element_id
         logger.debug(f"Context updated: element_id={element_id}, action={action}")
 
         # Trigger auto-save if enabled
@@ -112,6 +118,61 @@ class Session:
         """Get current context without popping."""
         return self.context_stack[-1] if self.context_stack else None
 
+    def resolve_special_id(self, special_id: str) -> str:
+        """Resolve special position IDs to actual element IDs.
+
+        Supports:
+        - last_insert: Last created element
+        - last_update: Last updated element
+        - cursor: Current cursor position
+        - current: Alias for cursor
+        - document_body: Special ID for document body
+
+        Args:
+            special_id: The ID to resolve (case-insensitive)
+
+        Returns:
+            Resolved element ID or original ID if not a special ID (trimmed)
+
+        Raises:
+            ValueError: If special ID cannot be resolved
+        """
+        # Normalize to lowercase and trim for case-insensitive matching
+        normalized_id = special_id.lower().strip()
+
+        # Check if it's a special ID
+        if normalized_id == "last_insert":
+            if not self.last_insert_id:
+                raise ValueError(
+                    "Special ID 'last_insert' is not available. "
+                    "No element has been created yet in this session."
+                )
+            return self.last_insert_id
+
+        elif normalized_id == "last_update":
+            if not self.last_update_id:
+                raise ValueError(
+                    "Special ID 'last_update' is not available. "
+                    "No element has been updated yet in this session."
+                )
+            return self.last_update_id
+
+        elif normalized_id in ("cursor", "current"):
+            if not self.cursor.element_id:
+                raise ValueError(
+                    f"Special ID '{normalized_id}' is not available. "
+                    "Cursor has not been positioned yet."
+                )
+            return self.cursor.element_id
+
+        elif normalized_id == "document_body":
+            # document_body is a special ID that doesn't resolve to an element
+            # It's handled specially by PositionResolver
+            return "document_body"
+
+        # Not a special ID, return trimmed original
+        return special_id.strip()
+
     def get_object(self, obj_id: str) -> Optional[Any]:
         if not obj_id or not isinstance(obj_id, str):
             return None
@@ -120,7 +181,14 @@ class Session:
         # This handles cases where LLM returns "id\n\nContext..."
         clean_id = obj_id.strip().split()[0] if obj_id.strip() else ""
 
-        return self.object_registry.get(clean_id)
+        # Resolve special IDs (may raise ValueError)
+        try:
+            resolved_id = self.resolve_special_id(clean_id)
+        except ValueError:
+            # Let the ValueError propagate to the caller
+            raise
+
+        return self.object_registry.get(resolved_id)
 
     def _get_element_id(self, element: Any, auto_register: bool = True) -> Optional[str]:
         """Get element ID from cache, optionally auto-register if not found.

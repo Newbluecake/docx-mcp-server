@@ -11,6 +11,19 @@ from typing import Optional, Any
 logger = logging.getLogger(__name__)
 
 
+# Error suggestions for common error types
+ERROR_SUGGESTIONS = {
+    "SessionNotFound": "Check that the session ID is correct and the session has not expired.",
+    "ElementNotFound": "Verify that the element ID exists and has not been deleted.",
+    "InvalidElementType": "Ensure you are using the correct tool for the element type.",
+    "ValidationError": "Check that all parameters meet the required format and constraints.",
+    "FileNotFound": "Verify that the file path is correct and the file exists.",
+    "CreationError": "Check the operation parameters and try again.",
+    "UpdateError": "Verify that the element can be updated and parameters are valid.",
+    "SpecialIDNotAvailable": "Make sure you have performed the required operation before using this special ID.",
+}
+
+
 def create_markdown_response(
     session,
     message: str,
@@ -138,6 +151,11 @@ def create_error_response(message: str, error_type: Optional[str] = None) -> str
         lines.append(f"**Error Type**: {error_type}")
 
     lines.append(f"**Message**: {message}")
+
+    # Add suggestion if available for this error type
+    if error_type and error_type in ERROR_SUGGESTIONS:
+        lines.append("")
+        lines.append(f"**Suggestion**: {ERROR_SUGGESTIONS[error_type]}")
 
     return "\n".join(lines)
 
