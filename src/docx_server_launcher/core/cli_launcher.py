@@ -89,3 +89,36 @@ class CLILauncher:
         except Exception as e:
             # Logging setup failure shouldn't block initialization
             print(f"Warning: Failed to setup logger: {e}")
+
+    def is_claude_cli_available(self) -> Tuple[bool, str]:
+        """
+        Check if Claude CLI is installed.
+
+        Uses caching to avoid repeated filesystem lookups (5-minute TTL).
+
+        Returns:
+            Tuple of (is_available, path_or_error_message)
+            - If available: (True, "/path/to/claude")
+            - If not available: (False, "Claude CLI not found in PATH")
+        """
+        now = time.time()
+
+        # Check cache
+        if self._cli_path_cache and self._cache_time:
+            if now - self._cache_time < self._cache_ttl:
+                return True, self._cli_path_cache
+
+        # Perform detection
+        cli_path = shutil.which("claude")
+
+        if cli_path:
+            # Update cache
+            self._cli_path_cache = cli_path
+            self._cache_time = now
+            return True, cli_path
+        else:
+            # Clear cache on failure
+            self._cli_path_cache = None
+            self._cache_time = None
+            return False, "Claude CLI not found in PATH"
+
