@@ -117,10 +117,10 @@ def resolve_special_id(self, special_id: str) -> str:
     Resolve special ID to concrete element_id.
 
     Args:
-        special_id: One of "last_insert", "last_update", "cursor", "current"
+        special_id: One of "last_insert", "last_update", "cursor", "current", "document_body"
 
     Returns:
-        Concrete element_id (e.g., "para_abc123")
+        Concrete element_id (e.g., "para_abc123") or special marker (e.g., "document_body")
 
     Raises:
         ValueError: If special ID cannot be resolved
@@ -131,7 +131,8 @@ def resolve_special_id(self, special_id: str) -> str:
         if not self.last_insert_id:
             raise ValueError(
                 "Special ID 'last_insert' not available: "
-                "no insert operation in this session"
+                "no insert operation in this session. "
+                "Try using docx_insert_paragraph() or docx_insert_table() first."
             )
         return self.last_insert_id
 
@@ -139,7 +140,8 @@ def resolve_special_id(self, special_id: str) -> str:
         if not self.last_update_id:
             raise ValueError(
                 "Special ID 'last_update' not available: "
-                "no update operation in this session"
+                "no update operation in this session. "
+                "Try using docx_update_paragraph_text() or docx_set_font() first."
             )
         return self.last_update_id
 
@@ -147,9 +149,14 @@ def resolve_special_id(self, special_id: str) -> str:
         if not self.cursor.element_id:
             raise ValueError(
                 "Special ID 'cursor' not available: "
-                "cursor not initialized"
+                "cursor not initialized. "
+                "Try using docx_cursor_move() first."
             )
         return self.cursor.element_id
+
+    elif special_id_lower == "document_body":
+        # Special marker for document body
+        return "document_body"
 
     else:
         # Not a special ID, return as-is
@@ -167,12 +174,21 @@ def get_object(self, obj_id: str) -> Optional[Any]:
     clean_id = obj_id.strip().split()[0] if obj_id.strip() else ""
 
     # NEW: Try to resolve special ID first
-    try:
-        resolved_id = self.resolve_special_id(clean_id)
-    except ValueError:
-        # If resolution fails, it will be caught by caller
-        # For now, just propagate the exception
-        raise
+    # IMPORTANT: Only resolve if it's actually a special ID to maintain backward compatibility
+    if clean_id.lower() in ("last_insert", "last_update", "cursor", "current", "document_body"):
+        try:
+            resolved_id = self.resolve_special_id(clean_id)
+        except ValueError:
+            # Special ID cannot be resolved, propagate exception
+            # Caller should handle this with appropriate error response
+            raise
+    else:
+        # Not a special ID, use as-is
+        resolved_id = clean_id
+
+    # Handle document_body special case
+    if resolved_id == "document_body":
+        return self.document
 
     return self.object_registry.get(resolved_id)
 ```
@@ -195,6 +211,37 @@ def update_context(self, element_id: str, action: str = "access"):
 
     # ... rest of auto-save logic ...
 ```
+
+#### 3.1.5 update_context() 调用规范
+
+为确保实施时的一致性，以下是各工具应该使用的 action 参数：
+
+| 操作类型 | action 参数 | 更新的字段 |
+|---------|------------|-----------|
+| `docx_insert_paragraph` | `"create"` | `last_insert_id`, `last_created_id` |
+| `docx_insert_run` | `"create"` | `last_insert_id`, `last_created_id` |
+| `docx_insert_table` | `"create"` | `last_insert_id`, `last_created_id` |
+| `docx_insert_heading` | `"create"` | `last_insert_id`, `last_created_id` |
+| `docx_update_paragraph_text` | `"update"` | `last_update_id` |
+| `docx_update_run_text` | `"update"` | `last_update_id` |
+| `docx_set_font` | `"update"` | `last_update_id` |
+| `docx_set_alignment` | `"update"` | `last_update_id` |
+| `docx_copy_paragraph` | `"create"` | `last_insert_id` (复制产生新元素) |
+| `docx_copy_table` | `"create"` | `last_insert_id` (复制产生新元素) |
+| `docx_format_copy` | `"update"` | `last_update_id` (修改目标元素) |
+
+**判断原则**：
+- 如果操作创建新元素 → `action="create"`
+- 如果操作修改现有元素 → `action="update"`
+- 如果操作只读取元素 → `action="access"` (默认)
+
+**删除操作的特殊处理**：
+`docx_delete()` 工具不应修改 `last_insert_id` 或 `last_update_id`。这些指针保持不变，即使指向的元素已被删除。
+
+理由：
+1. 保持简单性：不需要维护历史栈或回退逻辑
+2. 明确的错误：后续使用会得到清晰的 "ElementNotFound" 错误
+3. 符合需求：R-006 明确要求此行为
 
 ### 3.2 PositionResolver 增强
 
@@ -221,19 +268,18 @@ def resolve(self, position_str: Optional[str], default_parent=None):
     if mode not in ["after", "before", "inside", "start", "end"]:
          raise ValueError(f"Invalid position mode: '{mode}'. Supported: after, before, inside, start, end")
 
-    # NEW: Resolve special ID before lookup
+    # NEW: Let get_object() handle special ID resolution
+    # This avoids duplicate resolution logic
     try:
-        resolved_id = self.session.resolve_special_id(target_id)
+        target_obj = self.session.get_object(target_id)
     except ValueError as e:
-        # Re-raise with context
-        raise ValueError(f"Position resolution failed: {e}")
+        # Catch special ID resolution errors and add position context
+        if "Special ID" in str(e):
+            raise ValueError(f"Position resolution failed: {e}")
+        raise
 
-    target_obj = self.session.get_object(resolved_id)
     if not target_obj:
-         if resolved_id == "document_body":
-             target_obj = self.session.document
-         else:
-             raise ValueError(f"Target element '{resolved_id}' not found")
+        raise ValueError(f"Target element '{target_id}' not found")
 
     # ... rest of resolution logic unchanged ...
 ```
@@ -292,9 +338,47 @@ def docx_some_tool(session_id: str, element_id: str, ...):
 - `advanced_tools.py`: `docx_replace_text`, `docx_insert_image`
 - `copy_tools.py`: `docx_get_element_source`, `docx_copy_elements_range`
 
-### 3.4 响应格式
+### 3.4 响应格式增强
 
-**成功响应**（无变化）:
+**文件**: `src/docx_mcp_server/core/response.py`
+
+#### 3.4.1 添加 ERROR_SUGGESTIONS 字典
+
+```python
+# 在 response.py 中添加
+ERROR_SUGGESTIONS = {
+    "SpecialIDNotAvailable": "Make sure you have performed the required operation before using this special ID.",
+    "SessionNotFound": "The session may have expired. Create a new session with docx_create().",
+    "ElementNotFound": "The element may have been deleted. Verify the element ID is correct.",
+    # ... 其他错误类型 ...
+}
+
+def create_error_response(message: str, error_type: Optional[str] = None) -> str:
+    """Create standardized error response in Markdown format."""
+    lines = []
+    lines.append("# 操作结果: Error")
+    lines.append("")
+    lines.append("**Status**: ❌ Error")
+
+    if error_type:
+        lines.append(f"**Error Type**: {error_type}")
+
+    lines.append(f"**Message**: {message}")
+
+    # 添加建议（如果有）
+    if error_type and error_type in ERROR_SUGGESTIONS:
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("## 💡 Suggestion")
+        lines.append("")
+        lines.append(ERROR_SUGGESTIONS[error_type])
+
+    return "\\n".join(lines)
+```
+
+#### 3.4.2 成功响应（无变化）
+
 ```markdown
 # 操作结果: Insert Paragraph
 
@@ -309,19 +393,20 @@ def docx_some_tool(session_id: str, element_id: str, ...):
 ...
 ```
 
-**新增错误类型**:
+#### 3.4.3 新增错误类型示例
+
 ```markdown
 # 操作结果: Error
 
 **Status**: ❌ Error
 **Error Type**: SpecialIDNotAvailable
-**Message**: Special ID 'last_insert' not available: no insert operation in this session
+**Message**: Special ID 'last_insert' not available: no insert operation in this session. Try using docx_insert_paragraph() or docx_insert_table() first.
 
 ---
 
 ## 💡 Suggestion
 
-Make sure you have performed an insert operation before using `last_insert`.
+Make sure you have performed the required operation before using this special ID.
 ```
 
 ---
