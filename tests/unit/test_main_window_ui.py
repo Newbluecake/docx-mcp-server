@@ -2,8 +2,18 @@
 Unit tests for MainWindow UI changes (T-008).
 """
 
+import os
 import pytest
-from PyQt6.QtWidgets import QApplication, QLineEdit, QPushButton, QLabel
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+try:
+    from PyQt6.QtWidgets import QApplication, QLineEdit, QPushButton, QLabel
+except ImportError as exc:  # pragma: no cover - environment-specific
+    pytest.skip(
+        f"PyQt6 not available ({exc})",
+        allow_module_level=True,
+    )
 from docx_server_launcher.gui.main_window import MainWindow
 
 

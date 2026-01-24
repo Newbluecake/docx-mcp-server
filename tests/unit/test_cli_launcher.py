@@ -3,6 +3,7 @@ Unit tests for CLILauncher module.
 """
 
 import json
+import sys
 import pytest
 import subprocess
 import time
@@ -405,6 +406,10 @@ class TestLaunchLogging:
         assert handler.maxBytes == 10 * 1024 * 1024
         assert handler.backupCount == 3
 
+    @pytest.mark.skipif(
+        sys.platform.startswith("win"),
+        reason="Windows does not expose POSIX permission bits reliably",
+    )
     def test_log_file_permissions(self, tmp_path):
         """Test that log file has correct permissions."""
         launcher = CLILauncher(log_dir=str(tmp_path))
@@ -550,7 +555,6 @@ class TestSecurityValidation:
 
             assert success is False
             assert "invalid character" in msg.lower() or ";" in msg
-
 
 
 
