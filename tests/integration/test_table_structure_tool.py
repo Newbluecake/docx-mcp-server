@@ -3,6 +3,14 @@ Integration tests for docx_get_table_structure tool.
 """
 
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import json
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
 from docx_mcp_server.tools.table_tools import (
@@ -13,7 +21,10 @@ from docx_mcp_server.tools.table_tools import (
 
 def test_get_table_structure():
     """Test getting table structure."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
+    assert session_id is not None
 
     try:
         # Create a table
@@ -23,14 +34,14 @@ def test_get_table_structure():
 
         # Get structure
         result = docx_get_table_structure(session_id, table_id)
-        data = json.loads(result)
-
-        assert data["status"] == "success"
-        assert "ascii_visualization" in data["data"]
-        assert "structure_info" in data["data"]
-        assert data["data"]["rows"] == 3
-        assert data["data"]["cols"] == 3
-        assert "Table: 3 rows x 3 cols" in data["data"]["ascii_visualization"]
+        assert is_success(result)
+        struct_meta = extract_all_metadata(result)
+        assert "ascii_visualization" in struct_meta
+        assert "structure_info" in struct_meta
+        assert struct_meta.get("rows") == 3
+        assert struct_meta.get("cols") == 3
+        ascii_vis = struct_meta.get("ascii_visualization", "")
+        assert "Table: 3 rows x 3 cols" in ascii_vis
 
     finally:
         docx_close(session_id)

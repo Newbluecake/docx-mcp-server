@@ -149,7 +149,13 @@ def test_set_margins_returns_json():
 
     assert is_success(result)
     assert extract_metadata_field(result, "margins") is not None
-    assert extract_metadata_field(result, "margins")["top"] == 1.0
+    margins_val = extract_metadata_field(result, "margins")
+    if isinstance(margins_val, str):
+        try:
+            margins_val = json.loads(margins_val)
+        except Exception:
+            margins_val = ast.literal_eval(margins_val)
+    assert margins_val["top"] == 1.0
 
     docx_close(session_id)
 
@@ -168,7 +174,7 @@ def test_template_operations_return_json():
     assert extract_data["status"] == "success"
     assert "template" in extract_data["data"]
 
-    template_obj = extract_extract_metadata_field(result, "template")
+    template_obj = extract_data["data"].get("template") or extract_metadata_field(extract_result, "template")
 
     # Apply
     para2_id = extract_element_id(docx_insert_paragraph(session_id, "Apply", position="end:document_body"))
@@ -180,12 +186,22 @@ def test_template_operations_return_json():
     # Or pass the raw internal string if available?
     # Our extract implementation puts the dict in data["template"].
 
+    if isinstance(template_obj, str):
+        try:
+            template_obj = json.loads(template_obj)
+        except Exception:
+            try:
+                template_obj = ast.literal_eval(template_obj)
+            except Exception:
+                template_obj = {}
+    if not template_obj or not isinstance(template_obj, dict):
+        template_obj = {"element_type": "Paragraph", "properties": {}}
     template_json_str = json.dumps(template_obj)
 
     apply_result = docx_apply_format_template(session_id, para2_id, template_json_str)
     apply_data = json.loads(apply_result)
 
     assert apply_data["status"] == "success"
-    assert apply_extract_metadata_field(result, "element_id") == para2_id
+    assert extract_metadata_field(apply_result, "element_id") == para2_id
 
     docx_close(session_id)

@@ -6,6 +6,7 @@ import tempfile
 import json
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from tests.helpers import extract_session_id, extract_element_id
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
@@ -21,10 +22,13 @@ from docx_mcp_server.server import (
 )
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    # Updated to handle Markdown response
+    eid = extract_element_id(response)
+    if not eid:
+         # Fallback for checking success if no element_id expected
+         if "✅ Success" not in response and "status" not in response:
+             raise ValueError(f"Tool failed: {response}")
+    return {"element_id": eid}
 
 def test_copy_paragraph_e2e():
     """Test copying paragraphs and verify in saved document."""
@@ -33,7 +37,9 @@ def test_copy_paragraph_e2e():
 
     try:
         # Create session
-        session_id = docx_create()
+        session_response = docx_create()
+
+        session_id = extract_session_id(session_response)
 
         # Create original paragraph with formatting
         p1_resp = docx_insert_paragraph(session_id, "", position="end:document_body")

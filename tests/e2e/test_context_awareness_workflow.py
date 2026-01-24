@@ -1,6 +1,15 @@
 """E2E test for Cursor Context Awareness workflow."""
 
 import pytest
+import ast
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import re
 import json
 from docx_mcp_server.tools.session_tools import docx_create
@@ -11,14 +20,41 @@ from docx_mcp_server.tools.cursor_tools import docx_cursor_move
 from docx_mcp_server.server import session_manager
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data
+    if not is_success(response):
+        raise ValueError(f"Tool failed: {response}")
+
+    metadata = extract_all_metadata(response)
+
+    # Parse cursor if it's a string representation of a dict
+    if 'cursor' in metadata and isinstance(metadata['cursor'], str):
+        try:
+            metadata['cursor'] = ast.literal_eval(metadata['cursor'])
+        except (ValueError, SyntaxError):
+            pass
+
+    # Extract visual context from Markdown body if not already in metadata
+    if 'cursor' not in metadata or not isinstance(metadata.get('cursor'), dict):
+        if "## 📄 Document Context" in response:
+            parts = response.split("## 📄 Document Context")
+            if len(parts) > 1:
+                visual = parts[1].strip()
+                if 'cursor' not in metadata:
+                    metadata['cursor'] = {}
+                elif not isinstance(metadata['cursor'], dict):
+                    # Should not happen if logic above is correct, but safe guard
+                    metadata['cursor'] = {}
+
+                metadata['cursor']['visual'] = visual
+                metadata['cursor']['context'] = visual
+
+    return {"data": metadata}
 
 def test_context_awareness_workflow():
     # 1. Create a new document
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
+    assert session_id is not None
 
     # 2. Add Title (Heading)
     h1_resp = docx_insert_heading(session_id, "Project Report", position="end:document_body", level=1)
@@ -87,8 +123,8 @@ def test_context_awareness_workflow():
     # 9. Format the run
     fmt_resp = docx_set_font(session_id, run_id, bold=True)
     fmt_data = _extract(fmt_resp)
-
-    assert fmt_data["message"] == "Font updated successfully"
+    assert "element_id" in fmt_data["data"]
+    assert fmt_data["data"].get("element_id") == run_id
     assert "changed_properties" in fmt_data["data"]
 
     print("\n✅ E2E Workflow Completed Successfully")

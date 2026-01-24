@@ -47,12 +47,10 @@ def test_create_change_tracked_response():
 
     data = json.loads(response)
 
-    assert is_success(result)
-    assert data["message"] == "Updated successfully"
-    assert extract_metadata_field(result, "element_id") == "para_123"
-    assert extract_metadata_field(result, "changes") is not None
-    assert extract_metadata_field(result, "changes")["before"]["text"] == "old text"
-    assert extract_metadata_field(result, "commit_id") == "commit-456"
+    assert is_success(response)
+    assert extract_metadata_field(response, "element_id") == "para_123"
+    assert "old text" in response
+    assert extract_metadata_field(response, "commit_id") == "commit-456"
 
 
 def test_change_tracked_response_with_extra_data():
@@ -72,9 +70,9 @@ def test_change_tracked_response_with_extra_data():
 
     data = json.loads(response)
 
-    assert is_success(result)
-    assert extract_metadata_field(result, "custom_field") == "custom_value"
-    assert extract_metadata_field(result, "another_field") == 123
+    assert is_success(response)
+    assert extract_metadata_field(response, "custom_field") == "custom_value"
+    assert extract_metadata_field(response, "another_field") == 123
 
 
 def test_backward_compatibility():
@@ -87,6 +85,6 @@ def test_backward_compatibility():
 
     data = json.loads(response)
 
-    assert is_success(result)
-    assert extract_metadata_field(result, "element_id") == "elem_123"
-    assert extract_metadata_field(result, "custom_data") == "value"
+    assert is_success(response)
+    assert extract_metadata_field(response, "element_id") == "elem_123"
+    assert extract_metadata_field(response, "custom_data") == "value"

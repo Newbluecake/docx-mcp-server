@@ -316,8 +316,12 @@ def docx_set_font(
             operation="Operation",
             show_context=True,
             element_id=run_id,
-            changed_properties=changed
-        
+            changed_properties=changed,
+            bold=font.bold,
+            italic=font.italic,
+            size=font.size.pt if font.size else None,
+            color_hex=color_hex if color_hex else None,
+            color=color_hex if color_hex else None
         )
     except Exception as e:
         logger.exception(f"docx_set_font failed: {e}")

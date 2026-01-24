@@ -3,6 +3,14 @@ Integration tests for enhanced docx_fill_table with irregular table support.
 """
 
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import json
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
 from docx_mcp_server.tools.table_tools import (
@@ -13,7 +21,10 @@ from docx_mcp_server.tools.table_tools import (
 
 def test_fill_regular_table():
     """Test filling regular table."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
+    assert session_id is not None
 
     try:
         # Create table
@@ -28,13 +39,12 @@ def test_fill_regular_table():
             ["A3", "B3"]
         ])
         result = docx_fill_table(session_id, fill_data, table_id=table_id)
-        data = json.loads(result)
-
-        assert data["status"] == "success"
-        assert data["data"]["rows_filled"] == 3
-        assert "filled_range" in data["data"]
-        assert "skipped_regions" in data["data"]
-        assert len(data["data"]["skipped_regions"]) == 0
+        assert is_success(result)
+        fill_meta = extract_all_metadata(result)
+        assert fill_meta.get("rows_filled") == 3
+        assert "filled_range" in fill_meta
+        assert "skipped_regions" in fill_meta
+        assert len(fill_meta.get("skipped_regions", [])) == 0
 
     finally:
         docx_close(session_id)

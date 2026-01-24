@@ -1,4 +1,12 @@
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import os
 import json
 from docx_mcp_server.server import (
@@ -18,15 +26,15 @@ from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    if not is_success(response):
+        raise ValueError(f"Tool failed: {response}")
+    return extract_all_metadata(response)
 
 @pytest.fixture
 def session_id():
     # Setup
-    sid = docx_create(auto_save=False)
+    session_response = docx_create(auto_save=False)
+    sid = extract_session_id(session_response)
     yield sid
     # Teardown
     docx_close(sid)

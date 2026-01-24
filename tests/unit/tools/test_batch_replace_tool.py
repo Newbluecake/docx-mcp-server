@@ -35,8 +35,8 @@ def test_docx_batch_replace_tool():
 
     # Execute batch replace
     result = docx_batch_replace_text(session_id, replacements_json)
-
-    assert "Replaced 3 occurrences" in result
+    assert is_success(result)
+    assert extract_metadata_field(result, "replacements") == 3
 
     # Verify content (using read_content for simplicity, though it loses structure)
     from docx_mcp_server.server import docx_read_content

@@ -1,4 +1,14 @@
 import pytest
+import ast
+import re
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import os
 import json
 from docx import Document
@@ -22,7 +32,8 @@ class TestLoadEditE2E:
         doc.save(str(initial_doc_path))
 
         # 2. Load the document
-        session_id = docx_create(file_path=str(initial_doc_path))
+        session_response = docx_create(file_path=str(initial_doc_path))
+        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # 3. Read content to confirm
@@ -30,15 +41,42 @@ class TestLoadEditE2E:
         assert "Target: This needs editing." in content
 
         # 4. Find specific paragraph
-        results_json = docx_find_paragraphs(session_id, "Target:")
-        results = json.loads(results_json)
+        results_resp = docx_find_paragraphs(session_id, "Target:")
+        results = []
+        if is_success(results_resp):
+            meta = extract_all_metadata(results_resp)
+            if 'paragraphs' in meta:
+                val = meta['paragraphs']
+                if isinstance(val, str):
+                    try:
+                        results = json.loads(val)
+                    except Exception:
+                        try:
+                            results = ast.literal_eval(val)
+                        except Exception:
+                            results = []
+                else:
+                    results = val or []
+        else:
+            # Legacy behavior: tool may return a raw JSON list
+            try:
+                results = json.loads(results_resp)
+            except Exception:
+                match = re.search(r'\[.*\]', results_resp, re.DOTALL)
+                if match:
+                    try:
+                        results = json.loads(match.group(0))
+                    except Exception:
+                        results = []
+
         assert len(results) == 1
         para_id = results[0]["id"]
 
         # 5. Edit (Append text)
         result = docx_insert_run(session_id, " [EDITED]", position=f"inside:{para_id}")
-        run_data = json.loads(result)
-        run_id = run_data["data"]["element_id"]
+        assert is_success(result)
+        run_id = extract_element_id(result)
+        assert run_id is not None
 
         # 6. Style the new run
         docx_set_font(session_id, run_id, bold=True, color_hex="FF0000")

@@ -5,6 +5,7 @@ for all tools, replacing the previous JSON-based format.
 """
 
 import logging
+import json
 from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,17 @@ def create_markdown_response(
 
         diff_renderer = DiffRenderer()
         element_type = extra_metadata.get('element_type', 'Paragraph')
+        # Normalize non-string content for diff rendering
+        if not isinstance(old_content, str):
+            try:
+                old_content = json.dumps(old_content, ensure_ascii=False, indent=2)
+            except Exception:
+                old_content = str(old_content)
+        if not isinstance(new_content, str):
+            try:
+                new_content = json.dumps(new_content, ensure_ascii=False, indent=2)
+            except Exception:
+                new_content = str(new_content)
         diff_output = diff_renderer.render_diff(
             old_content, new_content,
             element_id or "unknown", element_type
@@ -213,5 +225,6 @@ def create_change_tracked_response(
         show_diff=show_diff,
         old_content=old_content,
         new_content=new_content,
+        changes=changes,
         **extra_data
     )

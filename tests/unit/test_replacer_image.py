@@ -74,7 +74,7 @@ def test_context_and_delete():
 
     # Check context
     ctx = docx_get_context(sid)
-    assert "last_created_id" in ctx
+    assert extract_metadata_field(ctx, "last_created_id") is not None
 
     # Delete something
     # Mock an object with _element for deletion logic

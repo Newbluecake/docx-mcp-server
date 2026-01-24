@@ -1,4 +1,11 @@
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 import json
 import re
 from unittest.mock import MagicMock, patch
@@ -29,14 +36,8 @@ def _extract_element_id(response):
 
 def _extract_session_id(response):
     """Extract session_id from Markdown response."""
-    # Try to extract from Markdown format: **Session Id**: xxx
-    match = re.search(r'\*\*Session Id\*\*:\s*(\S+)', response)
-    if match:
-        return match.group(1)
-    # Fallback: return as-is if it looks like a session ID (short alphanumeric string)
-    if isinstance(response, str) and len(response) < 100 and '\n' not in response:
-        return response.strip()
-    return None
+    sid = extract_session_id(response)
+    return sid
 
 
 def test_create_with_autosave(tmp_path):
@@ -44,6 +45,7 @@ def test_create_with_autosave(tmp_path):
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
         response = docx_create(file_path=test_file, auto_save=True)
         sid = _extract_session_id(response)
+        assert sid is not None
         session = session_manager.get_session(sid)
         assert session.auto_save is True
         assert session.file_path == test_file
@@ -52,6 +54,7 @@ def test_implicit_context_flow():
     # 1. Create session
     response = docx_create()
     sid = _extract_session_id(response)
+    assert sid is not None
     session = session_manager.get_session(sid)
 
     # 2. Add paragraph (should set last_created_id)
@@ -75,6 +78,7 @@ def test_set_properties_flow():
     sid = _extract_session_id(response)
     p_response = docx_insert_paragraph(sid, "Test Prop", position="end:document_body")
     p_id = _extract_element_id(p_response)
+    assert sid is not None
 
     # Set alignment via properties
     props = json.dumps({
@@ -89,6 +93,7 @@ def test_set_properties_flow():
 def test_set_properties_implicit_context():
     response = docx_create()
     sid = _extract_session_id(response)
+    assert sid is not None
     p_response = docx_insert_paragraph(sid, "Context Test", position="end:document_body")
     p_id = _extract_element_id(p_response)
 

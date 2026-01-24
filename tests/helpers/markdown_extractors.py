@@ -6,6 +6,7 @@ from Markdown-formatted tool responses.
 
 import re
 import json
+import ast
 from typing import Optional, Dict, Any
 
 
@@ -60,12 +61,13 @@ def extract_element_id(response: str) -> Optional[str]:
         return match.group(1)
 
     # Fallback: try JSON format (legacy compatibility)
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
-            return data["data"]["element_id"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        pass
+    if isinstance(response, str) and response.lstrip().startswith(('{', '[')):
+        try:
+            data = json.loads(response)
+            if isinstance(data, dict) and "data" in data and "element_id" in data["data"]:
+                return data["data"]["element_id"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
 
     return response if isinstance(response, str) and response.startswith(('para_', 'run_', 'table_', 'cell_')) else None
 
@@ -90,13 +92,14 @@ def extract_status(response: str) -> str:
     if '❌ Error' in response or '**Status**: error' in response.lower():
         return 'error'
 
-    # Fallback: try JSON format
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "status" in data:
-            return data["status"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        pass
+    # Fallback: try JSON format only if it looks like JSON
+    if isinstance(response, str) and response.lstrip().startswith(('{', '[')):
+        try:
+            data = json.loads(response)
+            if isinstance(data, dict) and "status" in data:
+                return data["status"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
 
     return 'unknown'
 
@@ -214,6 +217,17 @@ def extract_all_metadata(response: str) -> Dict[str, Any]:
         if value.lower() in ('true', 'false'):
             metadata[key] = value.lower() == 'true'
         else:
+            # Try JSON/literal for complex types
+            if (value.startswith('{') and value.endswith('}')) or (value.startswith('[') and value.endswith(']')):
+                try:
+                    metadata[key] = json.loads(value)
+                    continue
+                except Exception:
+                    try:
+                        metadata[key] = ast.literal_eval(value)
+                        continue
+                    except Exception:
+                        pass
             try:
                 metadata[key] = int(value)
             except ValueError:
@@ -263,13 +277,14 @@ def extract_error_message(response: str) -> Optional[str]:
     if match:
         return match.group(1).strip()
 
-    # Fallback: try JSON format
-    try:
-        data = json.loads(response)
-        if isinstance(data, dict) and "message" in data:
-            return data["message"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        pass
+    # Fallback: try JSON format if it looks like JSON
+    if isinstance(response, str) and response.lstrip().startswith(('{', '[')):
+        try:
+            data = json.loads(response)
+            if isinstance(data, dict) and "message" in data:
+                return data["message"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
 
     return None
 

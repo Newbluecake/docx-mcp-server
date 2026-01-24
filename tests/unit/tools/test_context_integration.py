@@ -32,12 +32,13 @@ def test_paragraph_context():
     assert is_success(result1)
     element_id1 = extract_element_id(result1)
     assert "para_" in element_id1
-    assert extract_metadata_field(result1, "cursor") is not None
+    # Document context is included in body; cursor metadata may be visual only
+    assert "Document Context" in result1
 
     # Add second paragraph
     result2 = docx_insert_paragraph(session_id, "Second paragraph", position="end:document_body")
     assert is_success(result2)
-    assert extract_metadata_field(result2, "cursor") is not None
+    assert "Document Context" in result2
 
 
 def test_heading_context():
@@ -116,7 +117,7 @@ def test_cursor_tools_context():
     # Move cursor
     move_result = docx_cursor_move(session_id, para_id, "after")
     assert is_success(move_result)
-    assert extract_metadata_field(move_result, "cursor") is not None
+    assert "Document Context" in move_result
 
     # Get cursor info
     get_result = docx_cursor_get(session_id)

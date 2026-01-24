@@ -1,4 +1,13 @@
 import pytest
+import ast
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import json
 import tempfile
 import os
@@ -20,10 +29,19 @@ def temp_image():
         os.unlink(path)
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    if not is_success(response):
+        raise ValueError(f"Tool failed: {response}")
+
+    metadata = extract_all_metadata(response)
+
+    # Parse cursor if it's a string representation
+    if 'cursor' in metadata and isinstance(metadata['cursor'], str):
+        try:
+            metadata['cursor'] = ast.literal_eval(metadata['cursor'])
+        except (ValueError, SyntaxError):
+            pass
+
+    return metadata
 
 def test_complex_navigation_scenario(temp_image):
     """
@@ -42,7 +60,9 @@ def test_complex_navigation_scenario(temp_image):
     [3] Intro
     [4] Conclusion
     """
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # 1. Add Intro
     intro_data = _extract(docx_insert_paragraph(session_id, "Intro Paragraph", position="end:document_body"))

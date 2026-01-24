@@ -112,7 +112,9 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
         new_content=new_text,
         replacements=count,
         affected_paragraphs=affected_paragraphs,
-        scope_id=scope_id
+        scope_id=scope_id,
+        old_text=old_text,
+        new_text=new_text
     )
 
 def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: str = None) -> str:

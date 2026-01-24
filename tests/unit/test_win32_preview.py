@@ -93,7 +93,7 @@ class TestWin32PreviewController(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        mock_app.Documents.Open.assert_called_once_with(file_path)
+        mock_app.Documents.Open.assert_called_once_with(file_path, ReadOnly=True)
         self.assertNotIn(file_path, self.controller._was_open_cache)
 
 if __name__ == "__main__":

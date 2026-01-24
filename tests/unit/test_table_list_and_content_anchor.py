@@ -51,7 +51,8 @@ def test_read_content_start_element_id_skips_prior_blocks():
         docx_insert_paragraph(sid, "p2", position="end:document_body")
 
         anchor_id = extract_element_id(anchor) if isinstance(anchor, str) else anchor
-        result = docx_read_content(sid, start_element_id=anchor_id, return_json=True)
+        result_json = docx_read_content(sid, start_element_id=anchor_id, return_json=True)
+        result = json.loads(result_json)
         texts = [e["text"] for e in result["data"]]
         assert texts[0] == "p1"
         assert len(texts) == 2

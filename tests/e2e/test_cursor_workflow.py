@@ -1,4 +1,11 @@
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 import json
 from docx_mcp_server.tools.session_tools import docx_create
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
@@ -6,14 +13,17 @@ from docx_mcp_server.tools.table_tools import docx_insert_table, docx_get_cell, 
 from docx_mcp_server.server import session_manager
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    eid = extract_element_id(response)
+    if not eid:
+         if "✅ Success" not in response and "status" not in response:
+             raise ValueError(f"Tool failed: {response}")
+    return {"element_id": eid}
 
 def test_cursor_workflow():
     # 1. Create session
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # 2. Add initial content (Para 1, Para 2, Para 3)
     p1_resp = docx_insert_paragraph(session_id, "Paragraph 1", position="end:document_body")
@@ -64,7 +74,9 @@ def test_cursor_workflow():
     assert "P: Paragraph 3" in content_log[5]
 
 def test_cursor_inside_container():
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Create a table
     t1_resp = docx_insert_table(session_id, 1, 1, position="end:document_body")

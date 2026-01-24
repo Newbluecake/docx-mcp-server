@@ -1,6 +1,13 @@
 """End-to-end tests for template extraction feature."""
 import json
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    is_success,
+    is_error
+)
 from docx import Document
 from docx_mcp_server.server import (
     docx_create, docx_extract_template_structure, docx_save, docx_close
@@ -9,7 +16,9 @@ from docx_mcp_server.server import (
 
 def test_extract_complete_template():
     """Test extracting a complete template with all element types."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     # Access the document
     from docx_mcp_server.server import session_manager
@@ -77,7 +86,9 @@ def test_extract_complete_template():
 
 def test_extract_with_header_detection():
     """Test header detection with bold formatting."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
@@ -106,7 +117,9 @@ def test_extract_with_header_detection():
 
 def test_extract_header_detection_fail():
     """Test that tables without detectable headers are skipped."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
 
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)

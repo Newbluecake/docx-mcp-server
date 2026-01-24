@@ -87,5 +87,5 @@ def test_insert_image_in_paragraph_error_handling(temp_image):
     # Invalid position format
     resp = docx_insert_image(session_id, temp_image, position="invalid:format")
     data = json.loads(resp)
-    assert is_error(result)
-    assert extract_metadata_field(result, "error_type") == "ValidationError"
+    assert is_error(resp)
+    assert extract_metadata_field(resp, "error_type") == "ValidationError"

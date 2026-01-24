@@ -5,6 +5,7 @@ import os
 import tempfile
 import json
 from docx import Document
+from tests.helpers import extract_session_id, extract_element_id
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
@@ -26,20 +27,19 @@ def test_update_text_e2e():
 
     try:
         # Create session
-        session_id = docx_create()
+        session_response = docx_create()
+
+        session_id = extract_session_id(session_response)
 
         # Create original content
         result = docx_insert_paragraph(session_id, "Original paragraph 1", position="end:document_body")
-        data = json.loads(result)
-        para1_id = data["data"]["element_id"]
+        para1_id = extract_element_id(result)
 
         result = docx_insert_paragraph(session_id, "", position="end:document_body")
-        data = json.loads(result)
-        para2_id = data["data"]["element_id"]
+        para2_id = extract_element_id(result)
 
         result = docx_insert_run(session_id, "Original run", position=f"inside:{para2_id}")
-        data = json.loads(result)
-        run1_id = data["data"]["element_id"]
+        run1_id = extract_element_id(result)
 
         docx_set_font(session_id, run1_id, bold=True, size=14)
 

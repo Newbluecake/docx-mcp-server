@@ -2,6 +2,8 @@ import unittest
 import os
 import json
 import tempfile
+from tests.helpers import extract_session_id, extract_element_id
+
 from docx_mcp_server.server import (
     docx_create,
     docx_save,
@@ -17,15 +19,19 @@ from docx_mcp_server.server import (
 )
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    eid = extract_element_id(response)
+    if not eid:
+         # Fallback for checking success if no element_id expected
+         if "✅ Success" not in response and "status" not in response:
+             raise ValueError(f"Tool failed: {response}")
+    return {"element_id": eid}
 
 class TestEndToEnd(unittest.TestCase):
     def test_full_document_creation(self):
         # 1. Start Session
-        session_id = docx_create()
+        session_response = docx_create()
+
+        session_id = extract_session_id(session_response)
         self.assertIsNotNone(session_id)
 
         # 2. Add Title
@@ -71,7 +77,9 @@ class TestEndToEnd(unittest.TestCase):
 
         try:
             result = docx_save(session_id, output_path)
-            self.assertIn("saved successfully", result)
+            # Check for success in Markdown response
+            from tests.helpers import is_success
+            self.assertTrue(is_success(result), f"Save failed: {result}")
 
             # Verify file exists and has size
             self.assertTrue(os.path.exists(output_path))

@@ -41,12 +41,9 @@ def test_add_paragraph_position_after():
     assert paras[2].text == "P3"
 
     # Verify Context Response
-    data = json.loads(p2_resp)["data"]
-    assert "cursor" in data
-    assert "visual" in data["cursor"]
-    print(data["cursor"]["visual"])
-    assert "P2" in data["cursor"]["visual"]
-    assert "P1" in data["cursor"]["visual"]
+    assert "Document Context" in p2_resp
+    assert "P2" in p2_resp
+    assert "P1" in p2_resp
 
 def test_add_paragraph_position_before():
     session_response = docx_create()

@@ -294,6 +294,7 @@ class TestToolsWithElementId:
 
         # Verify element_ids are included by default
         assert is_success(result)
+        data = json.loads(result)
         assert "data" in data
         assert len(data["data"]) == 2
         for para in data["data"]:
@@ -312,6 +313,7 @@ class TestToolsWithElementId:
 
         # Verify element_ids are NOT included
         assert is_success(result)
+        data = json.loads(result)
         assert "data" in data
         assert len(data["data"]) == 2
         for para in data["data"]:

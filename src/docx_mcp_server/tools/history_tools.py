@@ -37,8 +37,11 @@ def docx_log(session_id: str, limit: int = 10) -> str:
     try:
         commits = session.get_commit_log(limit=limit)
 
-        return create_success_response(
+        return create_markdown_response(
+            session=session,
             message=f"Retrieved {len(commits)} commit(s)",
+            operation="Log History",
+            show_context=False,
             commits=commits,
             total_commits=len(session.history_stack),
             current_index=session.current_commit_index

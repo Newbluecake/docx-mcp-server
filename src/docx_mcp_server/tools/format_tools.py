@@ -380,8 +380,7 @@ def docx_set_margins(
             operation="Operation",
             show_context=True,
             include_cursor=False,
-            margins={"top": top, "bottom": bottom, "left": left, "right": right}
-        
+            margins=json.dumps({"top": top, "bottom": bottom, "left": left, "right": right})
         )
     except Exception as e:
         logger.exception(f"docx_set_margins failed: {e}")

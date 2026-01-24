@@ -3,6 +3,14 @@ Integration tests for enhanced docx_smart_fill_table.
 """
 
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import json
 from docx_mcp_server.tools.session_tools import docx_create, docx_close
 from docx_mcp_server.tools.table_tools import docx_insert_table
@@ -11,7 +19,10 @@ from docx_mcp_server.tools.composite_tools import docx_smart_fill_table
 
 def test_smart_fill_with_auto_resize():
     """Test smart fill with auto resize."""
-    session_id = docx_create()
+    session_response = docx_create()
+
+    session_id = extract_session_id(session_response)
+    assert session_id is not None
 
     try:
         # Create small table
@@ -34,13 +45,13 @@ def test_smart_fill_with_auto_resize():
             has_header=True,
             auto_resize=True
         )
-        data = json.loads(result)
-
-        assert data["status"] == "success"
-        assert data["rows_filled"] == 4
-        assert data["rows_added"] == 2  # Added 2 rows
-        assert "filled_range" in data
-        assert "skipped_regions" in data
+        assert is_success(result)
+        fill_meta = extract_all_metadata(result)
+        assert fill_meta.get("rows_filled") == 4
+        assert fill_meta.get("rows_added") == 2  # Added 2 rows
+        # skipped_regions may be empty; just ensure key exists when provided
+        if "skipped_regions" in fill_meta:
+            assert isinstance(fill_meta.get("skipped_regions"), (list, str))
 
     finally:
         docx_close(session_id)

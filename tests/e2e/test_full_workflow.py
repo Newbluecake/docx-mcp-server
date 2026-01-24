@@ -1,4 +1,12 @@
 import pytest
+from tests.helpers import (
+    extract_session_id,
+    extract_element_id,
+    extract_metadata_field,
+    extract_all_metadata,
+    is_success,
+    is_error
+)
 import os
 import json
 from docx_mcp_server.server import (
@@ -17,10 +25,9 @@ from docx_mcp_server.server import (
 )
 
 def _extract(response):
-    data = json.loads(response)
-    if data["status"] == "error":
-        raise ValueError(f"Tool failed: {data['message']}")
-    return data["data"]
+    if not is_success(response):
+        raise ValueError(f"Tool failed: {response}")
+    return extract_all_metadata(response)
 
 # E2E test simulating a user workflow
 def test_full_workflow(tmp_path):
@@ -28,7 +35,8 @@ def test_full_workflow(tmp_path):
     output_path = str(output_file)
 
     # 1. Create Document
-    sid = docx_create(auto_save=False)
+    session_response = docx_create(auto_save=False)
+    sid = extract_session_id(session_response)
 
     # 2. Add Title
     title_resp = docx_insert_paragraph(sid, "Monthly Report", position="end:document_body", style="Heading 1")
