@@ -1,8 +1,11 @@
 import sys
 import os
 import shutil
+import json
+import logging
 from pathlib import Path
 from PyQt6.QtCore import QObject, QProcess, pyqtSignal
+from .log_formatter import format_mcp_command, format_log_message
 
 class ServerManager(QObject):
     """
@@ -21,6 +24,7 @@ class ServerManager(QObject):
         self.process.started.connect(self._handle_started)
         self.process.finished.connect(self._handle_finished)
         self.process.errorOccurred.connect(self._handle_error)
+        self.logger = logging.getLogger(__name__)
 
     def start_server(self, host: str, port: int, cwd: str, log_level: str = "INFO", extra_env: dict = None):
         """
@@ -73,6 +77,11 @@ class ServerManager(QObject):
                 env.insert(key, str(value))
 
         self.process.setProcessEnvironment(env)
+
+        # Log the startup command in structured format
+        log_data = format_mcp_command(program, args)
+        log_message = format_log_message(log_data)
+        self.logger.info(log_message)
 
         self.log_received.emit(f"Starting server in {cwd}...")
         self.log_received.emit(f"Command: {program} {' '.join(args)}")

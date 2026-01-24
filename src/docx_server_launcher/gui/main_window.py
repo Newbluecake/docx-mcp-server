@@ -174,14 +174,56 @@ class MainWindow(QMainWindow):
         self.integration_group = QGroupBox()
         integration_layout = QVBoxLayout()
 
+        # CLI Parameters Group
+        cli_params_group = QGroupBox()
+        cli_params_group.setObjectName("cli_params_group")
+        cli_params_layout = QVBoxLayout()
+
+        # Model parameter
+        model_layout = QHBoxLayout()
+        self.model_checkbox = QCheckBox("--model")
+        self.model_checkbox.setObjectName("model_checkbox")
+        model_layout.addWidget(self.model_checkbox)
+        self.model_combo = QComboBox()
+        self.model_combo.addItems(["sonnet", "opus", "haiku"])
+        self.model_combo.setEnabled(False)
+        model_layout.addWidget(self.model_combo)
+        model_layout.addStretch()
+        cli_params_layout.addLayout(model_layout)
+
+        # Agent parameter
+        agent_layout = QHBoxLayout()
+        self.agent_checkbox = QCheckBox("--agent")
+        self.agent_checkbox.setObjectName("agent_checkbox")
+        agent_layout.addWidget(self.agent_checkbox)
+        self.agent_input = QLineEdit()
+        self.agent_input.setPlaceholderText("e.g., reviewer")
+        self.agent_input.setEnabled(False)
+        agent_layout.addWidget(self.agent_input)
+        cli_params_layout.addLayout(agent_layout)
+
+        # Boolean flags
+        flags_layout = QHBoxLayout()
+        self.verbose_checkbox = QCheckBox("--verbose")
+        self.verbose_checkbox.setObjectName("verbose_checkbox")
+        flags_layout.addWidget(self.verbose_checkbox)
+        self.debug_checkbox = QCheckBox("--debug")
+        self.debug_checkbox.setObjectName("debug_checkbox")
+        flags_layout.addWidget(self.debug_checkbox)
+        flags_layout.addStretch()
+        cli_params_layout.addLayout(flags_layout)
+
+        cli_params_group.setLayout(cli_params_layout)
+        integration_layout.addWidget(cli_params_group)
+
         # Hint label
         hint_label = QLabel()
         hint_label.setObjectName("cli_params_hint")
         integration_layout.addWidget(hint_label)
 
-        # CLI params input
+        # CLI params input (for additional parameters)
         self.cli_params_input = QLineEdit()
-        self.cli_params_input.setPlaceholderText("e.g., --model opus --agent reviewer")
+        self.cli_params_input.setPlaceholderText("e.g., --timeout 30")
         integration_layout.addWidget(self.cli_params_input)
 
         # Launch button
@@ -283,11 +325,14 @@ class MainWindow(QMainWindow):
 
         # Integration
         self.integration_group.setTitle(self.tr("Claude Desktop Integration"))
+        cli_params_group = self.integration_group.findChild(QGroupBox, "cli_params_group")
+        if cli_params_group:
+            cli_params_group.setTitle(self.tr("CLI Parameters"))
         hint_label = self.integration_group.findChild(QLabel, "cli_params_hint")
         if hint_label:
-            hint_label.setText(self.tr("Extra CLI Parameters (optional):"))
+            hint_label.setText(self.tr("Additional CLI Parameters (optional):"))
         self.cli_params_input.setPlaceholderText(
-            self.tr("e.g., --model opus --agent reviewer")
+            self.tr("e.g., --timeout 30")
         )
         self.launch_btn.setText(self.tr("Launch Claude"))
 
@@ -305,6 +350,14 @@ class MainWindow(QMainWindow):
 
         self.start_btn.clicked.connect(self.toggle_server)
         self.launch_btn.clicked.connect(self.launch_claude)
+
+        # CLI parameter checkboxes
+        self.model_checkbox.stateChanged.connect(
+            lambda state: self.model_combo.setEnabled(state == Qt.CheckState.Checked.value)
+        )
+        self.agent_checkbox.stateChanged.connect(
+            lambda state: self.agent_input.setEnabled(state == Qt.CheckState.Checked.value)
+        )
 
         # ServerManager signals
         self.server_manager.server_started.connect(self.on_server_started)

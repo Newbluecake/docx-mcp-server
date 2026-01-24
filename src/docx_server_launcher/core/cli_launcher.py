@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional, List
 from logging.handlers import RotatingFileHandler
+from .log_formatter import format_cli_command, format_log_message
 
 
 class CLILauncher:
@@ -188,7 +189,7 @@ class CLILauncher:
     def _log_launch(self, command: List[str], mcp_config: Dict[str, Any],
                     success: bool, error: str = "", pid: Optional[int] = None) -> None:
         """
-        Log launch attempt to file.
+        Log launch attempt to file using structured format.
 
         Args:
             command: Command that was executed
@@ -198,10 +199,27 @@ class CLILauncher:
             pid: Process ID (if successful)
         """
         try:
+            # Extract extra params from command (everything after --mcp-config and its value)
+            extra_params = []
+            skip_next = False
+            for i, arg in enumerate(command):
+                if skip_next:
+                    skip_next = False
+                    continue
+                if arg == "--mcp-config":
+                    skip_next = True
+                    continue
+                if arg != "claude":
+                    extra_params.append(arg)
+
+            # Use structured logging format
+            command_str = ' '.join(command)
+            log_data = format_cli_command(command_str, mcp_config, extra_params)
+            log_message = format_log_message(log_data)
+
             self.logger.info("=" * 40)
             self.logger.info("Launch Attempt")
-            self.logger.info(f"Command: {' '.join(command)}")
-            self.logger.info(f"MCP Config: {json.dumps(mcp_config)}")
+            self.logger.info(log_message)
 
             if success:
                 self.logger.info(f"Claude CLI started successfully (PID: {pid})")
