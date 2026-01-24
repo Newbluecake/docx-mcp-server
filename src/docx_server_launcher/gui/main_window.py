@@ -14,6 +14,7 @@ from docx_server_launcher.core.server_manager import ServerManager
 from docx_server_launcher.core.cli_launcher import CLILauncher
 from docx_server_launcher.core.working_directory_manager import WorkingDirectoryManager
 from docx_server_launcher.core.language_manager import LanguageManager
+from docx_server_launcher.core.config_manager import ConfigManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -26,6 +27,7 @@ class MainWindow(QMainWindow):
         self.server_manager = ServerManager()
         self.cli_launcher = CLILauncher()
         self.settings = QSettings("DocxMCP", "Launcher")
+        self.config_manager = ConfigManager("docx-mcp-server", "launcher")
 
         self.cwd_manager = WorkingDirectoryManager(self.settings)
         self._is_switching_cwd = False
@@ -410,6 +412,9 @@ class MainWindow(QMainWindow):
         # Load CLI params
         self.cli_params_input.setText(self.settings.value("cli/extra_params", ""))
 
+        # Load CLI parameter checkboxes
+        self.load_cli_params()
+
         # T-009: Load search settings
         self.load_search_settings()
 
@@ -425,11 +430,67 @@ class MainWindow(QMainWindow):
         self.settings.setValue("preview/word_path", self.word_input.text())
         self.settings.setValue("preview/priority", self.priority_combo.currentData())
 
+        # Save CLI parameter checkboxes
+        self.save_cli_params()
+
         # Save CLI params
         self.settings.setValue("cli/extra_params", self.cli_params_input.text())
 
         # T-009: Save search settings
         self.save_search_settings()
+
+    def save_cli_params(self):
+        """Save CLI parameter checkbox states to configuration."""
+        self.config_manager.save_cli_param("cli/model_enabled", self.model_checkbox.isChecked())
+        self.config_manager.save_cli_param("cli/model_value", self.model_combo.currentText())
+        self.config_manager.save_cli_param("cli/agent_enabled", self.agent_checkbox.isChecked())
+        self.config_manager.save_cli_param("cli/agent_value", self.agent_input.text())
+        self.config_manager.save_cli_param("cli/verbose", self.verbose_checkbox.isChecked())
+        self.config_manager.save_cli_param("cli/debug", self.debug_checkbox.isChecked())
+
+    def load_cli_params(self):
+        """Load CLI parameter checkbox states from configuration."""
+        # Load model parameter
+        model_enabled = self.config_manager.load_cli_param("cli/model_enabled", False, bool)
+        self.model_checkbox.setChecked(model_enabled)
+        self.model_combo.setEnabled(model_enabled)
+        model_value = self.config_manager.load_cli_param("cli/model_value", "sonnet", str)
+        index = self.model_combo.findText(model_value)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+
+        # Load agent parameter
+        agent_enabled = self.config_manager.load_cli_param("cli/agent_enabled", False, bool)
+        self.agent_checkbox.setChecked(agent_enabled)
+        self.agent_input.setEnabled(agent_enabled)
+        agent_value = self.config_manager.load_cli_param("cli/agent_value", "", str)
+        self.agent_input.setText(agent_value)
+
+        # Load boolean flags
+        self.verbose_checkbox.setChecked(
+            self.config_manager.load_cli_param("cli/verbose", False, bool)
+        )
+        self.debug_checkbox.setChecked(
+            self.config_manager.load_cli_param("cli/debug", False, bool)
+        )
+
+    def build_cli_params_from_checkboxes(self) -> str:
+        """Build CLI parameters string from checkbox states."""
+        params = []
+
+        if self.model_checkbox.isChecked():
+            params.append(f"--model {self.model_combo.currentText()}")
+
+        if self.agent_checkbox.isChecked() and self.agent_input.text().strip():
+            params.append(f"--agent {self.agent_input.text().strip()}")
+
+        if self.verbose_checkbox.isChecked():
+            params.append("--verbose")
+
+        if self.debug_checkbox.isChecked():
+            params.append("--debug")
+
+        return " ".join(params)
 
     def on_lan_toggled(self, state):
         # We don't need to do much immediately, value is read on save/start
@@ -753,10 +814,18 @@ class MainWindow(QMainWindow):
         host = "127.0.0.1"  # Always use localhost for CLI
         port = self.port_input.value()
         server_url = f"http://{host}:{port}/sse"
+
+        # Build parameters from checkboxes
+        checkbox_params = self.build_cli_params_from_checkboxes()
+
+        # Get additional parameters from input
         extra_params = self.cli_params_input.text().strip()
 
+        # Combine parameters
+        all_params = " ".join(filter(None, [checkbox_params, extra_params]))
+
         # Launch
-        success, msg = self.cli_launcher.launch(server_url, "sse", extra_params)
+        success, msg = self.cli_launcher.launch(server_url, "sse", all_params)
 
         if success:
             QMessageBox.information(self, self.tr("Success"), msg)
@@ -767,7 +836,7 @@ class MainWindow(QMainWindow):
             if "not found" in msg.lower():
                 self.show_cli_not_found_dialog()
             else:
-                QMessageBox.critical(self, self.tr("Error"), msg)
+                self.show_error_dialog(self.tr("Error"), msg)
             self.append_log(f"ERROR: {msg}")
 
     def show_cli_not_found_dialog(self):
@@ -1008,6 +1077,54 @@ class MainWindow(QMainWindow):
         self.search_input.setToolTip(message)
         self.match_label.setText("Error")
         self.clear_highlights()
+
+    def show_error_dialog(self, title: str, message: str):
+        """
+        Show error dialog with copy button.
+
+        Args:
+            title: Dialog title
+            message: Error message to display
+        """
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Critical)
+        dialog.setWindowTitle(title)
+        dialog.setText(message)
+
+        # Add copy button
+        copy_button = dialog.addButton(self.tr("Copy"), QMessageBox.ButtonRole.ActionRole)
+        dialog.addButton(QMessageBox.StandardButton.Ok)
+
+        # Show dialog
+        dialog.exec()
+
+        # Check if copy button was clicked
+        if dialog.clickedButton() == copy_button:
+            self.copy_to_clipboard(message)
+
+    def copy_to_clipboard(self, text: str):
+        """
+        Copy text to clipboard with size limit.
+
+        Args:
+            text: Text to copy (max 10KB)
+        """
+        from PyQt6.QtWidgets import QApplication
+
+        # Limit to 10KB
+        max_size = 10 * 1024
+        if len(text) > max_size:
+            text = text[:max_size] + "\n... (truncated)"
+
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+
+        # Show confirmation
+        QMessageBox.information(
+            self,
+            self.tr("Copied"),
+            self.tr("Error message copied to clipboard")
+        )
 
     # T-006: Result navigation
     def navigate_to_match(self, direction: int):
