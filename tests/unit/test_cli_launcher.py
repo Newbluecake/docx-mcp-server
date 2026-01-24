@@ -424,6 +424,135 @@ class TestLaunchLogging:
             assert not (mode & stat.S_IWOTH)  # Not writable by others
 
 
+class TestSecurityValidation:
+    """Test security validation functionality."""
+
+    def test_validate_cli_params_safe(self, tmp_path):
+        """Test validation of safe parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model opus --agent reviewer")
+        assert is_valid is True
+        assert msg == ""
+
+    def test_validate_cli_params_empty(self, tmp_path):
+        """Test validation of empty parameters."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("")
+        assert is_valid is True
+
+        is_valid, msg = launcher.validate_cli_params("   ")
+        assert is_valid is True
+
+    def test_validate_cli_params_dangerous_semicolon(self, tmp_path):
+        """Test rejection of semicolon (command separator)."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model opus; rm -rf /")
+        assert is_valid is False
+        assert ";" in msg
+
+    def test_validate_cli_params_dangerous_pipe(self, tmp_path):
+        """Test rejection of pipe character."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model opus | cat /etc/passwd")
+        assert is_valid is False
+        assert "|" in msg
+
+    def test_validate_cli_params_dangerous_ampersand(self, tmp_path):
+        """Test rejection of ampersand (background execution)."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model opus & malicious_command")
+        assert is_valid is False
+        assert "&" in msg
+
+    def test_validate_cli_params_dangerous_backtick(self, tmp_path):
+        """Test rejection of backtick (command substitution)."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model `whoami`")
+        assert is_valid is False
+        assert "`" in msg
+
+    def test_validate_cli_params_dangerous_dollar(self, tmp_path):
+        """Test rejection of dollar sign (variable expansion)."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params("--model $USER")
+        assert is_valid is False
+        assert "$" in msg
+
+    def test_validate_cli_params_parse_error(self, tmp_path):
+        """Test detection of parse errors."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        is_valid, msg = launcher.validate_cli_params('--prompt "unclosed')
+        assert is_valid is False
+        assert "parse error" in msg.lower()
+
+    def test_sanitize_for_log_api_key(self, tmp_path):
+        """Test API key redaction."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        sanitized = launcher.sanitize_for_log("--api-key sk-1234567890 --model opus")
+        assert "sk-1234567890" not in sanitized
+        assert "[REDACTED]" in sanitized
+        assert "--model opus" in sanitized
+
+    def test_sanitize_for_log_token(self, tmp_path):
+        """Test token redaction."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        sanitized = launcher.sanitize_for_log("--token abc123xyz --model opus")
+        assert "abc123xyz" not in sanitized
+        assert "[REDACTED]" in sanitized
+
+    def test_sanitize_for_log_password(self, tmp_path):
+        """Test password redaction."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        sanitized = launcher.sanitize_for_log("--password secret123 --model opus")
+        assert "secret123" not in sanitized
+        assert "[REDACTED]" in sanitized
+
+    def test_sanitize_for_log_case_insensitive(self, tmp_path):
+        """Test case-insensitive redaction."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        sanitized = launcher.sanitize_for_log("--API-KEY sk-123 --Token xyz --PASSWORD pwd")
+        assert "sk-123" not in sanitized
+        assert "xyz" not in sanitized
+        assert "pwd" not in sanitized
+        assert sanitized.count("[REDACTED]") == 3
+
+    def test_sanitize_for_log_empty(self, tmp_path):
+        """Test sanitization of empty string."""
+        launcher = CLILauncher(log_dir=str(tmp_path))
+
+        sanitized = launcher.sanitize_for_log("")
+        assert sanitized == ""
+
+        sanitized = launcher.sanitize_for_log(None)
+        assert sanitized is None
+
+    def test_launch_with_dangerous_params(self, tmp_path):
+        """Test that launch rejects dangerous parameters."""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            launcher = CLILauncher(log_dir=str(tmp_path))
+            success, msg = launcher.launch(
+                "http://127.0.0.1:8000/sse",
+                "sse",
+                "--model opus; rm -rf /"
+            )
+
+            assert success is False
+            assert "invalid character" in msg.lower() or ";" in msg
+
+
+
 
 
 

@@ -8,6 +8,7 @@ replacing the previous config file injection approach.
 import json
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -212,6 +213,78 @@ class CLILauncher:
             # Logging failure shouldn't break the launch process
             print(f"Warning: Failed to log launch attempt: {e}")
 
+    def validate_cli_params(self, params: str) -> Tuple[bool, str]:
+        """
+        Validate CLI parameters for safety.
+
+        Checks for:
+        - Dangerous shell metacharacters
+        - Parse errors (unclosed quotes, etc.)
+
+        Args:
+            params: CLI parameters to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+            - If valid: (True, "")
+            - If invalid: (False, "Error description")
+        """
+        if not params or not params.strip():
+            return True, ""
+
+        # Check for dangerous shell metacharacters
+        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r"]
+        for char in dangerous_chars:
+            if char in params:
+                return False, f"Invalid character '{char}' in parameters. Shell metacharacters are not allowed."
+
+        # Try parsing with shlex to catch syntax errors
+        try:
+            shlex.split(params)
+        except ValueError as e:
+            return False, f"Parameter parse error: {e}"
+
+        return True, ""
+
+    def sanitize_for_log(self, params: str) -> str:
+        """
+        Sanitize parameters for logging by redacting sensitive data.
+
+        Args:
+            params: Parameters to sanitize
+
+        Returns:
+            Sanitized parameters string
+        """
+        if not params:
+            return params
+
+        # Redact API keys
+        sanitized = re.sub(
+            r'--api-key\s+\S+',
+            '--api-key [REDACTED]',
+            params,
+            flags=re.IGNORECASE
+        )
+
+        # Redact tokens
+        sanitized = re.sub(
+            r'--token\s+\S+',
+            '--token [REDACTED]',
+            sanitized,
+            flags=re.IGNORECASE
+        )
+
+        # Redact passwords
+        sanitized = re.sub(
+            r'--password\s+\S+',
+            '--password [REDACTED]',
+            sanitized,
+            flags=re.IGNORECASE
+        )
+
+        return sanitized
+
     def launch(self, server_url: str, transport: str, extra_params: str = "") -> Tuple[bool, str]:
         """
         Launch Claude CLI with MCP configuration.
@@ -232,6 +305,13 @@ class CLILauncher:
             error_msg = cli_path_or_error
             self.logger.error(f"Launch failed: {error_msg}")
             return False, error_msg
+
+        # Validate extra parameters
+        if extra_params:
+            is_valid, validation_error = self.validate_cli_params(extra_params)
+            if not is_valid:
+                self.logger.error(f"Launch failed: {validation_error}")
+                return False, validation_error
 
         try:
             # Generate MCP config
