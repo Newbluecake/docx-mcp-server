@@ -8,6 +8,7 @@ replacing the previous config file injection approach.
 import json
 import logging
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -174,15 +175,21 @@ class CLILauncher:
             ValueError: If extra_params cannot be parsed
         """
         # Build base command
-        cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
+        base_cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
 
         # Parse and append extra parameters
         if extra_params and extra_params.strip():
             try:
                 parsed_params = shlex.split(extra_params.strip())
-                cmd.extend(parsed_params)
+                base_cmd.extend(parsed_params)
             except ValueError as e:
                 raise ValueError(f"Failed to parse extra parameters: {e}")
+
+        # On Windows, wrap with cmd.exe to ensure proper execution
+        if platform.system() == "Windows":
+            cmd = ["cmd.exe", "/c"] + base_cmd
+        else:
+            cmd = base_cmd
 
         return cmd
 

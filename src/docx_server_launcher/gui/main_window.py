@@ -840,9 +840,16 @@ class MainWindow(QMainWindow):
 
         # Format command for display
         import json
-        cmd_parts = ["claude", "--mcp-config", json.dumps(mcp_config)]
+        import platform
+        base_cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
         if all_params:
-            cmd_parts.extend(all_params.split())
+            base_cmd.extend(all_params.split())
+
+        # On Windows, wrap with cmd.exe (same as cli_launcher.py)
+        if platform.system() == "Windows":
+            cmd_parts = ["cmd.exe", "/c"] + base_cmd
+        else:
+            cmd_parts = base_cmd
 
         display_cmd = " ".join(cmd_parts)
 
