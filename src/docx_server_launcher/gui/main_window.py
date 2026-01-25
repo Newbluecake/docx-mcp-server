@@ -118,18 +118,33 @@ class MainWindow(QMainWindow):
         self.preview_group = QGroupBox()
         preview_layout = QVBoxLayout()
 
+        # Row 1: WPS Path + Priority (horizontal)
+        wps_priority_layout = QHBoxLayout()
+
         # WPS Path
-        wps_layout = QHBoxLayout()
         self.wps_label = QLabel()
-        wps_layout.addWidget(self.wps_label)
+        wps_priority_layout.addWidget(self.wps_label)
         self.wps_input = QLineEdit()
         self.wps_input.setPlaceholderText(self.tr("Auto-detect"))
-        wps_layout.addWidget(self.wps_input)
+        wps_priority_layout.addWidget(self.wps_input, stretch=1)
         self.wps_browse_btn = QPushButton()
-        wps_layout.addWidget(self.wps_browse_btn)
-        preview_layout.addLayout(wps_layout)
+        wps_priority_layout.addWidget(self.wps_browse_btn)
 
-        # Word Path
+        wps_priority_layout.addSpacing(20)
+
+        # Priority
+        self.priority_label = QLabel()
+        wps_priority_layout.addWidget(self.priority_label)
+        self.priority_combo = QComboBox()
+        # Data: "auto", "wps", "word"
+        self.priority_combo.addItem("Auto", "auto")
+        self.priority_combo.addItem("Prefer WPS", "wps")
+        self.priority_combo.addItem("Prefer Word", "word")
+        wps_priority_layout.addWidget(self.priority_combo)
+
+        preview_layout.addLayout(wps_priority_layout)
+
+        # Row 2: Word Path (horizontal)
         word_layout = QHBoxLayout()
         self.word_label = QLabel()
         word_layout.addWidget(self.word_label)
@@ -139,19 +154,6 @@ class MainWindow(QMainWindow):
         self.word_browse_btn = QPushButton()
         word_layout.addWidget(self.word_browse_btn)
         preview_layout.addLayout(word_layout)
-
-        # Priority
-        priority_layout = QHBoxLayout()
-        self.priority_label = QLabel()
-        priority_layout.addWidget(self.priority_label)
-        self.priority_combo = QComboBox()
-        # Data: "auto", "wps", "word"
-        self.priority_combo.addItem("Auto", "auto")
-        self.priority_combo.addItem("Prefer WPS", "wps")
-        self.priority_combo.addItem("Prefer Word", "word")
-        priority_layout.addWidget(self.priority_combo)
-        priority_layout.addStretch()
-        preview_layout.addLayout(priority_layout)
 
         self.preview_group.setLayout(preview_layout)
         main_layout.addWidget(self.preview_group)
@@ -181,30 +183,32 @@ class MainWindow(QMainWindow):
         cli_params_group.setObjectName("cli_params_group")
         cli_params_layout = QVBoxLayout()
 
+        # Row 1: Model + Agent (horizontal)
+        model_agent_layout = QHBoxLayout()
+
         # Model parameter
-        model_layout = QHBoxLayout()
         self.model_checkbox = QCheckBox("--model")
         self.model_checkbox.setObjectName("model_checkbox")
-        model_layout.addWidget(self.model_checkbox)
+        model_agent_layout.addWidget(self.model_checkbox)
         self.model_combo = QComboBox()
         self.model_combo.addItems(["sonnet", "opus", "haiku"])
         self.model_combo.setEnabled(False)
-        model_layout.addWidget(self.model_combo)
-        model_layout.addStretch()
-        cli_params_layout.addLayout(model_layout)
+        model_agent_layout.addWidget(self.model_combo)
+
+        model_agent_layout.addSpacing(20)
 
         # Agent parameter
-        agent_layout = QHBoxLayout()
         self.agent_checkbox = QCheckBox("--agent")
         self.agent_checkbox.setObjectName("agent_checkbox")
-        agent_layout.addWidget(self.agent_checkbox)
+        model_agent_layout.addWidget(self.agent_checkbox)
         self.agent_input = QLineEdit()
         self.agent_input.setPlaceholderText("e.g., reviewer")
         self.agent_input.setEnabled(False)
-        agent_layout.addWidget(self.agent_input)
-        cli_params_layout.addLayout(agent_layout)
+        model_agent_layout.addWidget(self.agent_input, stretch=1)
 
-        # Boolean flags
+        cli_params_layout.addLayout(model_agent_layout)
+
+        # Row 2: Boolean flags (horizontal)
         flags_layout = QHBoxLayout()
         self.verbose_checkbox = QCheckBox("--verbose")
         self.verbose_checkbox.setObjectName("verbose_checkbox")
@@ -824,20 +828,46 @@ class MainWindow(QMainWindow):
         # Combine parameters
         all_params = " ".join(filter(None, [checkbox_params, extra_params]))
 
+        # Build the command for display (before execution)
+        mcp_config = {
+            "mcpServers": {
+                "docx-server": {
+                    "url": server_url,
+                    "transport": "sse"
+                }
+            }
+        }
+
+        # Format command for display
+        import json
+        cmd_parts = ["claude", "--mcp-config", json.dumps(mcp_config)]
+        if all_params:
+            cmd_parts.extend(all_params.split())
+
+        display_cmd = " ".join(cmd_parts)
+
+        # Log the command BEFORE execution
+        self.append_log("=" * 60)
+        self.append_log("Launching Claude Desktop...")
+        self.append_log(f"Command: {display_cmd}")
+        self.append_log("=" * 60)
+
         # Launch
         success, msg = self.cli_launcher.launch(server_url, "sse", all_params)
 
         if success:
+            self.append_log(f"✓ SUCCESS: {msg}")
             QMessageBox.information(self, self.tr("Success"), msg)
             self.save_settings()  # Save CLI params
-            self.append_log(f"INFO: {msg}")
         else:
+            self.append_log(f"✗ FAILED: {msg}")
             # Check error type and show appropriate dialog
             if "not found" in msg.lower():
                 self.show_cli_not_found_dialog()
             else:
                 self.show_error_dialog(self.tr("Error"), msg)
-            self.append_log(f"ERROR: {msg}")
+
+        self.append_log("=" * 60)
 
     def show_cli_not_found_dialog(self):
         """Show dialog when Claude CLI is not found."""
