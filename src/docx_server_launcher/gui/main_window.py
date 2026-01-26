@@ -1014,10 +1014,9 @@ class MainWindow(QMainWindow):
         # T-009, T-010: Initialize HTTP client and status polling
         # Note: Server process has started, but HTTP server may take 2-3 seconds to be ready
         # Use a delayed timer with retries for health check
-        # Dual-port architecture: MCP on port, HTTP API on port+1
-        mcp_port = self.port_input.value()
-        http_api_port = mcp_port + 1  # HTTP API runs on port 8001
-        base_url = f"http://127.0.0.1:{http_api_port}"
+        # Combined mode: Both MCP (/mcp) and HTTP API (/api/*) on the same port
+        port = self.port_input.value()
+        base_url = f"http://127.0.0.1:{port}"
 
         # Use shorter timeout for health checks (faster retries)
         self.http_client = HTTPClient(base_url=base_url, timeout=2.0)
