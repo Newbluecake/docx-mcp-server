@@ -1012,9 +1012,10 @@ class MainWindow(QMainWindow):
         self.retranslateUi()
 
         # T-009, T-010: Initialize HTTP client and status polling
-        host = "127.0.0.1" if not self.lan_checkbox.isChecked() else "0.0.0.0"
+        # Note: HTTP client always connects to localhost (127.0.0.1)
+        # even when server listens on 0.0.0.0 (LAN mode)
         port = self.port_input.value()
-        base_url = f"http://{host}:{port}"
+        base_url = f"http://127.0.0.1:{port}"
 
         try:
             self.http_client = HTTPClient(base_url=base_url, timeout=5.0)
