@@ -1012,15 +1012,23 @@ class MainWindow(QMainWindow):
         self.retranslateUi()
 
         # T-009, T-010: Initialize HTTP client and status polling
-        # Note: HTTP client always connects to localhost (127.0.0.1)
-        # even when server listens on 0.0.0.0 (LAN mode)
+        # Note: Server process has started, but HTTP server may take a few seconds to be ready
+        # Use a delayed timer with retries for health check
         port = self.port_input.value()
         base_url = f"http://127.0.0.1:{port}"
 
-        try:
-            self.http_client = HTTPClient(base_url=base_url, timeout=5.0)
+        self.http_client = HTTPClient(base_url=base_url, timeout=5.0)
 
-            # T-010: Perform initial health check
+        # Delayed health check with retries (allow server startup time)
+        self._health_check_retries = 0
+        self._health_check_max_retries = 10  # Max 10 retries (10 seconds total)
+
+        # Use single-shot timer for initial delay (1 second after process start)
+        QTimer.singleShot(1000, self._try_health_check)
+
+    def _try_health_check(self):
+        """T-010: Try to perform health check with retries."""
+        try:
             health = self.http_client.health_check()
             self.append_log(f"✅ Server health check passed: {health.get('status', 'unknown')}")
 
@@ -1037,10 +1045,18 @@ class MainWindow(QMainWindow):
             self.update_server_status()
 
         except Exception as e:
-            self.append_log(f"⚠️ Warning: Could not initialize HTTP client: {e}")
-            # Don't fail server start if HTTP client fails
-            self.file_selection_group.setVisible(False)
-            self.status_bar_group.setVisible(False)
+            self._health_check_retries += 1
+
+            if self._health_check_retries < self._health_check_max_retries:
+                # Retry after 1 second
+                self.append_log(f"⏳ Waiting for server to be ready... (attempt {self._health_check_retries}/{self._health_check_max_retries})")
+                QTimer.singleShot(1000, self._try_health_check)
+            else:
+                # Max retries reached
+                self.append_log(f"⚠️ Warning: Could not connect to HTTP API after {self._health_check_max_retries} attempts")
+                self.append_log(f"   MCP tools are still available, but file selection is disabled")
+                self.file_selection_group.setVisible(False)
+                self.status_bar_group.setVisible(False)
 
     def on_server_stopped(self):
         self.is_running = False
