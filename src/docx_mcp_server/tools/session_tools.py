@@ -9,62 +9,73 @@ logger = logging.getLogger(__name__)
 
 
 def docx_create(
-    file_path: str = "",
     auto_save: bool = False,
     backup_on_save: bool = False,
     backup_dir: str = "",
     backup_suffix: str = ""
 ) -> str:
     """
-    Create a new Word document session or load an existing document.
+    Create a new Word document session using the global active file.
 
     This is the entry point for all document operations. Creates an isolated session
     with a unique session_id that maintains document state and object registry.
 
+    **Breaking Change (v3.0)**: The file_path parameter has been removed. Files are now
+    managed centrally by the Launcher via HTTP API (/api/file/switch). Use the Launcher
+    to select files, or run the server with --file parameter to set initial active file.
+
     Typical Use Cases:
-        - Create a new blank document for content generation
-        - Load an existing template for modification
+        - Create a session for the current active file (set by Launcher)
         - Enable auto-save for real-time document updates
 
     Args:
-        file_path (str, optional): Path to an existing .docx file to load.
-            If None, creates a new blank document. Use relative paths (e.g., "./doc.docx")
-            for cross-platform compatibility. Absolute paths must match the server's OS.
         auto_save (bool, optional): Enable automatic saving after each modification.
-            Requires file_path to be set. Defaults to False.
+            Requires active_file to be set. Defaults to False.
 
     Returns:
         str: Markdown-formatted response with session_id.
 
     Raises:
-        FileNotFoundError: If file_path is specified but file does not exist.
-        ValueError: If auto_save is True but file_path is None.
+        FileNotFoundError: If active_file is set but file does not exist.
+        ValueError: If auto_save is True but active_file is None.
 
     Examples:
-        Create a new blank document:
+        Create a session for the active file:
         >>> session_id = docx_create()
         >>> print(session_id)
         'abc-123-def-456'
 
-        Load an existing document:
-        >>> session_id = docx_create(file_path="./template.docx")
-
         Enable auto-save mode:
-        >>> session_id = docx_create(file_path="./output.docx", auto_save=True)
+        >>> session_id = docx_create(auto_save=True)
 
     Notes:
+        - File selection is now handled by the Launcher GUI or --file CLI parameter
         - Each session is independent and isolated from others
         - Sessions auto-expire after 1 hour of inactivity
         - Always call docx_close() when done to free resources
 
+    Migration from v2.x:
+        Old (v2.x):
+        >>> session_id = docx_create(file_path="./template.docx")
+
+        New (v3.0):
+        1. Use Launcher to select file (calls /api/file/switch)
+        2. Then create session:
+        >>> session_id = docx_create()
+
     See Also:
         - docx_save: Save document to disk
         - docx_close: Close session and free resources
+        - /api/file/switch: HTTP API to switch active file (called by Launcher)
     """
     from docx_mcp_server.server import session_manager
+    from docx_mcp_server.core.global_state import global_state
+
+    # Get active file from global state
+    file_path = global_state.active_file
 
     logger.info(
-        f"docx_create called: file_path={file_path}, auto_save={auto_save}, "
+        f"docx_create called: active_file={file_path}, auto_save={auto_save}, "
         f"backup_on_save={backup_on_save}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
     )
     try:
