@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-01-26
+
+### 💥 Breaking Changes
+
+- **Removed Auto-Launch**: The "Launch Claude" button and automatic process management have been removed to improve reliability and flexibility. Users now copy the generated command and run it manually in their terminal.
+- **Simplified UI**: Removed legacy CLI parameter checkboxes (--model, --agent, --verbose, --debug) in favor of a single "Additional Parameters" input field.
+
+### ✨ Features
+
+- **Command Display**: Added a read-only text field showing the exact Claude CLI command to be executed.
+- **Copy to Clipboard**: Added a "Copy Command" button for one-click copying of the launch command.
+- **Real-time Updates**: Command display updates instantly when server configuration (host/port) changes.
+- **Improved Windows Support**: Generated commands on Windows now correctly use `cmd.exe /c` wrapper.
+
 ## [0.2.2] - 2026-01-25
 
 ### ✨ Features

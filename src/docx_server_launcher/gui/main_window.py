@@ -38,12 +38,20 @@ class MainWindow(QMainWindow):
         self._current_match_index: int = -1
         self._search_timer: QTimer = None
 
+        # Command update timer (debounce)
+        self._update_timer = QTimer()
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._do_update_command_display)
+
         self.init_ui()
         self.connect_signals()
         self.load_settings()
 
         # Initial translation
         self.retranslateUi()
+
+        # Initialize command display
+        self.update_command_display()
 
     def changeEvent(self, event):
         if event.type() == QEvent.Type.LanguageChange:
@@ -178,49 +186,19 @@ class MainWindow(QMainWindow):
         self.integration_group = QGroupBox()
         integration_layout = QVBoxLayout()
 
-        # CLI Parameters Group
-        cli_params_group = QGroupBox()
-        cli_params_group.setObjectName("cli_params_group")
-        cli_params_layout = QVBoxLayout()
+        # Command Display Row
+        command_layout = QHBoxLayout()
+        self.command_display = QLineEdit()
+        self.command_display.setReadOnly(True)
+        self.command_display.setPlaceholderText("Command will appear here...")
+        self.command_display.setStyleSheet("background-color: #f5f5f5;")
+        command_layout.addWidget(self.command_display)
 
-        # Row 1: Model + Agent (horizontal)
-        model_agent_layout = QHBoxLayout()
+        self.copy_btn = QPushButton("Copy Command")
+        self.copy_btn.setMaximumWidth(120)
+        command_layout.addWidget(self.copy_btn)
 
-        # Model parameter
-        self.model_checkbox = QCheckBox("--model")
-        self.model_checkbox.setObjectName("model_checkbox")
-        model_agent_layout.addWidget(self.model_checkbox)
-        self.model_combo = QComboBox()
-        self.model_combo.addItems(["sonnet", "opus", "haiku"])
-        self.model_combo.setEnabled(False)
-        model_agent_layout.addWidget(self.model_combo)
-
-        model_agent_layout.addSpacing(20)
-
-        # Agent parameter
-        self.agent_checkbox = QCheckBox("--agent")
-        self.agent_checkbox.setObjectName("agent_checkbox")
-        model_agent_layout.addWidget(self.agent_checkbox)
-        self.agent_input = QLineEdit()
-        self.agent_input.setPlaceholderText("e.g., reviewer")
-        self.agent_input.setEnabled(False)
-        model_agent_layout.addWidget(self.agent_input, stretch=1)
-
-        cli_params_layout.addLayout(model_agent_layout)
-
-        # Row 2: Boolean flags (horizontal)
-        flags_layout = QHBoxLayout()
-        self.verbose_checkbox = QCheckBox("--verbose")
-        self.verbose_checkbox.setObjectName("verbose_checkbox")
-        flags_layout.addWidget(self.verbose_checkbox)
-        self.debug_checkbox = QCheckBox("--debug")
-        self.debug_checkbox.setObjectName("debug_checkbox")
-        flags_layout.addWidget(self.debug_checkbox)
-        flags_layout.addStretch()
-        cli_params_layout.addLayout(flags_layout)
-
-        cli_params_group.setLayout(cli_params_layout)
-        integration_layout.addWidget(cli_params_group)
+        integration_layout.addLayout(command_layout)
 
         # Hint label
         hint_label = QLabel()
@@ -229,12 +207,8 @@ class MainWindow(QMainWindow):
 
         # CLI params input (for additional parameters)
         self.cli_params_input = QLineEdit()
-        self.cli_params_input.setPlaceholderText("e.g., --timeout 30")
+        self.cli_params_input.setPlaceholderText("e.g., --dangerously-skip-permission")
         integration_layout.addWidget(self.cli_params_input)
-
-        # Launch button
-        self.launch_btn = QPushButton()
-        integration_layout.addWidget(self.launch_btn)
 
         self.integration_group.setLayout(integration_layout)
         main_layout.addWidget(self.integration_group)
@@ -330,17 +304,16 @@ class MainWindow(QMainWindow):
             self.start_btn.setText(self.tr("Start Server"))
 
         # Integration
-        self.integration_group.setTitle(self.tr("Claude Desktop Integration"))
-        cli_params_group = self.integration_group.findChild(QGroupBox, "cli_params_group")
-        if cli_params_group:
-            cli_params_group.setTitle(self.tr("CLI Parameters"))
+        self.integration_group.setTitle(self.tr("Claude Integration"))
+        self.command_display.setPlaceholderText(self.tr("Command will appear here..."))
+        self.copy_btn.setText(self.tr("Copy Command"))
+
         hint_label = self.integration_group.findChild(QLabel, "cli_params_hint")
         if hint_label:
-            hint_label.setText(self.tr("Additional CLI Parameters (optional):"))
+            hint_label.setText(self.tr("Add custom parameters below (e.g., --dangerously-skip-permission)"))
         self.cli_params_input.setPlaceholderText(
-            self.tr("e.g., --timeout 30")
+            self.tr("e.g., --dangerously-skip-permission")
         )
-        self.launch_btn.setText(self.tr("Launch Claude"))
 
         # Logs
         self.log_group.setTitle(self.tr("Logs"))
@@ -355,15 +328,12 @@ class MainWindow(QMainWindow):
         self.word_browse_btn.clicked.connect(lambda: self.browse_exe(self.word_input))
 
         self.start_btn.clicked.connect(self.toggle_server)
-        self.launch_btn.clicked.connect(self.launch_claude)
 
-        # CLI parameter checkboxes
-        self.model_checkbox.stateChanged.connect(
-            lambda state: self.model_combo.setEnabled(state == Qt.CheckState.Checked.value)
-        )
-        self.agent_checkbox.stateChanged.connect(
-            lambda state: self.agent_input.setEnabled(state == Qt.CheckState.Checked.value)
-        )
+        # New signals
+        self.copy_btn.clicked.connect(self.copy_command)
+        self.port_input.valueChanged.connect(self.update_command_display)
+        self.lan_checkbox.stateChanged.connect(self.update_command_display)
+        self.cli_params_input.textChanged.connect(self.update_command_display)
 
         # ServerManager signals
         self.server_manager.server_started.connect(self.on_server_started)
@@ -416,9 +386,6 @@ class MainWindow(QMainWindow):
         # Load CLI params
         self.cli_params_input.setText(self.settings.value("cli/extra_params", ""))
 
-        # Load CLI parameter checkboxes
-        self.load_cli_params()
-
         # T-009: Load search settings
         self.load_search_settings()
 
@@ -434,67 +401,88 @@ class MainWindow(QMainWindow):
         self.settings.setValue("preview/word_path", self.word_input.text())
         self.settings.setValue("preview/priority", self.priority_combo.currentData())
 
-        # Save CLI parameter checkboxes
-        self.save_cli_params()
-
         # Save CLI params
         self.settings.setValue("cli/extra_params", self.cli_params_input.text())
 
         # T-009: Save search settings
         self.save_search_settings()
 
-    def save_cli_params(self):
-        """Save CLI parameter checkbox states to configuration."""
-        self.config_manager.save_cli_param("cli/model_enabled", self.model_checkbox.isChecked())
-        self.config_manager.save_cli_param("cli/model_value", self.model_combo.currentText())
-        self.config_manager.save_cli_param("cli/agent_enabled", self.agent_checkbox.isChecked())
-        self.config_manager.save_cli_param("cli/agent_value", self.agent_input.text())
-        self.config_manager.save_cli_param("cli/verbose", self.verbose_checkbox.isChecked())
-        self.config_manager.save_cli_param("cli/debug", self.debug_checkbox.isChecked())
+    def update_command_display(self) -> None:
+        """Debounced command display update."""
+        self._update_timer.stop()
+        self._update_timer.start(300)
 
-    def load_cli_params(self):
-        """Load CLI parameter checkbox states from configuration."""
-        # Load model parameter
-        model_enabled = self.config_manager.load_cli_param("cli/model_enabled", False, bool)
-        self.model_checkbox.setChecked(model_enabled)
-        self.model_combo.setEnabled(model_enabled)
-        model_value = self.config_manager.load_cli_param("cli/model_value", "sonnet", str)
-        index = self.model_combo.findText(model_value)
-        if index >= 0:
-            self.model_combo.setCurrentIndex(index)
+    def _do_update_command_display(self) -> None:
+        """Actually update the command display."""
+        try:
+            # 1. Get config
+            host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
+            port = self.port_input.value()
+            extra_params = self.cli_params_input.text().strip()
 
-        # Load agent parameter
-        agent_enabled = self.config_manager.load_cli_param("cli/agent_enabled", False, bool)
-        self.agent_checkbox.setChecked(agent_enabled)
-        self.agent_input.setEnabled(agent_enabled)
-        agent_value = self.config_manager.load_cli_param("cli/agent_value", "", str)
-        self.agent_input.setText(agent_value)
+            # 2. Generate MCP config
+            server_url = f"http://{host}:{port}/sse"
+            mcp_config = self.cli_launcher.generate_mcp_config(server_url, "sse")
 
-        # Load boolean flags
-        self.verbose_checkbox.setChecked(
-            self.config_manager.load_cli_param("cli/verbose", False, bool)
-        )
-        self.debug_checkbox.setChecked(
-            self.config_manager.load_cli_param("cli/debug", False, bool)
-        )
+            # 3. Build command
+            cmd_list = self.cli_launcher.build_command(mcp_config, extra_params)
 
-    def build_cli_params_from_checkboxes(self) -> str:
-        """Build CLI parameters string from checkbox states."""
-        params = []
+            # 4. Format as string
+            import platform
+            # On Windows, build_command already adds cmd.exe /c, but let's double check join behavior
+            # The list comes as ['cmd.exe', '/c', 'claude', ...] or ['claude', ...]
+            # We just join them with spaces.
+            # NOTE: shlex.join is better but might not be available on old python,
+            # but we can assume basic space join is okay for display purposes unless params have spaces.
+            # build_command handles params parsing.
 
-        if self.model_checkbox.isChecked():
-            params.append(f"--model {self.model_combo.currentText()}")
+            # Simple join for display
+            cmd_str = ' '.join(cmd_list)
 
-        if self.agent_checkbox.isChecked() and self.agent_input.text().strip():
-            params.append(f"--agent {self.agent_input.text().strip()}")
+            self.command_display.setText(cmd_str)
+            self.command_display.setCursorPosition(0)
 
-        if self.verbose_checkbox.isChecked():
-            params.append("--verbose")
+        except Exception as e:
+            self.command_display.setText(f"Error: {str(e)}")
 
-        if self.debug_checkbox.isChecked():
-            params.append("--debug")
+    def copy_command(self) -> None:
+        """Copy command to clipboard with feedback."""
+        try:
+            cmd = self.command_display.text()
 
-        return " ".join(params)
+            if not cmd or cmd.startswith("Error:"):
+                QMessageBox.warning(
+                    self,
+                    self.tr("Copy Failed"),
+                    self.tr("No valid command to copy.")
+                )
+                return
+
+            # Copy to clipboard
+            from PyQt6.QtWidgets import QApplication
+            clipboard = QApplication.clipboard()
+            clipboard.setText(cmd)
+
+            # Visual feedback
+            original_text = self.copy_btn.text()
+            self.copy_btn.setText(self.tr("Copied!"))
+            self.copy_btn.setEnabled(False)
+
+            # Reset after 2s
+            QTimer.singleShot(2000, lambda: self._reset_copy_button(original_text))
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                self.tr("Copy Error"),
+                self.tr(f"Failed to copy command: {str(e)}")
+            )
+
+    def _reset_copy_button(self, original_text: str) -> None:
+        """Reset copy button state."""
+        # We need to make sure we use the translated text for "Copy Command" if original was overwritten
+        self.copy_btn.setText(self.tr("Copy Command"))
+        self.copy_btn.setEnabled(True)
 
     def on_lan_toggled(self, state):
         # We don't need to do much immediately, value is read on save/start
@@ -811,89 +799,6 @@ class MainWindow(QMainWindow):
         self.log_area.verticalScrollBar().setValue(
             self.log_area.verticalScrollBar().maximum()
         )
-
-    def launch_claude(self):
-        """Launch Claude CLI with MCP configuration."""
-        # Get settings
-        host = "127.0.0.1"  # Always use localhost for CLI
-        port = self.port_input.value()
-        server_url = f"http://{host}:{port}/sse"
-
-        # Build parameters from checkboxes
-        checkbox_params = self.build_cli_params_from_checkboxes()
-
-        # Get additional parameters from input
-        extra_params = self.cli_params_input.text().strip()
-
-        # Combine parameters
-        all_params = " ".join(filter(None, [checkbox_params, extra_params]))
-
-        # Build the command for display (before execution)
-        mcp_config = {
-            "mcpServers": {
-                "docx-server": {
-                    "url": server_url,
-                    "transport": "sse"
-                }
-            }
-        }
-
-        # Format command for display
-        import json
-        import platform
-        base_cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
-        if all_params:
-            base_cmd.extend(all_params.split())
-
-        # On Windows, wrap with cmd.exe (same as cli_launcher.py)
-        if platform.system() == "Windows":
-            cmd_parts = ["cmd.exe", "/c"] + base_cmd
-        else:
-            cmd_parts = base_cmd
-
-        display_cmd = " ".join(cmd_parts)
-
-        # Log the command BEFORE execution
-        self.append_log("=" * 60)
-        self.append_log("Launching Claude Desktop...")
-        self.append_log(f"Command: {display_cmd}")
-        self.append_log("=" * 60)
-
-        # Launch
-        success, msg = self.cli_launcher.launch(server_url, "sse", all_params)
-
-        if success:
-            self.append_log(f"✓ SUCCESS: {msg}")
-            QMessageBox.information(self, self.tr("Success"), msg)
-            self.save_settings()  # Save CLI params
-        else:
-            self.append_log(f"✗ FAILED: {msg}")
-            # Check error type and show appropriate dialog
-            if "not found" in msg.lower():
-                self.show_cli_not_found_dialog()
-            else:
-                self.show_error_dialog(self.tr("Error"), msg)
-
-        self.append_log("=" * 60)
-
-    def show_cli_not_found_dialog(self):
-        """Show dialog when Claude CLI is not found."""
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setWindowTitle(self.tr("Claude CLI Not Found"))
-        msg.setText(self.tr("Claude CLI is required to use this feature."))
-        msg.setInformativeText(
-            self.tr(
-                "Installation Options:\n\n"
-                "1. Using npm (recommended):\n"
-                "   npm install -g @anthropic-ai/claude-code\n\n"
-                "2. Using pip:\n"
-                "   pip install claude-code\n\n"
-                "After installation, restart this application."
-            )
-        )
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.exec()
 
     def show_cwd_history(self):
         """Show history directory selection menu"""

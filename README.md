@@ -164,6 +164,22 @@ Windows GUI 启动器会自动使用 SSE 模式启动服务器，你可以在界
 - **Port**: 在端口输入框中指定端口号
 - **Working Directory**: 服务器的工作目录
 
+### Claude Desktop 集成
+
+**v0.3.0 更新**: 启动器现在显示完整的 Claude CLI 启动命令，而不是自动启动。这提高了可靠性和灵活性。
+
+1. 配置服务器设置（Host, Port）。
+2. 如果需要，在 "Additional CLI Parameters" 中添加参数（如 `--dangerously-skip-permission`）。
+3. 点击 **"Copy Command"** 将完整命令复制到剪贴板。
+4. 在你的终端（PowerShell 或 CMD）中粘贴并运行该命令。
+
+**命令示例**:
+
+*Windows*:
+```cmd
+cmd.exe /c claude --mcp-config {"mcpServers":{"docx-server":{"url":"http://127.0.0.1:8000/sse","transport":"sse"}}} --dangerously-skip-permission
+```
+
 ### 构建可执行文件
 
 如果您想自己从源码构建 Windows 可执行文件：

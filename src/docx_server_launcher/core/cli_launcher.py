@@ -193,51 +193,6 @@ class CLILauncher:
 
         return cmd
 
-    def _log_launch(self, command: List[str], mcp_config: Dict[str, Any],
-                    success: bool, error: str = "", pid: Optional[int] = None) -> None:
-        """
-        Log launch attempt to file using structured format.
-
-        Args:
-            command: Command that was executed
-            mcp_config: MCP configuration used
-            success: Whether launch was successful
-            error: Error message (if failed)
-            pid: Process ID (if successful)
-        """
-        try:
-            # Extract extra params from command (everything after --mcp-config and its value)
-            extra_params = []
-            skip_next = False
-            for i, arg in enumerate(command):
-                if skip_next:
-                    skip_next = False
-                    continue
-                if arg == "--mcp-config":
-                    skip_next = True
-                    continue
-                if arg != "claude":
-                    extra_params.append(arg)
-
-            # Use structured logging format
-            command_str = ' '.join(command)
-            log_data = format_cli_command(command_str, mcp_config, extra_params)
-            log_message = format_log_message(log_data)
-
-            self.logger.info("=" * 40)
-            self.logger.info("Launch Attempt")
-            self.logger.info(log_message)
-
-            if success:
-                self.logger.info(f"Claude CLI started successfully (PID: {pid})")
-            else:
-                self.logger.error(f"Launch failed: {error}")
-
-            self.logger.info("=" * 40)
-        except Exception as e:
-            # Logging failure shouldn't break the launch process
-            print(f"Warning: Failed to log launch attempt: {e}")
-
     def validate_cli_params(self, params: str) -> Tuple[bool, str]:
         """
         Validate CLI parameters for safety.
@@ -310,73 +265,7 @@ class CLILauncher:
 
         return sanitized
 
-    def launch(self, server_url: str, transport: str, extra_params: str = "") -> Tuple[bool, str]:
-        """
-        Launch Claude CLI with MCP configuration.
 
-        Args:
-            server_url: MCP server URL (e.g., http://127.0.0.1:8000/sse)
-            transport: Transport type (sse, streamable-http)
-            extra_params: Additional CLI parameters (e.g., "--model opus")
-
-        Returns:
-            Tuple of (success, message_or_error)
-            - If successful: (True, "Claude CLI started successfully (PID: 12345)")
-            - If failed: (False, "Error message")
-        """
-        # Check CLI availability
-        is_available, cli_path_or_error = self.is_claude_cli_available()
-        if not is_available:
-            error_msg = cli_path_or_error
-            self.logger.error(f"Launch failed: {error_msg}")
-            return False, error_msg
-
-        # Validate extra parameters
-        if extra_params:
-            is_valid, validation_error = self.validate_cli_params(extra_params)
-            if not is_valid:
-                self.logger.error(f"Launch failed: {validation_error}")
-                return False, validation_error
-
-        try:
-            # Generate MCP config
-            mcp_config = self.generate_mcp_config(server_url, transport)
-
-            # Build command
-            cmd = self.build_command(mcp_config, extra_params)
-
-            # Launch process (non-blocking)
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1  # Line buffered
-            )
-
-            # Log success
-            self._log_launch(cmd, mcp_config, success=True, pid=process.pid)
-
-            success_msg = f"Claude CLI started successfully (PID: {process.pid})"
-            return True, success_msg
-
-        except ValueError as e:
-            # Config generation or command building error
-            error_msg = str(e)
-            self.logger.error(f"Launch failed: {error_msg}")
-            return False, error_msg
-
-        except subprocess.SubprocessError as e:
-            # Process launch error
-            error_msg = f"Failed to launch Claude CLI: {e}"
-            self.logger.error(error_msg)
-            return False, error_msg
-
-        except Exception as e:
-            # Unexpected error
-            error_msg = f"Unexpected error during launch: {e}"
-            self.logger.exception(error_msg)
-            return False, error_msg
 
 
 
