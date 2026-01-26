@@ -24,8 +24,8 @@ class ServerManager(QObject):
 
         # Single process for Combined server
         self.process = QProcess()
-        self.process.readyReadStandardOutput.connect(self._handle_stdout)
-        self.process.readyReadStandardError.connect(self._handle_stderr)
+        self.process.readyReadStandardOutput.connect(lambda: self._handle_stdout(self.process))
+        self.process.readyReadStandardError.connect(lambda: self._handle_stderr(self.process))
         self.process.started.connect(self._handle_started)
         self.process.finished.connect(self._handle_finished)
         self.process.errorOccurred.connect(self._handle_error)
