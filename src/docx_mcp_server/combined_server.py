@@ -231,7 +231,7 @@ logger.info("REST API endpoints registered at /api/*")
 # This makes all MCP tools available through the /mcp endpoint
 # Claude Desktop can connect to http://localhost:8080/mcp
 try:
-    app.mount("/mcp", mcp.get_asgi_app(path="/mcp"))
+    app.mount("/mcp", mcp.sse_app)
     logger.info("MCP server mounted at /mcp")
 except Exception as e:
     logger.error(f"Failed to mount MCP server: {e}")
