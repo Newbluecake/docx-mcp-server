@@ -49,7 +49,7 @@ class ServerManager(QObject):
             program = sys.executable
             args = [
                 "--server-mode",
-                "--transport", "sse",
+                "--transport", "combined",
                 "--port", str(port),
                 "--host", host,
                 "--log-level", normalized_level,
@@ -59,7 +59,7 @@ class ServerManager(QObject):
             program = sys.executable
             args = [
                 "-m", "docx_mcp_server.server",
-                "--transport", "sse",
+                "--transport", "combined",
                 "--port", str(port),
                 "--host", host,
                 "--log-level", normalized_level,
