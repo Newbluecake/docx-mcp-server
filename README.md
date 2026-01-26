@@ -89,6 +89,19 @@ def extract_field(response, field_name):
 
 **注意**：测试辅助函数可在 `tests/helpers/markdown_extractors.py` 中找到。
 
+## ⚠️ Breaking Changes (v3.0)
+
+**文件管理架构重大更新**：
+
+- ❌ **已移除**: `docx_create(file_path=...)` 参数
+- ❌ **已移除**: `docx_list_files()` 工具
+- ✅ **新增**: 全局单文件模式 + HTTP API 文件管理
+- ✅ **新增**: Combined 传输模式（FastAPI + MCP）
+
+**迁移指南**: 详见 [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md)
+
+---
+
 ## 快速开始
 
 ### 安装
@@ -109,9 +122,11 @@ pip install .
 
 直接下载最新发布的 `DocxServerLauncher.exe`，双击运行即可。无需安装 Python 或任何依赖。
 
+**v3.0 更新**: 启动器现在支持文件选择和集中文件管理。
+
 ### 运行服务器
 
-服务器支持三种传输模式：
+服务器支持四种传输模式：
 
 #### 1. STDIO 模式（默认，用于 Claude Desktop）
 
@@ -149,6 +164,32 @@ mcp-server-docx --transport streamable-http --host 0.0.0.0 --port 8080 --mount-p
 ```
 
 启动后可通过 `http://0.0.0.0:8080/mcp` 访问（如果指定了 mount-path）。
+
+#### 4. Combined 模式（v3.0 新增，推荐用于 GUI 启动器）
+
+Combined 模式提供 FastAPI REST API + MCP 的组合功能，适用于 GUI 启动器集成：
+
+```bash
+# 使用默认配置（127.0.0.1:8080）
+mcp-server-docx --transport combined
+
+# 指定初始文件
+mcp-server-docx --transport combined --file /path/to/document.docx
+
+# 指定 host 和 port
+mcp-server-docx --transport combined --host 0.0.0.0 --port 8080
+```
+
+**Combined 模式特性**：
+- **REST API**: `POST /api/file/switch`、`GET /api/status`、`POST /api/session/close`
+- **MCP Server**: 挂载在 `/mcp` 路径
+- **Health Check**: `GET /health`
+- **文件管理**: 通过 HTTP API 切换当前活动文件
+
+**使用场景**：
+- GUI 启动器需要文件选择功能
+- 需要通过 HTTP API 集中管理文件
+- 多应用共享同一个 MCP 服务器实例
 
 #### 查看所有选项
 
@@ -210,15 +251,19 @@ cmd.exe /c claude --mcp-config {"mcpServers":{"docx-server":{"url":"http://127.0
 
 ### 生命周期管理
 
-- `docx_create(file_path=None, auto_save=False)` - 创建新文档会话
+- `docx_create(auto_save=False)` - 创建新文档会话（⚠️ v3.0: 移除了 file_path 参数）
 - `docx_save(session_id, file_path)` - 保存文档到文件
 - `docx_close(session_id)` - 关闭会话并释放资源
 - `docx_get_context(session_id)` - 获取当前会话上下文信息
 
+**v3.0 文件管理变更**：
+- 文件选择现在由 Launcher GUI 或 `--file` CLI 参数管理
+- `docx_create()` 使用全局活动文件（通过 `/api/file/switch` 设置）
+- 移除了 `docx_list_files()` 工具（文件浏览由 Launcher 提供）
+
 ### 内容检索与浏览
 
 - `docx_read_content(session_id)` - 读取文档全文
-- `docx_list_files(directory=".")` - 列出目录下的 .docx 文件
 - `docx_find_paragraphs(session_id, query)` - 查找包含特定文本的段落
 - `docx_find_table(session_id, text)` - 查找包含特定文本的表格
 - `docx_get_table(session_id, index)` - 按索引获取表格
@@ -369,10 +414,17 @@ docx_save(session_id, "/path/to/output.docx")
 docx_close(session_id)
 ```
 
-### 示例 2：提取模板结构
+### 示例 2：加载并编辑文档（v3.0 新方式）
 
 ```python
-session_response = docx_create(file_path="/path/to/template.docx")
+# 方式 1: 使用 Launcher GUI 选择文件
+# Launcher 会调用 POST /api/file/switch 设置活动文件
+
+# 方式 2: 使用 CLI 参数启动服务器
+# mcp-server-docx --transport combined --file /path/to/template.docx
+
+# 创建会话（使用当前活动文件）
+session_response = docx_create()
 session_id = extract_session_id(session_response)
 
 # 提取文档结构（智能识别标题、表格、段落）
@@ -385,6 +437,14 @@ for element in structure["document_structure"]:
         print(f"表格: {element['headers']}")  # 自动检测的表头
     elif element["type"] == "heading":
         print(f"标题 {element['level']}: {element['text']}")
+
+docx_close(session_id)
+```
+
+**v2.x 旧方式（已废弃）**:
+```python
+# ❌ 不再支持
+session_response = docx_create(file_path="/path/to/template.docx")
 ```
 
 输出格式：
@@ -423,7 +483,8 @@ for element in structure["document_structure"]:
 #### 3.1 模板填充（智能替换）
 
 ```python
-session_response = docx_create(file_path="/path/to/template.docx")
+# 确保已通过 Launcher 或 --file 参数设置活动文件
+session_response = docx_create()
 session_id = extract_session_id(session_response)
 
 # 智能替换 {{name}} 占位符，即使它跨越了多个 Run
