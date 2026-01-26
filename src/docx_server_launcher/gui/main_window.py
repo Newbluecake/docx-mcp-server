@@ -15,6 +15,7 @@ from docx_server_launcher.core.cli_launcher import CLILauncher
 from docx_server_launcher.core.working_directory_manager import WorkingDirectoryManager
 from docx_server_launcher.core.language_manager import LanguageManager
 from docx_server_launcher.core.config_manager import ConfigManager
+from docx_server_launcher.core.http_client import HTTPClient, ServerConnectionError, ServerTimeoutError
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -32,6 +33,11 @@ class MainWindow(QMainWindow):
         self.cwd_manager = WorkingDirectoryManager(self.settings)
         self._is_switching_cwd = False
         self.is_running = False
+
+        # HTTP Client for server communication (T-008, T-009, T-010)
+        self.http_client: HTTPClient = None
+        self._status_poll_timer: QTimer = None
+        self._current_file_path: str = None  # Track current active file
 
         # Search state (T-001, T-004, T-005)
         self._search_matches: List[Tuple[int, int]] = []  # [(start, length), ...]
@@ -168,16 +174,57 @@ class MainWindow(QMainWindow):
 
         # --- Control Section ---
         self.control_group = QGroupBox()
-        control_layout = QHBoxLayout()
+        control_layout = QVBoxLayout()
 
+        # Status row
+        status_row = QHBoxLayout()
         self.status_label = QLabel()
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
-        control_layout.addWidget(self.status_label)
+        status_row.addWidget(self.status_label)
 
-        control_layout.addStretch()
+        status_row.addStretch()
 
         self.start_btn = QPushButton()
-        control_layout.addWidget(self.start_btn)
+        status_row.addWidget(self.start_btn)
+
+        control_layout.addLayout(status_row)
+
+        # T-008: File selection row (only visible when server is running)
+        self.file_selection_group = QWidget()
+        file_row = QHBoxLayout()
+        file_row.setContentsMargins(0, 0, 0, 0)
+
+        self.file_label = QLabel()
+        file_row.addWidget(self.file_label)
+
+        self.file_input = QLineEdit()
+        self.file_input.setPlaceholderText("No file selected")
+        self.file_input.setReadOnly(True)
+        self.file_input.setStyleSheet("background-color: #f5f5f5;")
+        file_row.addWidget(self.file_input)
+
+        self.file_browse_btn = QPushButton()
+        file_row.addWidget(self.file_browse_btn)
+
+        self.file_selection_group.setLayout(file_row)
+        self.file_selection_group.setVisible(False)  # Hidden by default
+        control_layout.addWidget(self.file_selection_group)
+
+        # T-009: Status bar (only visible when server is running)
+        self.status_bar_group = QWidget()
+        status_bar_row = QHBoxLayout()
+        status_bar_row.setContentsMargins(0, 0, 0, 0)
+
+        self.status_bar_label = QLabel()
+        self.status_bar_label.setStyleSheet("color: #666; font-size: 11px;")
+        self.status_bar_label.setText("Server: Not Connected")
+        status_bar_row.addWidget(self.status_bar_label)
+
+        status_bar_row.addStretch()
+
+        self.status_bar_group.setLayout(status_bar_row)
+        self.status_bar_group.setVisible(False)  # Hidden by default
+        control_layout.addWidget(self.status_bar_group)
 
         self.control_group.setLayout(control_layout)
         main_layout.addWidget(self.control_group)
@@ -303,6 +350,10 @@ class MainWindow(QMainWindow):
             self.status_label.setText(self.tr("Status: Stopped"))
             self.start_btn.setText(self.tr("Start Server"))
 
+        # File selection (T-008)
+        self.file_label.setText(self.tr("Active File:"))
+        self.file_browse_btn.setText(self.tr("Select File..."))
+
         # Integration
         self.integration_group.setTitle(self.tr("Claude Integration"))
         self.command_display.setPlaceholderText(self.tr("Command will appear here..."))
@@ -328,6 +379,9 @@ class MainWindow(QMainWindow):
         self.word_browse_btn.clicked.connect(lambda: self.browse_exe(self.word_input))
 
         self.start_btn.clicked.connect(self.toggle_server)
+
+        # T-008: File selection signal
+        self.file_browse_btn.clicked.connect(self.browse_docx_file)
 
         # New signals
         self.copy_btn.clicked.connect(self.copy_command)
@@ -542,6 +596,181 @@ class MainWindow(QMainWindow):
 
         if file_path:
             target_input.setText(file_path)
+
+    def browse_docx_file(self):
+        """T-008: Open file selection dialog for .docx files"""
+        # Check if server is running
+        if not self.is_running:
+            QMessageBox.warning(
+                self,
+                self.tr("Server Not Running"),
+                self.tr("Please start the server before selecting a file.")
+            )
+            return
+
+        # Check if HTTP client is available
+        if not self.http_client:
+            QMessageBox.critical(
+                self,
+                self.tr("Connection Error"),
+                self.tr("HTTP client not initialized. Please restart the server.")
+            )
+            return
+
+        # Get current working directory
+        cwd = self.cwd_input.text() or os.getcwd()
+
+        # Open file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Select Document"),
+            cwd,
+            "Word Documents (*.docx);;All Files (*)"
+        )
+
+        if file_path:
+            self.switch_active_file(file_path)
+
+    def switch_active_file(self, file_path: str, force: bool = False):
+        """T-008: Switch to a new active file via HTTP API.
+
+        Args:
+            file_path: Path to the .docx file
+            force: If True, discard unsaved changes
+        """
+        if not self.http_client:
+            QMessageBox.critical(
+                self,
+                self.tr("Connection Error"),
+                self.tr("HTTP client not initialized.")
+            )
+            return
+
+        try:
+            # Call HTTP API
+            response = self.http_client.switch_file(file_path, force=force)
+
+            # Update UI
+            self._current_file_path = response.get("currentFile")
+            self.file_input.setText(self._current_file_path or "")
+
+            # Log success
+            self.append_log(f"✅ Switched to file: {self._current_file_path}")
+
+            # Show success message
+            QMessageBox.information(
+                self,
+                self.tr("Success"),
+                self.tr(f"File switched to:\n{self._current_file_path}")
+            )
+
+        except ServerConnectionError as e:
+            QMessageBox.critical(
+                self,
+                self.tr("Connection Error"),
+                self.tr(f"Failed to connect to server:\n{str(e)}")
+            )
+            self.append_log(f"❌ Connection error: {e}")
+
+        except ServerTimeoutError as e:
+            QMessageBox.critical(
+                self,
+                self.tr("Timeout Error"),
+                self.tr(f"Request timed out:\n{str(e)}")
+            )
+            self.append_log(f"❌ Timeout error: {e}")
+
+        except Exception as e:
+            # Check for specific HTTP errors
+            import requests
+            if isinstance(e, requests.HTTPError):
+                status_code = e.response.status_code
+                error_detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+
+                if status_code == 404:
+                    QMessageBox.critical(
+                        self,
+                        self.tr("File Not Found"),
+                        self.tr(f"The file does not exist:\n{file_path}")
+                    )
+                    self.append_log(f"❌ File not found: {file_path}")
+
+                elif status_code == 403:
+                    QMessageBox.critical(
+                        self,
+                        self.tr("Permission Denied"),
+                        self.tr(f"Cannot access file (permission denied):\n{file_path}")
+                    )
+                    self.append_log(f"❌ Permission denied: {file_path}")
+
+                elif status_code == 423:
+                    QMessageBox.critical(
+                        self,
+                        self.tr("File Locked"),
+                        self.tr(f"The file is locked by another process:\n{file_path}")
+                    )
+                    self.append_log(f"❌ File locked: {file_path}")
+
+                elif status_code == 409:
+                    # Unsaved changes - show dialog
+                    self.show_unsaved_changes_dialog(file_path)
+
+                else:
+                    QMessageBox.critical(
+                        self,
+                        self.tr("Server Error"),
+                        self.tr(f"Server returned error:\n{error_detail}")
+                    )
+                    self.append_log(f"❌ Server error: {error_detail}")
+            else:
+                QMessageBox.critical(
+                    self,
+                    self.tr("Error"),
+                    self.tr(f"Failed to switch file:\n{str(e)}")
+                )
+                self.append_log(f"❌ Error switching file: {e}")
+
+    def show_unsaved_changes_dialog(self, new_file_path: str):
+        """T-008: Show dialog when switching with unsaved changes.
+
+        Args:
+            new_file_path: Path to the new file user wants to switch to
+        """
+        reply = QMessageBox.question(
+            self,
+            self.tr("Unsaved Changes"),
+            self.tr(f"The current file has unsaved changes.\n\n"
+                   f"Do you want to save and switch to:\n{new_file_path}?"),
+            QMessageBox.StandardButton.Save |
+            QMessageBox.StandardButton.Discard |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save
+        )
+
+        if reply == QMessageBox.StandardButton.Save:
+            # Save and switch
+            try:
+                # Close session with save
+                self.http_client.close_session(save=True)
+                self.append_log("💾 Saved current file")
+
+                # Switch to new file
+                self.switch_active_file(new_file_path, force=False)
+
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    self.tr("Save Error"),
+                    self.tr(f"Failed to save current file:\n{str(e)}")
+                )
+                self.append_log(f"❌ Save error: {e}")
+
+        elif reply == QMessageBox.StandardButton.Discard:
+            # Discard and switch (force=True)
+            self.switch_active_file(new_file_path, force=True)
+            self.append_log("⚠️ Discarded unsaved changes")
+
+        # else: Cancel - do nothing
 
     def switch_cwd(self, new_path: str):
         """
@@ -782,6 +1011,36 @@ class MainWindow(QMainWindow):
         self.port_input.setEnabled(False)
         self.retranslateUi()
 
+        # T-009, T-010: Initialize HTTP client and status polling
+        host = "127.0.0.1" if not self.lan_checkbox.isChecked() else "0.0.0.0"
+        port = self.port_input.value()
+        base_url = f"http://{host}:{port}"
+
+        try:
+            self.http_client = HTTPClient(base_url=base_url, timeout=5.0)
+
+            # T-010: Perform initial health check
+            health = self.http_client.health_check()
+            self.append_log(f"✅ Server health check passed: {health.get('status', 'unknown')}")
+
+            # Show file selection UI
+            self.file_selection_group.setVisible(True)
+            self.status_bar_group.setVisible(True)
+
+            # T-009: Start status polling (every 2 seconds)
+            self._status_poll_timer = QTimer()
+            self._status_poll_timer.timeout.connect(self.update_server_status)
+            self._status_poll_timer.start(2000)  # 2 seconds interval
+
+            # Initial status update
+            self.update_server_status()
+
+        except Exception as e:
+            self.append_log(f"⚠️ Warning: Could not initialize HTTP client: {e}")
+            # Don't fail server start if HTTP client fails
+            self.file_selection_group.setVisible(False)
+            self.status_bar_group.setVisible(False)
+
     def on_server_stopped(self):
         self.is_running = False
         self.start_btn.setEnabled(True)
@@ -793,9 +1052,86 @@ class MainWindow(QMainWindow):
         self.port_input.setEnabled(True)
         self.retranslateUi()
 
+        # T-009: Stop status polling
+        if self._status_poll_timer:
+            self._status_poll_timer.stop()
+            self._status_poll_timer = None
+
+        # Clean up HTTP client
+        self.http_client = None
+        self._current_file_path = None
+
+        # Hide file selection UI
+        self.file_selection_group.setVisible(False)
+        self.status_bar_group.setVisible(False)
+
+        # Clear file input
+        self.file_input.setText("")
+
     def on_server_error(self, error_msg):
         self.append_log(f"ERROR: {error_msg}")
         self.on_server_stopped()
+
+    def update_server_status(self):
+        """T-009: Update server status from HTTP API (called every 2 seconds)"""
+        if not self.http_client or not self.is_running:
+            return
+
+        try:
+            # Call /api/status
+            status = self.http_client.get_status()
+
+            # Extract information
+            current_file = status.get("currentFile")
+            session_id = status.get("sessionId")
+            has_unsaved = status.get("hasUnsaved", False)
+
+            # Update UI
+            if current_file:
+                self._current_file_path = current_file
+                self.file_input.setText(current_file)
+            else:
+                self._current_file_path = None
+                self.file_input.setText("No file selected")
+
+            # Update status bar
+            status_parts = []
+
+            # File status
+            if current_file:
+                file_name = os.path.basename(current_file)
+                status_parts.append(f"📄 {file_name}")
+            else:
+                status_parts.append("📄 No file")
+
+            # Session status
+            if session_id:
+                status_parts.append(f"🔗 Session: {session_id[:8]}...")
+            else:
+                status_parts.append("🔗 No session")
+
+            # Unsaved changes
+            if has_unsaved:
+                status_parts.append("⚠️ Unsaved")
+            else:
+                status_parts.append("✅ Saved")
+
+            self.status_bar_label.setText(" | ".join(status_parts))
+
+        except ServerConnectionError:
+            self.status_bar_label.setText("❌ Server: Connection Lost")
+            # Don't log every poll failure to avoid spam
+
+        except ServerTimeoutError:
+            self.status_bar_label.setText("❌ Server: Timeout")
+            # Don't log every poll failure to avoid spam
+
+        except Exception as e:
+            # Log unexpected errors but don't spam
+            if not hasattr(self, '_last_status_error') or self._last_status_error != str(e):
+                self.append_log(f"⚠️ Status poll error: {e}")
+                self._last_status_error = str(e)
+            self.status_bar_label.setText("❌ Server: Error")
 
     def append_log(self, text):
         self.log_area.appendPlainText(text.strip())
