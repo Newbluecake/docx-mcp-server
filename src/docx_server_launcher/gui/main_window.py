@@ -416,16 +416,19 @@ class MainWindow(QMainWindow):
         """Actually update the command display."""
         try:
             # 1. Get config
-            host = "0.0.0.0" if self.lan_checkbox.isChecked() else "127.0.0.1"
+            if self.lan_checkbox.isChecked():
+                host = self.cli_launcher.get_lan_ip()
+            else:
+                host = "127.0.0.1"
+
             port = self.port_input.value()
             extra_params = self.cli_params_input.text().strip()
 
-            # 2. Generate MCP config
+            # 2. Build server URL
             server_url = f"http://{host}:{port}/sse"
-            mcp_config = self.cli_launcher.generate_mcp_config(server_url, "sse")
 
-            # 3. Build command
-            cmd_list = self.cli_launcher.build_command(mcp_config, extra_params)
+            # 3. Build command (new signature: server_url, transport, extra_params)
+            cmd_list = self.cli_launcher.build_command(server_url, "sse", extra_params)
 
             # 4. Format as string
             import platform

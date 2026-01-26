@@ -12,6 +12,7 @@ import platform
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -127,6 +128,26 @@ class CLILauncher:
             self._cache_time = None
             return False, "Claude CLI not found in PATH"
 
+    def get_lan_ip(self) -> str:
+        """
+        Get the LAN IP address of the current machine.
+
+        Returns:
+            LAN IP address (e.g., "192.168.1.100") or "127.0.0.1" if detection fails
+        """
+        try:
+            # Create a UDP socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Connect to a public DNS server (doesn't actually send data)
+            s.connect(("8.8.8.8", 80))
+            # Get the socket's own address
+            lan_ip = s.getsockname()[0]
+            s.close()
+            return lan_ip
+        except Exception:
+            # Fallback to localhost if detection fails
+            return "127.0.0.1"
+
     def generate_mcp_config(self, server_url: str, transport: str) -> Dict[str, Any]:
         """
         Generate MCP configuration dictionary.
@@ -160,13 +181,14 @@ class CLILauncher:
 
         return config
 
-    def build_command(self, mcp_config: Dict[str, Any], extra_params: str = "") -> List[str]:
+    def build_command(self, server_url: str, transport: str = "sse", extra_params: str = "") -> List[str]:
         """
-        Build Claude CLI command with MCP config.
+        Build Claude MCP add command.
 
         Args:
-            mcp_config: MCP configuration dictionary
-            extra_params: Additional CLI parameters (e.g., "--model opus")
+            server_url: MCP server URL (e.g., http://192.168.1.100:8000/sse)
+            transport: Transport type (default: "sse")
+            extra_params: Additional CLI parameters (e.g., "--dangerously-skip-permission")
 
         Returns:
             Command as list of strings
@@ -174,8 +196,8 @@ class CLILauncher:
         Raises:
             ValueError: If extra_params cannot be parsed
         """
-        # Build base command
-        base_cmd = ["claude", "--mcp-config", json.dumps(mcp_config)]
+        # Build base command: claude mcp add --transport sse docx <url>
+        base_cmd = ["claude", "mcp", "add", "--transport", transport, "docx", server_url]
 
         # Parse and append extra parameters
         if extra_params and extra_params.strip():

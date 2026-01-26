@@ -39,6 +39,8 @@ def test_command_display_initial_state(app):
     # Should display default command
     cmd = app.command_display.text()
     assert "claude" in cmd
+    assert "mcp" in cmd
+    assert "add" in cmd
     assert "127.0.0.1" in cmd  # Default host
     assert "8000" in cmd       # Default port
     assert app.command_display.isReadOnly()
@@ -60,7 +62,7 @@ def test_command_update_on_port_change(app, qtbot):
 
 def test_command_update_on_lan_change(app, qtbot):
     """Test that command updates when LAN checkbox changes."""
-    # Check LAN (host becomes 0.0.0.0)
+    # Check LAN (host becomes actual LAN IP)
     app.lan_checkbox.setChecked(True)
 
     # Trigger debounce immediately
@@ -68,8 +70,10 @@ def test_command_update_on_lan_change(app, qtbot):
     app._do_update_command_display()
 
     cmd = app.command_display.text()
-    assert "0.0.0.0" in cmd
+    # Should not contain localhost
     assert "127.0.0.1" not in cmd
+    # Should contain some IP (could be actual LAN IP or fallback)
+    assert "http://" in cmd
 
 def test_command_update_on_extra_params(app, qtbot):
     """Test that command updates when extra params change."""
