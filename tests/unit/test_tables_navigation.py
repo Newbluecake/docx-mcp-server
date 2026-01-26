@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from docx_mcp_server.server import (
     docx_get_table,
     docx_find_table,
-    docx_list_files,
     docx_copy_table,
     docx_insert_table_row,
     docx_insert_table_col,
@@ -20,15 +19,6 @@ from docx_mcp_server.server import (
     docx_insert_table
 )
 from helpers import extract_session_id, extract_element_id
-
-def test_list_files():
-    with patch("os.listdir", return_value=["template.docx", "ignore.txt", "~$temp.docx"]):
-        with patch("os.path.exists", return_value=True):
-            result = docx_list_files(".")
-            # Result is Markdown list
-            assert "template.docx" in result
-            assert "ignore.txt" not in result
-            assert "~$temp.docx" not in result
 
 def test_table_operations_flow():
     # 1. Create session

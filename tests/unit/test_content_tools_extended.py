@@ -7,7 +7,6 @@ from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.content_tools import (
     docx_read_content,
     docx_find_paragraphs,
-    docx_list_files,
 )
 
 # Add parent directory to path for helpers import
@@ -52,15 +51,3 @@ def test_find_paragraphs_with_context():
     assert entry["context_after"] == ["three"]
 
     docx_close(sid)
-
-
-def test_list_files_with_meta(tmp_path):
-    # create a dummy docx file
-    fpath = tmp_path / "sample.docx"
-    with open(fpath, "wb") as f:
-        f.write(b"PK\x03\x04")  # minimal zip header
-
-    listing = json.loads(docx_list_files(directory=str(tmp_path), include_meta=True))
-    assert isinstance(listing, list)
-    assert listing[0]["path"].endswith("sample.docx")
-    assert "size" in listing[0]

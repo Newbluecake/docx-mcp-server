@@ -22,7 +22,7 @@ from docx_mcp_server.tools.session_tools import (
     docx_create, docx_close, docx_save, docx_get_context
 )
 from docx_mcp_server.tools.content_tools import (
-    docx_read_content, docx_find_paragraphs, docx_list_files, docx_extract_template_structure
+    docx_read_content, docx_find_paragraphs, docx_extract_template_structure
 )
 from docx_mcp_server.tools.paragraph_tools import (
     docx_insert_paragraph, docx_insert_heading, docx_update_paragraph_text,

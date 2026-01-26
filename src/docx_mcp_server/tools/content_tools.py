@@ -3,7 +3,7 @@ import json
 import logging
 from mcp.server.fastmcp import FastMCP
 from typing import Optional, Dict, List, Any
-from docx_mcp_server.core.finder import Finder, list_docx_files
+from docx_mcp_server.core.finder import Finder
 from docx_mcp_server.core.template_parser import TemplateParser
 
 logger = logging.getLogger(__name__)
@@ -261,62 +261,6 @@ def docx_find_paragraphs(
     logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches (limited to {max_results})")
     return json.dumps(matches, ensure_ascii=False)
 
-def docx_list_files(directory: Optional[str] = None, recursive: bool = False, include_meta: bool = False) -> str:
-    """
-    List all .docx files in the specified directory.
-
-    Scans a directory and returns a list of Word document files. Useful for
-    discovering available documents before opening them.
-
-    Typical Use Cases:
-        - Discover available templates
-        - List documents in a folder
-        - Find documents to process
-
-    Args:
-        directory (str, optional): Directory path to scan. Defaults to current directory (".").
-            Can be absolute or relative path.
-
-    Returns:
-        str: JSON array of filenames (strings): ["file1.docx", "file2.docx", ...]
-
-    Raises:
-        ValueError: If directory does not exist or is not accessible.
-
-    Examples:
-        List files in current directory:
-        >>> files = docx_list_files()
-        >>> import json
-        >>> file_list = json.loads(files)
-        >>> print(f"Found {len(file_list)} documents")
-
-        List files in specific directory:
-        >>> files = docx_list_files("./templates")
-        >>> for filename in json.loads(files):
-        ...     print(f"Found: {filename}")
-
-    Notes:
-        - Only returns .docx files (not .doc or other formats)
-        - Returns filenames only, not full paths
-        - Does not search subdirectories recursively
-        - Hidden files (starting with .) are excluded
-
-    See Also:
-        - docx_create: Open discovered files
-    """
-    logger.debug(f"docx_list_files called: directory={directory}")
-
-    if directory is None:
-        directory = "."
-
-    try:
-        files = list_docx_files(directory, recursive=recursive, include_meta=include_meta)
-        logger.debug(f"docx_list_files success: found {len(files)} files")
-        return json.dumps(files, ensure_ascii=False)
-    except Exception as e:
-        logger.error(f"docx_list_files failed: {e}")
-        raise ValueError(str(e))
-
 def docx_extract_template_structure(
     session_id: str,
     max_depth: int = None,
@@ -428,5 +372,4 @@ def register_tools(mcp: FastMCP):
     """Register content reading and search tools"""
     mcp.tool()(docx_read_content)
     mcp.tool()(docx_find_paragraphs)
-    mcp.tool()(docx_list_files)
     mcp.tool()(docx_extract_template_structure)
