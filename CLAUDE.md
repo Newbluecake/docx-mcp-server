@@ -496,6 +496,28 @@ create  add_*  save   close
 
 **v2.0 新增了复合工具，大幅简化常见操作。优先使用这些工具！**
 
+**v3.0 Breaking Change**: 文件管理已迁移到全局单文件模式。详见下方说明。
+
+### v3.0 文件管理新架构
+
+**关键变更**:
+- ❌ `docx_create(file_path=...)` 参数已移除
+- ❌ `docx_list_files()` 工具已移除
+- ✅ 使用 Launcher GUI 或 `--file` CLI 参数设置活动文件
+- ✅ HTTP API (`/api/file/switch`) 用于文件切换
+
+**新工作流**:
+```python
+# 方式 1: 通过 Launcher GUI 选择文件
+# Launcher 会调用 POST /api/file/switch 设置活动文件
+
+# 方式 2: 启动服务器时指定文件
+# mcp-server-docx --transport combined --file /path/to/document.docx
+
+# 创建会话（使用全局活动文件）
+session_id = docx_create()
+```
+
 **创建格式化文档（新方式）**：
 ```python
 session_id = docx_create()
@@ -510,7 +532,8 @@ docx_close(session_id)
 
 **快速编辑文档（新方式）**：
 ```python
-session_id = docx_create(file_path="/path/to/doc.docx")
+# 确保已通过 Launcher 或 --file 设置活动文件
+session_id = docx_create()
 # 查找并编辑，一步完成
 result = docx_quick_edit(
     session_id, "old text",
@@ -522,7 +545,8 @@ docx_close(session_id)
 
 **轻量级结构提取（新方式）**：
 ```python
-session_id = docx_create(file_path="/path/to/template.docx")
+# 确保已通过 Launcher 或 --file 设置活动文件
+session_id = docx_create()
 # 只返回标题和表格，不返回段落内容
 summary = docx_get_structure_summary(
     session_id,
@@ -536,7 +560,8 @@ docx_close(session_id)
 
 **智能表格填充（新方式）**：
 ```python
-session_id = docx_create(file_path="/path/to/template.docx")
+# 确保已通过 Launcher 或 --file 设置活动文件
+session_id = docx_create()
 data = json.dumps([
     ["Name", "Age", "City"],
     ["Alice", "30", "NYC"],
@@ -555,7 +580,8 @@ docx_close(session_id)
 
 **提取模板结构**：
 ```python
-session_id = docx_create(file_path="/path/to/template.docx")
+# v3.0: 确保已通过 Launcher 或 --file 设置活动文件
+session_id = docx_create()
 structure_json = docx_extract_template_structure(session_id)
 structure = json.loads(structure_json)
 docx_close(session_id)
@@ -614,19 +640,22 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 
 | 工具 | 说明 |
 |------|------|
-| `docx_create(file_path=None, auto_save=False)` | 创建新会话或加载文档 |
+| `docx_create(auto_save=False)` | 创建新会话（⚠️ v3.0: 移除 file_path 参数）|
 | `docx_save(session_id, file_path)` | 保存文档到指定路径 |
 | `docx_close(session_id)` | 关闭会话并释放资源 |
 | `docx_get_context(session_id)` | 获取会话上下文信息 |
 
-### 2. Content Tools（内容检索，4 个）⭐ 已优化
+**v3.0 变更**: 文件选择由 Launcher GUI 或 `--file` CLI 参数管理，通过全局 `active_file` 状态共享。
+
+### 2. Content Tools（内容检索，3 个）⭐ 已优化
 
 | 工具 | 说明 | 新增参数 |
 |------|------|----------|
 | `docx_read_content(session_id, max_paragraphs, start_from, include_tables)` | 读取文档全文 | 支持分页 |
 | `docx_find_paragraphs(session_id, query, max_results, return_context)` | 查找包含指定文本的段落 | 限制结果数 |
-| `docx_list_files(directory=".")` | 列出目录下的 .docx 文件 | - |
 | `docx_extract_template_structure(session_id, max_depth, include_content, max_items_per_type)` | 提取文档结构 | 可控详细程度 |
+
+**v3.0 移除**: `docx_list_files()` 已移除，文件浏览由 Launcher GUI 提供。
 
 ### 3. Paragraph Tools（段落操作，6 个）
 
