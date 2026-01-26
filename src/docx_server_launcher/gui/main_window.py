@@ -1012,19 +1012,21 @@ class MainWindow(QMainWindow):
         self.retranslateUi()
 
         # T-009, T-010: Initialize HTTP client and status polling
-        # Note: Server process has started, but HTTP server may take a few seconds to be ready
+        # Note: Server process has started, but HTTP server may take 2-3 seconds to be ready
         # Use a delayed timer with retries for health check
         port = self.port_input.value()
         base_url = f"http://127.0.0.1:{port}"
 
-        self.http_client = HTTPClient(base_url=base_url, timeout=5.0)
+        # Use shorter timeout for health checks (faster retries)
+        self.http_client = HTTPClient(base_url=base_url, timeout=2.0)
 
-        # Delayed health check with retries (allow server startup time)
+        # Delayed health check with retries
         self._health_check_retries = 0
-        self._health_check_max_retries = 10  # Max 10 retries (10 seconds total)
+        self._health_check_max_retries = 15  # Max 15 retries (7.5 seconds total)
 
-        # Use single-shot timer for initial delay (1 second after process start)
-        QTimer.singleShot(1000, self._try_health_check)
+        # Use longer initial delay (3 seconds) to allow Uvicorn to start
+        self.append_log(f"⏳ Waiting for HTTP server to start...")
+        QTimer.singleShot(3000, self._try_health_check)
 
     def _try_health_check(self):
         """T-010: Try to perform health check with retries."""
@@ -1048,9 +1050,10 @@ class MainWindow(QMainWindow):
             self._health_check_retries += 1
 
             if self._health_check_retries < self._health_check_max_retries:
-                # Retry after 1 second
-                self.append_log(f"⏳ Waiting for server to be ready... (attempt {self._health_check_retries}/{self._health_check_max_retries})")
-                QTimer.singleShot(1000, self._try_health_check)
+                # Retry after 0.5 seconds (faster retries with shorter timeout)
+                if self._health_check_retries <= 3:
+                    self.append_log(f"⏳ Waiting for server to be ready... (attempt {self._health_check_retries}/{self._health_check_max_retries})")
+                QTimer.singleShot(500, self._try_health_check)
             else:
                 # Max retries reached
                 self.append_log(f"⚠️ Warning: Could not connect to HTTP API after {self._health_check_max_retries} attempts")
