@@ -21,13 +21,20 @@ Usage:
     # (via Claude Desktop configured with http://localhost:8080/mcp)
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Import MCP server instance from main server module
 from docx_mcp_server.server import mcp, VERSION
+from docx_mcp_server.api.file_controller import (
+    FileController,
+    FileLockError,
+    UnsavedChangesError
+)
 
 # ============================================================================
 # FastAPI Application
@@ -73,6 +80,148 @@ async def health_check():
     }
 
 logger.info("Health check endpoint registered at /health")
+
+# ============================================================================
+# Pydantic Models for REST API
+# ============================================================================
+
+class SwitchFileRequest(BaseModel):
+    """Request model for file switching."""
+    path: str
+    force: bool = False
+
+class CloseSessionRequest(BaseModel):
+    """Request model for closing session."""
+    save: bool = False
+
+class StatusResponse(BaseModel):
+    """Response model for status query."""
+    currentFile: Optional[str]
+    sessionId: Optional[str]
+    hasUnsaved: bool
+    serverVersion: str
+
+# ============================================================================
+# REST API Endpoints
+# ============================================================================
+
+@app.post("/api/file/switch")
+async def switch_file(request: SwitchFileRequest):
+    """Switch to a new active file.
+
+    This endpoint allows the Launcher to change the currently active file.
+    It performs validation checks and handles unsaved changes protection.
+
+    Args:
+        request: SwitchFileRequest with path and optional force flag
+
+    Returns:
+        dict: Status information with currentFile and sessionId
+
+    Raises:
+        HTTPException 404: File not found
+        HTTPException 403: Permission denied
+        HTTPException 423: File is locked
+        HTTPException 409: Unsaved changes exist (use force=true to override)
+
+    Example:
+        >>> import requests
+        >>> response = requests.post(
+        ...     "http://localhost:8080/api/file/switch",
+        ...     json={"path": "/path/to/doc.docx", "force": false}
+        ... )
+        >>> print(response.json())
+        {'currentFile': '/path/to/doc.docx', 'sessionId': None}
+    """
+    try:
+        result = FileController.switch_file(request.path, request.force)
+        logger.info(f"File switched successfully: {request.path}")
+        return result
+    except FileNotFoundError as e:
+        logger.warning(f"File not found: {request.path}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        logger.warning(f"Permission denied: {request.path}")
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileLockError as e:
+        logger.warning(f"File locked: {request.path}")
+        raise HTTPException(status_code=423, detail=str(e))
+    except UnsavedChangesError as e:
+        logger.warning(f"Unsaved changes: {str(e)}")
+        current_status = FileController.get_status()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Unsaved changes exist",
+                "currentFile": current_status.get("currentFile"),
+                "message": "Call with force=true to discard changes"
+            }
+        )
+    except ValueError as e:
+        logger.error(f"Invalid request: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Unexpected error in switch_file: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/api/status", response_model=StatusResponse)
+async def get_status():
+    """Get current server status.
+
+    Returns information about the currently active file, session,
+    and whether there are unsaved changes.
+
+    Returns:
+        StatusResponse: Current status information
+
+    Example:
+        >>> import requests
+        >>> response = requests.get("http://localhost:8080/api/status")
+        >>> print(response.json())
+        {
+            'currentFile': '/path/to/doc.docx',
+            'sessionId': 'abc-123',
+            'hasUnsaved': true,
+            'serverVersion': '3.0.0'
+        }
+    """
+    try:
+        status = FileController.get_status()
+        return status
+    except Exception as e:
+        logger.exception(f"Error getting status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+@app.post("/api/session/close")
+async def close_session(request: CloseSessionRequest):
+    """Close the active session.
+
+    Optionally saves the document before closing the session.
+
+    Args:
+        request: CloseSessionRequest with optional save flag
+
+    Returns:
+        dict: Result with success status and message
+
+    Example:
+        >>> import requests
+        >>> response = requests.post(
+        ...     "http://localhost:8080/api/session/close",
+        ...     json={"save": true}
+        ... )
+        >>> print(response.json())
+        {'success': True, 'message': 'Session closed successfully'}
+    """
+    try:
+        result = FileController.close_session(request.save)
+        logger.info(f"Session closed (save={request.save})")
+        return result
+    except Exception as e:
+        logger.exception(f"Error closing session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to close session: {str(e)}")
+
+logger.info("REST API endpoints registered at /api/*")
 
 # ============================================================================
 # Mount MCP Server
