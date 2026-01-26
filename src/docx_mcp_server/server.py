@@ -121,8 +121,12 @@ Examples:
   # Streamable HTTP mode
   mcp-server-docx --transport streamable-http --host 0.0.0.0 --port 8080 --mount-path /mcp
 
+  # Combined mode (FastAPI + MCP, for Launcher integration)
+  mcp-server-docx --transport combined --port 8080
+  mcp-server-docx --transport combined --port 8080 --file /path/to/doc.docx
+
 Environment Variables:
-  DOCX_MCP_TRANSPORT    : Override transport mode (stdio|sse|streamable-http)
+  DOCX_MCP_TRANSPORT    : Override transport mode (stdio|sse|streamable-http|combined)
   DOCX_MCP_HOST         : Override host address (default: 127.0.0.1)
   DOCX_MCP_PORT         : Override port number (default: 8000)
   DOCX_MCP_MOUNT_PATH   : Override mount path for HTTP transports
@@ -131,7 +135,7 @@ Environment Variables:
 
     parser.add_argument(
         "--transport", "-t",
-        choices=["stdio", "sse", "streamable-http"],
+        choices=["stdio", "sse", "streamable-http", "combined"],
         default=os.environ.get("DOCX_MCP_TRANSPORT", "stdio"),
         help="Transport protocol to use (default: stdio)"
     )
@@ -201,6 +205,13 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--file",
+        type=str,
+        default=None,
+        help="Default active file path (for combined mode with HTTP file management)"
+    )
+
+    parser.add_argument(
         "--version", "-v",
         action="version",
         version=f"docx-mcp-server {VERSION}"
@@ -236,7 +247,24 @@ Environment Variables:
     logger.info(f"Transport: {args.transport}")
     logger.info(f"Log level: {logging.getLevelName(logging.getLogger().getEffectiveLevel())}")
 
-    if args.transport in ["sse", "streamable-http"]:
+    # T-006: Set initial active file from CLI (for HTTP file management)
+    if args.file:
+        from docx_mcp_server.core.global_state import global_state
+        from docx_mcp_server.core.validators import validate_path_safety
+
+        try:
+            validate_path_safety(args.file)
+            if not os.path.exists(args.file):
+                logger.error(f"File not found: {args.file}")
+                raise FileNotFoundError(f"File not found: {args.file}")
+
+            global_state.active_file = args.file
+            logger.info(f"Initial active file set from CLI: {args.file}")
+        except Exception as e:
+            logger.error(f"Failed to set initial active file: {e}")
+            raise
+
+    if args.transport in ["sse", "streamable-http", "combined"]:
         logger.info(f"Host: {args.host}")
         logger.info(f"Port: {args.port}")
         if args.mount_path:
@@ -269,6 +297,14 @@ Environment Variables:
             server_instance.run(transport="sse", mount_path=args.mount_path)
         elif args.transport == "streamable-http":
             server_instance.run(transport="streamable-http", mount_path=args.mount_path)
+        elif args.transport == "combined":
+            # T-006: Combined mode - FastAPI + MCP server
+            from docx_mcp_server.combined_server import run_combined_server
+            logger.info("Starting combined server (FastAPI + MCP)")
+            run_combined_server(host=args.host, port=args.port)
+        else:
+            logger.error(f"Unknown transport mode: {args.transport}")
+            raise ValueError(f"Unsupported transport: {args.transport}")
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
