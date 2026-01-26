@@ -2,6 +2,7 @@ import uuid
 import time
 import os
 import logging
+import threading
 from typing import Dict, Any, Optional, List
 import shutil
 from dataclasses import dataclass, field
@@ -53,6 +54,11 @@ class Session:
     history_stack: List[Commit] = field(default_factory=list)
     current_commit_index: int = -1
 
+    # Dirty tracking for unsaved changes (T-003)
+    _is_dirty: bool = False
+    _last_save_commit_index: int = -1
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
     def __post_init__(self):
         self.preview_controller = PreviewManager.get_controller()
 
@@ -60,13 +66,25 @@ class Session:
         self.last_accessed = time.time()
 
     def update_context(self, element_id: str, action: str = "access"):
-        """Update context pointers based on action type."""
+        """Update context pointers based on action type.
+
+        Args:
+            element_id: ID of the element being accessed/created/updated
+            action: Type of action - "access", "create", or "update"
+                   - "create": New element created (marks dirty)
+                   - "update": Existing element modified (marks dirty)
+                   - "access": Read-only access (no marking)
+        """
         self.last_accessed_id = element_id
         if action == "create":
             self.last_created_id = element_id
             self.last_insert_id = element_id
+            # T-003: Mark as dirty when creating new content
+            self.mark_dirty()
         elif action == "update":
             self.last_update_id = element_id
+            # T-003: Mark as dirty when updating content
+            self.mark_dirty()
         logger.debug(f"Context updated: element_id={element_id}, action={action}")
 
         # Trigger auto-save if enabled
@@ -79,6 +97,8 @@ class Session:
                     backup_suffix=self.backup_suffix,
                 )
                 logger.debug(f"Auto-save successful: {self.file_path}")
+                # Auto-save clears dirty flag
+                self.mark_saved()
             except Exception as e:
                 logger.warning(f"Auto-save failed for {self.file_path}: {e}")
 
@@ -557,6 +577,58 @@ class Session:
         except Exception as e:
             logger.warning(f"Failed to generate cursor context: {e}")
             return f"Cursor: after {self.cursor.element_id if self.cursor.element_id else 'unknown'}"
+
+    # ========================================================================
+    # Dirty Tracking Methods (T-003: HTTP File Management)
+    # ========================================================================
+
+    def mark_dirty(self):
+        """Mark the session as having unsaved changes.
+
+        This should be called after any modification operation
+        (insert, update, delete, format change, etc.).
+
+        Thread-safe: Uses internal lock to protect the dirty flag.
+        """
+        with self._lock:
+            self._is_dirty = True
+            logger.debug(f"Session {self.session_id} marked as dirty")
+
+    def has_unsaved_changes(self) -> bool:
+        """Check if the session has unsaved changes.
+
+        Returns True if:
+        - The dirty flag is set (_is_dirty == True), OR
+        - New commits have been added since the last save
+
+        Thread-safe: Uses internal lock to protect access.
+
+        Returns:
+            bool: True if there are unsaved changes, False otherwise
+        """
+        with self._lock:
+            # Check explicit dirty flag
+            if self._is_dirty:
+                return True
+
+            # Check if history has grown since last save
+            current_history_index = len(self.history_stack) - 1
+            if current_history_index > self._last_save_commit_index:
+                return True
+
+            return False
+
+    def mark_saved(self):
+        """Mark the session as saved (clear unsaved changes flag).
+
+        This should be called after successfully saving the document.
+
+        Thread-safe: Uses internal lock to protect state updates.
+        """
+        with self._lock:
+            self._is_dirty = False
+            self._last_save_commit_index = len(self.history_stack) - 1
+            logger.debug(f"Session {self.session_id} marked as saved")
 
 class SessionManager:
     def __init__(self, ttl_seconds: int = 3600):

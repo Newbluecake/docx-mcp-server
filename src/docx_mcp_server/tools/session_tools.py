@@ -248,6 +248,9 @@ def docx_save(
     except Exception as e:
          logger.warning(f"Preview refresh failed: {e}")
 
+    # T-003: Mark session as saved (clear dirty flag)
+    session.mark_saved()
+
     return create_markdown_response(
         session=None,
         message=f"Document saved successfully to {file_path}",
