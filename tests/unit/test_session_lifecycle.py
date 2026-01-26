@@ -14,7 +14,8 @@ from helpers import (
     extract_metadata_field,
     is_success,
     is_error,
-    extract_error_message
+    extract_error_message,
+    create_session_with_file,
 )
 
 from docx_mcp_server.tools.session_tools import (
@@ -45,7 +46,7 @@ def test_save_with_backup_creates_backup_file(tmp_path):
     target = tmp_path / "sample.docx"
 
     # Create session bound to the target path
-    session_response = docx_create(file_path=str(target), auto_save=False)
+    session_response = create_session_with_file(str(target), auto_save=False)
     session_id = extract_session_id(session_response)
 
     # First save creates the file

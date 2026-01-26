@@ -11,6 +11,10 @@ from .markdown_extractors import (
     extract_error_message,
     has_metadata_field,
 )
+from .session_helpers import (
+    create_session_with_file,
+    clear_active_file,
+)
 
 __all__ = [
     'extract_session_id',
@@ -22,4 +26,6 @@ __all__ = [
     'is_error',
     'extract_error_message',
     'has_metadata_field',
+    'create_session_with_file',
+    'clear_active_file',
 ]

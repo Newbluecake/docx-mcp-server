@@ -7,7 +7,8 @@ from tests.helpers import (
     extract_metadata_field,
     extract_all_metadata,
     is_success,
-    is_error
+    is_error,
+    create_session_with_file,
 )
 import os
 import json
@@ -32,7 +33,7 @@ class TestLoadEditE2E:
         doc.save(str(initial_doc_path))
 
         # 2. Load the document
-        session_response = docx_create(file_path=str(initial_doc_path))
+        session_response = create_session_with_file(str(initial_doc_path))
         session_id = extract_session_id(session_response)
         assert session_id is not None
 

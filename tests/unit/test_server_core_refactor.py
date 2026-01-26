@@ -4,7 +4,8 @@ from tests.helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    create_session_with_file,
 )
 import json
 import re
@@ -43,7 +44,7 @@ def _extract_session_id(response):
 def test_create_with_autosave(tmp_path):
     test_file = str(tmp_path / "test.docx")
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
-        response = docx_create(file_path=test_file, auto_save=True)
+        response = create_session_with_file(test_file, auto_save=True)
         sid = _extract_session_id(response)
         assert sid is not None
         session = session_manager.get_session(sid)

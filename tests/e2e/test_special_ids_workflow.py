@@ -15,7 +15,8 @@ from tests.helpers import (
     extract_metadata_field,
     is_success,
     is_error,
-    extract_error_message
+    extract_error_message,
+    create_session_with_file,
 )
 from docx_mcp_server.tools.session_tools import docx_create, docx_save, docx_close
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
@@ -215,7 +216,7 @@ def test_special_ids_with_file_save():
         assert os.path.getsize(tmp_path) > 0
 
         # Load the file and verify content
-        session2_resp = docx_create(file_path=tmp_path)
+        session2_resp = create_session_with_file(tmp_path)
         session2_id = extract_session_id(session2_resp)
 
         session2 = session_manager.get_session(session2_id)

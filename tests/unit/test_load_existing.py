@@ -14,7 +14,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    create_session_with_file,
 )
 
 class TestLoadExisting:
@@ -26,7 +27,7 @@ class TestLoadExisting:
         doc.save(str(file_path))
 
         # Test: Load it via docx_create
-        session_response = docx_create(file_path=str(file_path))
+        session_response = create_session_with_file(str(file_path))
         session_id = extract_session_id(session_response)
         assert session_id is not None
 
@@ -47,7 +48,7 @@ class TestLoadExisting:
         # Test that creating a session with a non-existent file creates a new document
         # intended to be saved to that path later.
         target_path = tmp_path / "new_doc.docx"
-        session_response = docx_create(file_path=str(target_path))
+        session_response = create_session_with_file(str(target_path))
         session_id = extract_session_id(session_response)
         assert session_id is not None
 
@@ -63,7 +64,7 @@ class TestLoadExisting:
         doc.add_paragraph("Line 2")
         doc.save(str(file_path))
 
-        session_response = docx_create(file_path=str(file_path))
+        session_response = create_session_with_file(str(file_path))
         session_id = extract_session_id(session_response)
 
         # Test read
@@ -80,7 +81,7 @@ class TestLoadExisting:
         doc.add_paragraph("Last paragraph")
         doc.save(str(file_path))
 
-        session_response = docx_create(file_path=str(file_path))
+        session_response = create_session_with_file(str(file_path))
         session_id = extract_session_id(session_response)
 
         # Test find
