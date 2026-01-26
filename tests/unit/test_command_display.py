@@ -25,17 +25,16 @@ class TestCommandGeneration:
             assert cmd[6] == url
 
     def test_build_command_windows(self):
-        """Test building command on Windows (adds cmd.exe /c)."""
+        """Test building command on Windows (should NOT add cmd.exe /c)."""
         url = "http://127.0.0.1:8000/sse"
 
         with patch("platform.system", return_value="Windows"):
             cmd = self.launcher.build_command(url, "sse", "")
 
-            assert cmd[0] == "cmd.exe"
-            assert cmd[1] == "/c"
-            assert cmd[2] == "claude"
-            assert cmd[3] == "mcp"
-            assert cmd[4] == "add"
+            # Should be same as other platforms now
+            assert cmd[0] == "claude"
+            assert cmd[1] == "mcp"
+            assert cmd[2] == "add"
 
     def test_build_command_with_extra_params(self):
         """Test building command with extra parameters."""

@@ -207,13 +207,7 @@ class CLILauncher:
             except ValueError as e:
                 raise ValueError(f"Failed to parse extra parameters: {e}")
 
-        # On Windows, wrap with cmd.exe to ensure proper execution
-        if platform.system() == "Windows":
-            cmd = ["cmd.exe", "/c"] + base_cmd
-        else:
-            cmd = base_cmd
-
-        return cmd
+        return base_cmd
 
     def validate_cli_params(self, params: str) -> Tuple[bool, str]:
         """
