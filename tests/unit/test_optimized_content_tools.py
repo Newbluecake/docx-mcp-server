@@ -35,27 +35,37 @@ def test_read_content_with_pagination():
         for i in range(20):
             docx_insert_paragraph(session_id, f"Paragraph {i}", position="end:document_body")
 
-        # Read enough paragraphs to cover defaults + our content
-        content = docx_read_content(session_id, max_paragraphs=30)
-        lines = content.strip().split("\n")
+        # Read content as JSON to get reliable entry indices
+        content_json = docx_read_content(session_id, max_paragraphs=50, return_json=True)
+        data = json.loads(content_json)["data"]
 
-        # Remove empty lines if any
-        lines = [line for line in lines if line.strip()]
+        # Find index of our first inserted paragraph
+        offset = 0
+        found = False
+        for i, entry in enumerate(data):
+            if "text" in entry and "Paragraph 0" in entry["text"]:
+                offset = i
+                found = True
+                break
 
-        # Filter to only include lines created by this test (robust against default content)
-        lines = [line for line in lines if "Paragraph " in line]
+        assert found, "Could not find 'Paragraph 0' in document content"
 
-        # Take the first 5 of our inserted paragraphs
-        lines = lines[:5]
+        # Verify first 5 of OUR paragraphs (offset to offset+5)
+        # Note: data[offset] is Paragraph 0
+        assert "Paragraph 0" in data[offset]["text"]
+        assert "Paragraph 4" in data[offset+4]["text"]
 
-        assert len(lines) == 5
-        assert "Paragraph 0" in lines[0]
+        # Read paragraphs 5-10 (relative to our insertion)
+        # We want to start at Paragraph 5, which is at index offset + 5
+        start_index = offset + 5
 
-        # Read paragraphs 5-10
-        content = docx_read_content(session_id, max_paragraphs=5, start_from=5)
-        lines = content.split("\n")
+        # Test text mode pagination
+        content = docx_read_content(session_id, max_paragraphs=5, start_from=start_index)
+        lines = [line for line in content.split("\n") if line.strip()]
+
         assert len(lines) == 5
         assert "Paragraph 5" in lines[0]
+        assert "Paragraph 9" in lines[-1]
 
     finally:
         docx_close(session_id)
