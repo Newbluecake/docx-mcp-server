@@ -31,8 +31,10 @@ def temp_docx():
 
 @pytest.fixture
 def mock_session_manager():
-    """Mock the session_manager."""
-    with patch('docx_mcp_server.server.session_manager') as mock:
+    """Mock the session_manager and version."""
+    mock = MagicMock()
+    with patch('docx_mcp_server.api.file_controller._get_session_manager', return_value=mock), \
+         patch('docx_mcp_server.api.file_controller._get_version', return_value="test-version"):
         yield mock
 
 
@@ -135,7 +137,7 @@ class TestFileControllerSwitchFile:
 
     def test_switch_file_invalid_path(self, mock_session_manager):
         """Test switching with invalid path."""
-        with pytest.raises(ValueError):
+        with pytest.raises(FileNotFoundError):
             FileController.switch_file("../../../etc/passwd")
 
     @patch('docx_mcp_server.api.file_controller.FileController._is_file_locked')
@@ -258,7 +260,11 @@ class TestFileControllerHelpers:
 
         mock_session = Mock()
         del mock_session.has_unsaved_changes  # Remove method to test fallback
-        mock_session.history_stack = [Commit()]
+        mock_session.history_stack = [Commit.create(
+            operation="test_operation",
+            changes={},
+            affected_elements=[]
+        )]
 
         assert FileController._has_unsaved_changes(mock_session) is True
 
