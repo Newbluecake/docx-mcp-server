@@ -33,7 +33,6 @@ def test_add_formatted_paragraph():
     try:
         # Create formatted paragraph
         result = docx_insert_formatted_paragraph(
-            session_id,
             "Test Text",
             position="end:document_body",
             bold=True,
@@ -59,7 +58,6 @@ def test_quick_edit():
 
         # Quick edit
         result_json = docx_quick_edit(
-            session_id,
             "test",
             new_text="modified",
             bold=True
@@ -84,7 +82,6 @@ def test_get_structure_summary():
 
         # Get summary
         summary_json = docx_get_structure_summary(
-            session_id,
             max_headings=10,
             max_tables=5,
             max_paragraphs=0
@@ -116,7 +113,6 @@ def test_smart_fill_table():
         ])
 
         result = docx_smart_fill_table(
-            session_id,
             table_id,  # Use table ID
             data,
             has_header=True,
@@ -141,7 +137,6 @@ def test_format_range():
 
         # Format range
         result_json = docx_format_range(
-            session_id,
             "Start marker",
             "End marker",
             bold=True,
@@ -162,7 +157,6 @@ def test_quick_edit_no_matches():
         docx_insert_paragraph("Test paragraph", position="end:document_body")
 
         result_json = docx_quick_edit(
-            session_id,
             "nonexistent",
             new_text="modified"
         )
@@ -191,7 +185,6 @@ def test_smart_fill_table_with_table_id():
         ])
 
         result = docx_smart_fill_table(
-            session_id,
             table_id,  # Use table ID directly
             data,
             has_header=True,

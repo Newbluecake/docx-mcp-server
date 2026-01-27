@@ -105,20 +105,20 @@ def docx_insert_formatted_paragraph(
 
     try:
         # Step 1: Create paragraph
-        para_response = docx_insert_paragraph(session_id, "", position=position, style=style)
+        para_response = docx_insert_paragraph("", position=position, style=style)
         para_id = _extract_element_id(para_response)
 
         # Step 2: Add run with text
-        run_response = docx_insert_run(session_id, text, position=f"inside:{para_id}")
+        run_response = docx_insert_run(text, position=f"inside:{para_id}")
         run_id = _extract_element_id(run_response)
 
         # Step 3: Apply font formatting if specified
         if any([bold, italic, size, color_hex]):
-            docx_set_font(session_id, run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
+            docx_set_font(run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
 
         # Step 4: Apply alignment if specified
         if alignment:
-            docx_set_alignment(session_id, para_id, alignment)
+            docx_set_alignment(para_id, alignment)
 
         logger.info(f"Created formatted paragraph: {para_id}")
         return para_id
@@ -171,7 +171,7 @@ def docx_quick_edit(
 
     try:
         # Find matching paragraphs
-        matches_json = docx_find_paragraphs(session_id, search_text)
+        matches_json = docx_find_paragraphs(search_text)
         matches = json.loads(matches_json)
 
         if not matches:
@@ -184,7 +184,7 @@ def docx_quick_edit(
 
             # Update text if specified
             if new_text is not None:
-                docx_update_paragraph_text(session_id, para_id, new_text)
+                docx_update_paragraph_text(para_id, new_text)
 
             # Apply formatting if specified
             if any([bold is not None, italic is not None, size, color_hex]):
@@ -194,7 +194,7 @@ def docx_quick_edit(
                 # Apply formatting to all runs in paragraph
                 for run in paragraph.runs:
                     run_id = session._get_element_id(run, auto_register=True)
-                    docx_set_font(session_id, run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
+                    docx_set_font(run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
 
             modified_ids.append(para_id)
 
@@ -309,7 +309,7 @@ def docx_get_structure_summary(
             "total_paragraphs": para_count
         }
 
-        logger.info(f"Generated structure summary for session {session_id}")
+        logger.info(f"Generated structure summary for session {session.session_id}")
         return json.dumps(structure, ensure_ascii=False, indent=2)
 
     except Exception as e:
@@ -379,7 +379,7 @@ def docx_smart_fill_table(
         # Strategy 2: Try as index
         if table is None:
             try:
-                table_response = docx_get_table(session_id, int(table_identifier))
+                table_response = docx_get_table(int(table_identifier))
                 table_id = _extract_element_id(table_response)
                 table = session.get_object(table_id)
                 logger.info(f"Found table by index: {table_id}")
@@ -388,7 +388,7 @@ def docx_smart_fill_table(
 
         # Strategy 3: Try as search text
         if table is None:
-            table_response = docx_find_table(session_id, table_identifier)
+            table_response = docx_find_table(table_identifier)
             table_id = _extract_element_id(table_response)
             table = session.get_object(table_id)
             logger.info(f"Found table by search text: {table_id}")
@@ -404,12 +404,12 @@ def docx_smart_fill_table(
         if auto_resize and data_rows > existing_rows:
             rows_to_add = data_rows - existing_rows
             for _ in range(rows_to_add):
-                docx_insert_table_row(session_id, position=f"inside:{table_id}")
+                docx_insert_table_row(position=f"inside:{table_id}")
             logger.info(f"Added {rows_to_add} rows to table")
 
         # Fill table
         start_row = 1 if has_header else 0
-        fill_result = docx_fill_table(session_id, data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
+        fill_result = docx_fill_table(data, table_id, start_row=start_row, preserve_formatting=preserve_formatting)
 
         # Extract metadata from Markdown response
         rows_filled_str = _extract_metadata_field(fill_result, "rows_filled")
@@ -499,7 +499,7 @@ def docx_format_range(
             para = paragraphs[i]
             for run in para.runs:
                 run_id = session._get_element_id(run, auto_register=True)
-                docx_set_font(session_id, run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
+                docx_set_font(run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
             formatted_count += 1
 
         result = {
