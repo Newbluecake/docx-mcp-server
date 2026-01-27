@@ -10,7 +10,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_get_element_source(session_id: str, element_id: str) -> str:
+def docx_get_element_source(element_id: str) -> str:
     """
     Get the source lineage metadata of an element.
 
@@ -42,7 +42,7 @@ def docx_get_element_source(session_id: str, element_id: str) -> str:
     return json.dumps(metadata)
 
 
-def docx_copy_elements_range(session_id: str, start_id: str, end_id: str, position: str) -> str:
+def docx_copy_elements_range(start_id: str, end_id: str, position: str) -> str:
     """
     Copy a range of elements (e.g., from one heading to another) to a target location.
 

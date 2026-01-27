@@ -13,7 +13,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
+def docx_insert_paragraph(text: str, position: str, style: str = None) -> str:
     """
     Add a new paragraph to the document with precise positioning control.
 
@@ -168,7 +168,7 @@ def docx_insert_paragraph(session_id: str, text: str, position: str, style: str 
         logger.exception(f"docx_insert_paragraph failed: {e}")
         return create_error_response(f"Failed to create paragraph: {str(e)}", error_type="CreationError")
 
-def docx_insert_heading(session_id: str, text: str, position: str, level: int = 1) -> str:
+def docx_insert_heading(text: str, position: str, level: int = 1) -> str:
     """
     Add a heading paragraph to the document with specified level.
 
@@ -307,7 +307,7 @@ def docx_insert_heading(session_id: str, text: str, position: str, level: int = 
         logger.exception(f"docx_insert_heading failed: {e}")
         return create_error_response(f"Failed to create heading: {str(e)}", error_type="CreationError")
 
-def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str) -> str:
+def docx_update_paragraph_text(paragraph_id: str, new_text: str) -> str:
     """
     Replace all text content in an existing paragraph.
 
@@ -395,7 +395,7 @@ def docx_update_paragraph_text(session_id: str, paragraph_id: str, new_text: str
         logger.exception(f"docx_update_paragraph_text failed: {e}")
         return create_error_response(f"Failed to update paragraph: {str(e)}", error_type="UpdateError")
 
-def docx_copy_paragraph(session_id: str, paragraph_id: str, position: str) -> str:
+def docx_copy_paragraph(paragraph_id: str, position: str) -> str:
     """
     Create a deep copy of a paragraph with all formatting and runs.
 
@@ -497,7 +497,7 @@ def docx_copy_paragraph(session_id: str, paragraph_id: str, position: str) -> st
         logger.exception(f"docx_copy_paragraph failed: {e}")
         return create_error_response(f"Failed to copy paragraph: {str(e)}", error_type="CopyError")
 
-def docx_delete(session_id: str, element_id: str = None) -> str:
+def docx_delete(element_id: str = None) -> str:
     """
     Delete an element from the document.
     """
@@ -559,7 +559,7 @@ def docx_delete(session_id: str, element_id: str = None) -> str:
         logger.exception(f"docx_delete failed: {e}")
         return create_error_response(f"Failed to delete {element_id}: {str(e)}", error_type="DeletionError")
 
-def docx_insert_page_break(session_id: str, position: str) -> str:
+def docx_insert_page_break(position: str) -> str:
     """
     Insert a page break at the specified position in the document.
 

@@ -9,7 +9,7 @@ from docx_mcp_server.core.response import (
 
 logger = logging.getLogger(__name__)
 
-def docx_cursor_get(session_id: str) -> str:
+def docx_cursor_get() -> str:
     """
     Get the current cursor position and state.
 

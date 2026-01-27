@@ -12,7 +12,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_insert_run(session_id: str, text: str, position: str) -> str:
+def docx_insert_run(text: str, position: str) -> str:
     """
     Add a text run to a paragraph with independent formatting.
 
@@ -119,7 +119,7 @@ def docx_insert_run(session_id: str, text: str, position: str) -> str:
         logger.exception(f"docx_insert_run failed: {e}")
         return create_error_response(f"Failed to add run: {str(e)}", error_type="CreationError")
 
-def docx_update_run_text(session_id: str, run_id: str, new_text: str) -> str:
+def docx_update_run_text(run_id: str, new_text: str) -> str:
     """
     Update the text content of an existing run while preserving formatting.
 

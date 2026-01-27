@@ -25,7 +25,7 @@ ALIGNMENT_MAP = {
 }
 
 
-def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> str:
+def docx_set_alignment(paragraph_id: str, alignment: str) -> str:
     """
     Set horizontal alignment for a paragraph.
 
@@ -128,7 +128,7 @@ def docx_set_alignment(session_id: str, paragraph_id: str, alignment: str) -> st
         logger.exception(f"docx_set_alignment failed: {e}")
         return create_error_response(f"Failed to set alignment: {str(e)}", error_type="UpdateError")
 
-def docx_set_properties(session_id: str, properties: str, element_id: str = None) -> str:
+def docx_set_properties(properties: str, element_id: str = None) -> str:
     """
     Set advanced properties on a document element using JSON configuration.
 
@@ -242,7 +242,7 @@ def docx_set_properties(session_id: str, properties: str, element_id: str = None
         logger.exception(f"docx_set_properties failed: {e}")
         return create_error_response(f"Failed to set properties: {str(e)}", error_type="UpdateError")
 
-def docx_format_copy(session_id: str, source_id: str, target_id: str) -> str:
+def docx_format_copy(source_id: str, target_id: str) -> str:
     """
     Copy formatting from source element to target element.
 
@@ -450,7 +450,7 @@ def docx_set_margins(
         logger.exception(f"docx_set_margins failed: {e}")
         return create_error_response(f"Failed to set margins: {str(e)}", error_type="UpdateError")
 
-def docx_extract_format_template(session_id: str, element_id: str) -> str:
+def docx_extract_format_template(element_id: str) -> str:
     """
     Extract style and formatting properties from an element as a reusable template.
 
@@ -523,7 +523,7 @@ def docx_extract_format_template(session_id: str, element_id: str) -> str:
         return create_error_response(f"Failed to extract template: {str(e)}", error_type="ExtractionError")
 
 
-def docx_apply_format_template(session_id: str, element_id: str, template_json: str) -> str:
+def docx_apply_format_template(element_id: str, template_json: str) -> str:
     """
     Apply a format template to an element.
 

@@ -17,7 +17,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: str = None) -> str:
+def docx_replace_text(old_text: str, new_text: str, scope_id: str = None) -> str:
     """
     Replace all occurrences of text in the document or a specific scope.
 
@@ -128,7 +128,7 @@ def docx_replace_text(session_id: str, old_text: str, new_text: str, scope_id: s
         new_text=new_text
     )
 
-def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: str = None) -> str:
+def docx_batch_replace_text(replacements_json: str, scope_id: str = None) -> str:
     """
     Perform batch text replacement across the document or a specific scope.
 
@@ -217,7 +217,7 @@ def docx_batch_replace_text(session_id: str, replacements_json: str, scope_id: s
         scope_id=scope_id
     )
 
-def docx_insert_image(session_id: str, image_path: str, position: str, width: float = None, height: float = None) -> str:
+def docx_insert_image(image_path: str, position: str, width: float = None, height: float = None) -> str:
     """
     Insert an image into the document.
 
