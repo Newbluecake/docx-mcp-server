@@ -1019,7 +1019,9 @@ class MainWindow(QMainWindow):
         base_url = f"http://127.0.0.1:{port}"
 
         # Use shorter timeout for health checks (faster retries)
-        self.http_client = HTTPClient(base_url=base_url, timeout=2.0)
+        # Disable internal retries to avoid blocking the GUI thread for too long
+        # The _try_health_check method handles retries via QTimer
+        self.http_client = HTTPClient(base_url=base_url, timeout=3.0, max_retries=0)
 
         # Delayed health check with retries
         self._health_check_retries = 0
