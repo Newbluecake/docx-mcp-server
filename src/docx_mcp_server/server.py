@@ -377,7 +377,7 @@ Environment Variables:
             logger.info(f"Server URL: http://{args.host}:{args.port}")
 
     # For non-stdio transports, we need to create a new FastMCP instance with custom host/port
-    if args.transport in ["sse", "streamable-http"]:
+    if args.transport in ["sse", "streamable-http", "combined"]:
         # Create a new FastMCP instance with custom configuration
         custom_mcp = FastMCP(
             "docx-mcp-server",

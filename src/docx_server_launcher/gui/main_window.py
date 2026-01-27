@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
         net_layout.addWidget(self.port_label)
         self.port_input = QSpinBox()
         self.port_input.setRange(1024, 65535)
-        self.port_input.setValue(8000)
+        self.port_input.setValue(8023)
         net_layout.addWidget(self.port_input)
 
         net_layout.addSpacing(20)
