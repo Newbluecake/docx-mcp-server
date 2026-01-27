@@ -14,8 +14,34 @@ import logging
 from typing import Optional, Dict, Any
 from docx_mcp_server.core.global_state import global_state
 from docx_mcp_server.core.validators import validate_path_safety
+from docx_mcp_server.core.session import SessionManager
 
 logger = logging.getLogger(__name__)
+
+# Global session manager instance (will be set by server.py)
+_session_manager_instance: Optional[SessionManager] = None
+_server_version: Optional[str] = None
+
+def set_session_manager(session_manager: SessionManager, version: str):
+    """Set the global session manager instance and server version.
+
+    This should be called by server.py during initialization.
+    """
+    global _session_manager_instance, _server_version
+    _session_manager_instance = session_manager
+    _server_version = version
+
+def _get_session_manager() -> SessionManager:
+    """Get the global session manager instance."""
+    if _session_manager_instance is None:
+        raise RuntimeError("Session manager not initialized. Call set_session_manager() first.")
+    return _session_manager_instance
+
+def _get_version() -> str:
+    """Get server version."""
+    if _server_version is None:
+        raise RuntimeError("Server version not initialized. Call set_session_manager() first.")
+    return _server_version
 
 
 class FileLockError(Exception):
@@ -64,8 +90,8 @@ class FileController:
             FileLockError: File is locked by another process (HTTP 423)
             UnsavedChangesError: Unsaved changes exist and force=False (HTTP 409)
         """
-        # Import session_manager here to avoid circular import
-        from docx_mcp_server.server import session_manager
+        # Use lazy import to avoid circular dependency
+        session_manager = _get_session_manager()
 
         # 1. Validate path safety
         try:
@@ -131,12 +157,18 @@ class FileController:
                 - hasUnsaved: Whether active session has unsaved changes
                 - serverVersion: Server version string
         """
-        from docx_mcp_server.server import session_manager, VERSION
+        logger.debug("get_status() called")
 
-        has_unsaved = False
+        try:
+            session_manager = _get_session_manager()
+            logger.debug("Got session manager")
 
-        with global_state.atomic():
+            VERSION = _get_version()
+            logger.debug(f"Got version: {VERSION}")
+
+            has_unsaved = False
             current_session_id = global_state.active_session_id
+            logger.debug(f"Current session ID: {current_session_id}")
 
             if current_session_id:
                 session = session_manager.get_session(current_session_id)
@@ -150,8 +182,11 @@ class FileController:
                 "serverVersion": VERSION
             }
 
-        logger.debug(f"Status query: {status}")
-        return status
+            logger.debug(f"Status query: {status}")
+            return status
+        except Exception as e:
+            logger.exception(f"Error in get_status: {e}")
+            raise
 
     @staticmethod
     def close_session(save: bool = False) -> Dict[str, Any]:
@@ -163,7 +198,7 @@ class FileController:
         Returns:
             dict: Result dictionary with success status and message
         """
-        from docx_mcp_server.server import session_manager
+        session_manager = _get_session_manager()
 
         with global_state.atomic():
             current_session_id = global_state.active_session_id

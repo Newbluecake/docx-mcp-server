@@ -97,6 +97,10 @@ def _patch_tool_logging(mcp_instance: FastMCP, log: logging.Logger):
 # Initialize SessionManager
 session_manager = SessionManager()
 
+# Set session manager for FileController
+from docx_mcp_server.api.file_controller import set_session_manager
+set_session_manager(session_manager, VERSION)
+
 # Create MCP Server (without host/port to avoid network init during import)
 mcp = FastMCP("docx-mcp-server")
 _patch_tool_logging(mcp, logger)
