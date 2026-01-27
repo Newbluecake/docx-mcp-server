@@ -42,30 +42,29 @@ class TestMainWindowUI:
         assert isinstance(window.cli_params_input, QLineEdit)
         assert window.cli_params_input.placeholderText() != ""
 
-    def test_launch_button_exists(self, qapp):
-        """Test that launch button exists."""
+    def test_command_display_exists(self, qapp):
+        """Test that command display field exists."""
         window = MainWindow()
-        assert hasattr(window, "launch_btn")
-        assert isinstance(window.launch_btn, QPushButton)
+        assert hasattr(window, "command_display")
+        assert isinstance(window.command_display, QLineEdit)
+        assert window.command_display.isReadOnly()
 
-    def test_old_inject_button_removed(self, qapp):
-        """Test that old inject button is removed."""
+    def test_copy_button_exists(self, qapp):
+        """Test that copy button exists."""
         window = MainWindow()
-        # Should not have inject_btn attribute anymore
-        # (launch_btn replaced it)
-        assert not hasattr(window, "inject_btn")
+        assert hasattr(window, "copy_btn")
+        assert isinstance(window.copy_btn, QPushButton)
 
-    def test_launch_claude_method_exists(self, qapp):
-        """Test that launch_claude method exists."""
+    def test_copy_button_connected(self, qapp):
+        """Test that copy button is connected to copy_command method."""
         window = MainWindow()
-        assert hasattr(window, "launch_claude")
-        assert callable(window.launch_claude)
+        assert window.copy_btn.receivers(window.copy_btn.clicked) > 0
 
-    def test_show_cli_not_found_dialog_exists(self, qapp):
-        """Test that show_cli_not_found_dialog method exists."""
+    def test_update_command_display_exists(self, qapp):
+        """Test that update_command_display method exists."""
         window = MainWindow()
-        assert hasattr(window, "show_cli_not_found_dialog")
-        assert callable(window.show_cli_not_found_dialog)
+        assert hasattr(window, "update_command_display")
+        assert callable(window.update_command_display)
 
     def test_settings_persistence(self, qapp, tmp_path):
         """Test that CLI params are saved and loaded."""
@@ -91,10 +90,9 @@ class TestMainWindowUI:
         # Verify params were loaded
         assert window2.cli_params_input.text() == test_params
 
-    def test_launch_button_connected(self, qapp):
-        """Test that launch button is connected to launch_claude method."""
+    def test_copy_button_connected(self, qapp):
+        """Test that copy button is connected to copy_command method."""
         window = MainWindow()
 
         # Check that the button has signal connections
-        # (We can't easily test the exact connection without triggering it)
-        assert window.launch_btn.receivers(window.launch_btn.clicked) > 0
+        assert window.copy_btn.receivers(window.copy_btn.clicked) > 0

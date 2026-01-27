@@ -225,8 +225,13 @@ class TestStatusPolling:
         mock_client_class.return_value = mock_client
 
         with patch('docx_server_launcher.gui.main_window.HTTPClient', mock_client_class):
-            main_window.is_running = True
-            main_window.on_server_started()
+            with patch('PyQt6.QtCore.QTimer.singleShot') as mock_timer:
+                main_window.is_running = True
+                main_window.on_server_started()
+
+                # Manually trigger health check since QTimer is mocked
+                if hasattr(main_window, '_try_health_check'):
+                    main_window._try_health_check()
 
             # Should have timer
             assert main_window._status_poll_timer is not None
@@ -318,21 +323,37 @@ class TestHealthCheck:
         mock_client_class.return_value = mock_client
 
         with patch('docx_server_launcher.gui.main_window.HTTPClient', mock_client_class):
-            main_window.is_running = True
-            main_window.on_server_started()
+            with patch('PyQt6.QtCore.QTimer.singleShot') as mock_timer:
+                main_window.is_running = True
+                main_window.on_server_started()
+
+                # Manually trigger health check since QTimer is mocked
+                # This simulates the callback firing
+                if hasattr(main_window, '_try_health_check'):
+                    main_window._try_health_check()
+                else:
+                    # Fallback if method name is different, but based on code it seems correct
+                    pass
 
             # Should call health_check
             mock_client.health_check.assert_called_once()
 
     def test_health_check_failure_graceful(self, main_window):
         """Health check failure should not block server start."""
-        # Mock HTTP client initialization to fail
+        # Mock HTTP client to succeed init but fail health check
         with patch('docx_server_launcher.gui.main_window.HTTPClient') as mock_client_class:
-            mock_client_class.side_effect = Exception("Connection failed")
+            mock_client = Mock()
+            mock_client.health_check.side_effect = Exception("Connection failed")
+            mock_client_class.return_value = mock_client
 
-            main_window.is_running = True
-            main_window.on_server_started()
+            with patch('PyQt6.QtCore.QTimer.singleShot'):
+                main_window.is_running = True
+                main_window.on_server_started()
+
+                # Manually trigger health check
+                if hasattr(main_window, '_try_health_check'):
+                    main_window._try_health_check()
 
             # Should not crash
-            # File selection UI should be hidden
+            # File selection UI should be hidden (or not shown)
             assert not main_window.file_selection_group.isVisible()

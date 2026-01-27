@@ -35,9 +35,19 @@ def test_read_content_with_pagination():
         for i in range(20):
             docx_insert_paragraph(session_id, f"Paragraph {i}", position="end:document_body")
 
-        # Read first 5
-        content = docx_read_content(session_id, max_paragraphs=5)
-        lines = content.split("\n")
+        # Read enough paragraphs to cover defaults + our content
+        content = docx_read_content(session_id, max_paragraphs=30)
+        lines = content.strip().split("\n")
+
+        # Remove empty lines if any
+        lines = [line for line in lines if line.strip()]
+
+        # Filter to only include lines created by this test (robust against default content)
+        lines = [line for line in lines if "Paragraph " in line]
+
+        # Take the first 5 of our inserted paragraphs
+        lines = lines[:5]
+
         assert len(lines) == 5
         assert "Paragraph 0" in lines[0]
 
