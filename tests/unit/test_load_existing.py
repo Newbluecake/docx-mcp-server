@@ -1,6 +1,6 @@
 import pytest
 import os
-from docx_mcp_server.server import docx_create, docx_save, docx_read_content, docx_insert_paragraph, docx_find_paragraphs
+from docx_mcp_server.server import docx_save, docx_read_content, docx_insert_paragraph, docx_find_paragraphs
 from docx import Document
 import json
 
@@ -17,6 +17,7 @@ from helpers import (
     is_error,
     create_session_with_file,
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 class TestLoadExisting:
     def test_create_with_existing_file(self, tmp_path):
@@ -28,15 +29,14 @@ class TestLoadExisting:
 
         # Test: Load it via docx_create
         session_response = create_session_with_file(str(file_path))
-        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # Verify content can be read (using our new tool later, or just save and check)
         # For now, let's verify we can add to it and save
-        docx_insert_paragraph(session_id, "New Content", position="end:document_body")
+        docx_insert_paragraph("New Content", position="end:document_body")
 
         output_path = tmp_path / "test_existing_modified.docx"
-        docx_save(session_id, str(output_path))
+        docx_save(str(output_path))
 
         # Verify output
         doc2 = Document(str(output_path))
@@ -49,11 +49,10 @@ class TestLoadExisting:
         # intended to be saved to that path later.
         target_path = tmp_path / "new_doc.docx"
         session_response = create_session_with_file(str(target_path))
-        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # Verify it's an empty document (or default styles)
-        content = docx_read_content(session_id)
+        content = docx_read_content()
         assert content == "[Empty Document]"
 
     def test_read_content(self, tmp_path):
@@ -65,10 +64,8 @@ class TestLoadExisting:
         doc.save(str(file_path))
 
         session_response = create_session_with_file(str(file_path))
-        session_id = extract_session_id(session_response)
-
         # Test read
-        content = docx_read_content(session_id)
+        content = docx_read_content()
         assert "Line 1" in content
         assert "Line 2" in content
 
@@ -82,10 +79,8 @@ class TestLoadExisting:
         doc.save(str(file_path))
 
         session_response = create_session_with_file(str(file_path))
-        session_id = extract_session_id(session_response)
-
         # Test find
-        result_json = docx_find_paragraphs(session_id, "Target")
+        result_json = docx_find_paragraphs("Target")
         matches = json.loads(result_json)
 
         assert len(matches) == 1
@@ -93,11 +88,11 @@ class TestLoadExisting:
         assert matches[0]["id"].startswith("para_")
 
         # Test find - no match
-        result_json = docx_find_paragraphs(session_id, "Nonexistent")
+        result_json = docx_find_paragraphs("Nonexistent")
         matches = json.loads(result_json)
         assert len(matches) == 0
 
         # Test case insensitivity
-        result_json = docx_find_paragraphs(session_id, "target")
+        result_json = docx_find_paragraphs("target")
         matches = json.loads(result_json)
         assert len(matches) == 1

@@ -6,7 +6,8 @@ from docx_mcp_server.tools.content_tools import (
     docx_find_paragraphs,
     docx_extract_template_structure
 )
-from docx_mcp_server.tools.session_tools import docx_create, docx_close
+from docx_mcp_server.tools.session_tools import docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
 from docx_mcp_server.tools.table_tools import docx_insert_table
 
@@ -26,17 +27,14 @@ from helpers import (
 
 def test_read_content_with_pagination():
     """Test reading content with pagination"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add multiple paragraphs
         for i in range(20):
-            docx_insert_paragraph(session_id, f"Paragraph {i}", position="end:document_body")
+            docx_insert_paragraph(f"Paragraph {i}", position="end:document_body")
 
         # Read content as JSON to get reliable entry indices
-        content_json = docx_read_content(session_id, max_paragraphs=50, return_json=True)
+        content_json = docx_read_content(max_paragraphs=50, return_json=True)
         data = json.loads(content_json)["data"]
 
         # Find index of our first inserted paragraph
@@ -60,7 +58,7 @@ def test_read_content_with_pagination():
         start_index = offset + 5
 
         # Test text mode pagination
-        content = docx_read_content(session_id, max_paragraphs=5, start_from=start_index)
+        content = docx_read_content(max_paragraphs=5, start_from=start_index)
         lines = [line for line in content.split("\n") if line.strip()]
 
         assert len(lines) == 5
@@ -68,43 +66,37 @@ def test_read_content_with_pagination():
         assert "Paragraph 9" in lines[-1]
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_find_paragraphs_with_limit():
     """Test finding paragraphs with result limit"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add many matching paragraphs
         for i in range(20):
-            docx_insert_paragraph(session_id, f"Test paragraph {i}", position="end:document_body")
+            docx_insert_paragraph(f"Test paragraph {i}", position="end:document_body")
 
         # Find with limit
-        matches_json = docx_find_paragraphs(session_id, "Test", max_results=5)
+        matches_json = docx_find_paragraphs("Test", max_results=5)
         matches = json.loads(matches_json)
 
         assert len(matches) == 5
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_extract_template_structure_with_limits():
     """Test extracting structure with item limits"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add content
         for i in range(5):
-            docx_insert_heading(session_id, f"Heading {i}", position="end:document_body", level=1)
-            docx_insert_paragraph(session_id, f"Content {i}", position="end:document_body")
+            docx_insert_heading(f"Heading {i}", position="end:document_body", level=1)
+            docx_insert_paragraph(f"Content {i}", position="end:document_body")
 
-        docx_insert_table(session_id, 2, 2, position="end:document_body")
+        docx_insert_table(2, 2, position="end:document_body")
 
         # Extract with limits
         limits = json.dumps({"headings": 2, "paragraphs": 0, "tables": 1})
@@ -127,18 +119,15 @@ def test_extract_template_structure_with_limits():
         assert len(tables) <= 1
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_extract_template_structure_no_content():
     """Test extracting structure without content"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
-        docx_insert_heading(session_id, "Test Heading", position="end:document_body", level=1)
-        docx_insert_paragraph(session_id, "Long paragraph content" * 100, position="end:document_body")
+        docx_insert_heading("Test Heading", position="end:document_body", level=1)
+        docx_insert_paragraph("Long paragraph content" * 100, position="end:document_body")
 
         structure_json = docx_extract_template_structure(
             session_id,
@@ -154,4 +143,4 @@ def test_extract_template_structure_no_content():
                 assert "[" in item["text"] and "chars]" in item["text"]
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()

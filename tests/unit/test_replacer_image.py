@@ -3,7 +3,7 @@ import os
 import json
 from unittest.mock import MagicMock, patch
 from docx_mcp_server.core.replacer import replace_text_in_paragraph
-from docx_mcp_server.server import docx_replace_text, docx_create, session_manager, docx_insert_image, docx_delete, docx_get_context
+from docx_mcp_server.server import docx_replace_text, session_manager, docx_insert_image, docx_delete, docx_get_context
 
 # Add parent directory to path for helpers import
 import sys
@@ -18,6 +18,7 @@ from helpers import (
     is_error,
     extract_error_message
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 
 def test_replace_text_single_run():

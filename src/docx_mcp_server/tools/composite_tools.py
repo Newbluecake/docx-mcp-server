@@ -5,6 +5,7 @@ import re
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from docx_mcp_server.core.response import create_markdown_response, create_error_response
+from docx_mcp_server.utils.session_helpers import get_active_session
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,6 @@ def _extract_metadata_field(response: str, field_name: str) -> Optional[str]:
 
 
 def docx_insert_formatted_paragraph(
-    session_id: str,
     text: str,
     position: str,
     bold: bool = False,
@@ -75,9 +75,7 @@ def docx_insert_formatted_paragraph(
         - Create styled headings or emphasis text
         - Reduce multiple tool calls to one
 
-    Args:
-        session_id (str): Active session ID.
-        text (str): Paragraph text content.
+    Args:        text (str): Paragraph text content.
         position (str): Insertion position string (e.g., "after:para_123").
         bold (bool): Make text bold. Defaults to False.
         italic (bool): Make text italic. Defaults to False.
@@ -131,7 +129,6 @@ def docx_insert_formatted_paragraph(
 
 
 def docx_quick_edit(
-    session_id: str,
     search_text: str,
     new_text: str = None,
     bold: bool = None,
@@ -150,9 +147,7 @@ def docx_quick_edit(
         - Find and replace with formatting changes
         - Update specific content without manual ID tracking
 
-    Args:
-        session_id (str): Active session ID.
-        search_text (str): Text to search for in paragraphs.
+    Args:        search_text (str): Text to search for in paragraphs.
         new_text (str): New text to replace (if None, only formatting changes).
         bold (bool): Set bold formatting.
         italic (bool): Set italic formatting.
@@ -164,10 +159,10 @@ def docx_quick_edit(
 
     Examples:
         Replace text:
-        >>> result = docx_quick_edit(session_id, "old text", new_text="new text")
+        >>> result = docx_quick_edit("old text", new_text="new text")
 
         Change formatting only:
-        >>> result = docx_quick_edit(session_id, "important", bold=True, color_hex="FF0000")
+        >>> result = docx_quick_edit("important", bold=True, color_hex="FF0000")
     """
     from docx_mcp_server.tools.content_tools import docx_find_paragraphs
     from docx_mcp_server.tools.paragraph_tools import docx_update_paragraph_text
@@ -193,7 +188,7 @@ def docx_quick_edit(
 
             # Apply formatting if specified
             if any([bold is not None, italic is not None, size, color_hex]):
-                session = session_manager.get_session(session_id)
+                session, error = get_active_session()
                 paragraph = session.get_object(para_id)
 
                 # Apply formatting to all runs in paragraph
@@ -217,7 +212,6 @@ def docx_quick_edit(
 
 
 def docx_get_structure_summary(
-    session_id: str,
     max_headings: int = 10,
     max_tables: int = 5,
     max_paragraphs: int = 0,
@@ -234,9 +228,7 @@ def docx_get_structure_summary(
         - Get table of contents
         - Find specific sections without full content
 
-    Args:
-        session_id (str): Active session ID.
-        max_headings (int): Maximum headings to return. Defaults to 10.
+    Args:        max_headings (int): Maximum headings to return. Defaults to 10.
         max_tables (int): Maximum tables to return. Defaults to 5.
         max_paragraphs (int): Maximum paragraphs to return. Defaults to 0 (none).
         include_content (bool): Include text content. Defaults to False (structure only).
@@ -246,18 +238,18 @@ def docx_get_structure_summary(
 
     Examples:
         Get headings only:
-        >>> summary = docx_get_structure_summary(session_id)
+        >>> summary = docx_get_structure_summary()
 
         Get headings and tables:
-        >>> summary = docx_get_structure_summary(session_id, max_tables=10)
+        >>> summary = docx_get_structure_summary(max_tables=10)
     """
     from docx_mcp_server.server import session_manager
 
-    try:
-        session = session_manager.get_session(session_id)
-        if not session:
-            raise ValueError(f"Session {session_id} not found")
+    session, error = get_active_session()
+    if error:
+        return error
 
+    try:
         doc = session.document
         structure = {
             "headings": [],
@@ -326,7 +318,6 @@ def docx_get_structure_summary(
 
 
 def docx_smart_fill_table(
-    session_id: str,
     table_identifier: str,
     data: str,
     has_header: bool = True,
@@ -343,9 +334,7 @@ def docx_smart_fill_table(
         - Import CSV/JSON data into documents
         - Populate templates with dynamic data
 
-    Args:
-        session_id (str): Active session ID.
-        table_identifier (str): Table index (e.g., "0") or text to find table.
+    Args:        table_identifier (str): Table index (e.g., "0") or text to find table.
         data (str): JSON array of arrays: [["col1", "col2"], ["val1", "val2"]].
         has_header (bool): First row is header. Defaults to True.
         auto_resize (bool): Auto-add rows if needed. Defaults to True.
@@ -356,25 +345,25 @@ def docx_smart_fill_table(
     Examples:
         Fill table by index:
         >>> data = '[["Name", "Age"], ["Alice", "30"], ["Bob", "25"]]'
-        >>> result = docx_smart_fill_table(session_id, "0", data)
+        >>> result = docx_smart_fill_table("0", data)
 
         Fill table by content:
-        >>> result = docx_smart_fill_table(session_id, "Employee", data)
+        >>> result = docx_smart_fill_table("Employee", data)
     """
     from docx_mcp_server.tools.table_tools import (
         docx_get_table, docx_find_table, docx_fill_table, docx_insert_table_row
     )
     from docx_mcp_server.server import session_manager
 
+    session, error = get_active_session()
+    if error:
+        return error
+
     try:
         # Parse data
         data_array = json.loads(data)
         if not isinstance(data_array, list) or not data_array:
             raise ValueError("Data must be a non-empty JSON array")
-
-        session = session_manager.get_session(session_id)
-        if not session:
-            raise ValueError(f"Session {session_id} not found")
 
         # Find table - try multiple strategies
         table_id = None
@@ -442,7 +431,6 @@ def docx_smart_fill_table(
 
 
 def docx_format_range(
-    session_id: str,
     start_text: str,
     end_text: str,
     bold: bool = None,
@@ -461,9 +449,7 @@ def docx_format_range(
         - Apply consistent styling to ranges
         - Bulk formatting operations
 
-    Args:
-        session_id (str): Active session ID.
-        start_text (str): Text marking range start.
+    Args:        start_text (str): Text marking range start.
         end_text (str): Text marking range end.
         bold (bool): Set bold formatting.
         italic (bool): Set italic formatting.
@@ -482,11 +468,11 @@ def docx_format_range(
     from docx_mcp_server.server import session_manager
     from docx_mcp_server.tools.run_tools import docx_set_font
 
-    try:
-        session = session_manager.get_session(session_id)
-        if not session:
-            raise ValueError(f"Session {session_id} not found")
+    session, error = get_active_session()
+    if error:
+        return error
 
+    try:
         doc = session.document
         paragraphs = list(doc.paragraphs)
 

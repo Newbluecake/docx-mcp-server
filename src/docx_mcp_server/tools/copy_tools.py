@@ -26,12 +26,11 @@ def docx_get_element_source(element_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_get_element_source called: session_id={session_id}, element_id={element_id}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_get_element_source failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+    logger.debug(f"docx_get_element_source called: session_id={session.session_id}, element_id={element_id}")
 
     metadata = session.get_metadata(element_id)
     if not metadata:
@@ -69,12 +68,11 @@ def docx_copy_elements_range(start_id: str, end_id: str, position: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_copy_elements_range called: session_id={session_id}, start_id={start_id}, end_id={end_id}, position={position}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_copy_elements_range failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+    logger.debug(f"docx_copy_elements_range called: session_id={session.session_id}, start_id={start_id}, end_id={end_id}, position={position}")
 
     try:
         start_el = session.get_object(start_id)

@@ -4,13 +4,13 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from typing import Optional, Dict, List, Any
 from docx_mcp_server.core.finder import Finder
+from docx_mcp_server.utils.session_helpers import get_active_session
 from docx_mcp_server.core.template_parser import TemplateParser
 
 logger = logging.getLogger(__name__)
 
 
 def docx_read_content(
-    session_id: str,
     max_paragraphs: Optional[int] = None,
     start_from: int = 0,
     include_tables: bool = False,
@@ -32,9 +32,7 @@ def docx_read_content(
         - Verify document content after generation
         - Read large documents in chunks
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        max_paragraphs (int, optional): Maximum paragraphs to return. None = all.
+    Args:        max_paragraphs (int, optional): Maximum paragraphs to return. None = all.
         start_from (int, optional): Start from paragraph N (0-based). Defaults to 0.
         include_tables (bool, optional): Include table content. Defaults to False.
 
@@ -47,13 +45,13 @@ def docx_read_content(
 
     Examples:
         Read all content:
-        >>> content = docx_read_content(session_id)
+        >>> content = docx_read_content()
 
         Read first 10 paragraphs:
-        >>> content = docx_read_content(session_id, max_paragraphs=10)
+        >>> content = docx_read_content(max_paragraphs=10)
 
         Read paragraphs 10-20:
-        >>> content = docx_read_content(session_id, max_paragraphs=10, start_from=10)
+        >>> content = docx_read_content(max_paragraphs=10, start_from=10)
 
     Notes:
         - Only extracts text, formatting information is not included
@@ -66,15 +64,14 @@ def docx_read_content(
     """
     from docx_mcp_server.server import session_manager
 
+    session, error = get_active_session()
+    if error:
+        return error
+
     logger.debug(
-        f"docx_read_content called: session_id={session_id}, max={max_paragraphs}, start={start_from}, "
+        f"docx_read_content called: session_id={session.session_id}, max={max_paragraphs}, start={start_from}, "
         f"include_tables={include_tables}, start_element_id={start_element_id}, max_tables={max_tables}, table_mode={table_mode}"
     )
-
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_read_content failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
 
     from docx.table import Table
     from docx.text.paragraph import Paragraph
@@ -174,7 +171,6 @@ def docx_read_content(
     return result
 
 def docx_find_paragraphs(
-    session_id: str,
     query: str,
     max_results: int = 10,
     return_context: bool = False,
@@ -192,9 +188,7 @@ def docx_find_paragraphs(
         - Locate paragraphs for modification
         - Search document content programmatically
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        query (str): Text to search for (case-insensitive substring match).
+    Args:        query (str): Text to search for (case-insensitive substring match).
         max_results (int, optional): Maximum results to return. Defaults to 10.
         return_context (bool, optional): Include surrounding context. Defaults to False.
 
@@ -207,10 +201,10 @@ def docx_find_paragraphs(
 
     Examples:
         Find placeholders (limited):
-        >>> matches = docx_find_paragraphs(session_id, "{{NAME}}", max_results=5)
+        >>> matches = docx_find_paragraphs("{{NAME}}", max_results=5)
 
         Find all matches:
-        >>> matches = docx_find_paragraphs(session_id, "important", max_results=999)
+        >>> matches = docx_find_paragraphs("important", max_results=999)
 
     Notes:
         - Search is case-insensitive
@@ -225,12 +219,11 @@ def docx_find_paragraphs(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_find_paragraphs called: session_id={session_id}, query='{query}', max={max_results}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_find_paragraphs failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+    logger.debug(f"docx_find_paragraphs called: session_id={session.session_id}, query='{query}', max={max_results}")
 
     matches = []
     paras = list(session.document.paragraphs)
@@ -262,7 +255,6 @@ def docx_find_paragraphs(
     return json.dumps(matches, ensure_ascii=False)
 
 def docx_extract_template_structure(
-    session_id: str,
     max_depth: int = None,
     include_content: bool = True,
     max_items_per_type: str = None
@@ -280,9 +272,7 @@ def docx_extract_template_structure(
         - Generate documentation from templates
         - Validate template format
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        max_depth (int, optional): Limit nesting depth. None = unlimited.
+    Args:        max_depth (int, optional): Limit nesting depth. None = unlimited.
         include_content (bool, optional): Include text content. Defaults to True.
         max_items_per_type (str, optional): JSON dict limiting items per type.
             Example: '{"headings": 10, "tables": 5, "paragraphs": 0}'
@@ -295,7 +285,7 @@ def docx_extract_template_structure(
 
     Examples:
         Full structure:
-        >>> structure = docx_extract_template_structure(session_id)
+        >>> structure = docx_extract_template_structure()
 
         Structure only (no content):
         >>> structure = docx_extract_template_structure(
@@ -319,12 +309,11 @@ def docx_extract_template_structure(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_extract_template_structure called: session_id={session_id}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_extract_template_structure failed: Session {session_id} not found")
-        raise ValueError(f"Session {session_id} not found")
+    logger.debug(f"docx_extract_template_structure called: session_id={session.session_id}")
 
     if not session.document:
         logger.error(f"docx_extract_template_structure failed: Document not found in session")

@@ -1,6 +1,6 @@
 import pytest
 import json
-from docx_mcp_server.server import docx_create, session_manager
+from docx_mcp_server.server import session_manager
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 
 # Add parent directory to path for helpers import
@@ -16,21 +16,19 @@ from helpers import (
     is_error,
     extract_error_message
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 def test_add_paragraph_position_after():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create P1
-    p1_resp = docx_insert_paragraph(session_id, "P1", position="end:document_body")
+    p1_resp = docx_insert_paragraph("P1", position="end:document_body")
     p1_id = extract_element_id(p1_resp)
 
     # Create P3 (appended)
-    p3_resp = docx_insert_paragraph(session_id, "P3", position="end:document_body")
+    p3_resp = docx_insert_paragraph("P3", position="end:document_body")
 
     # Insert P2 after P1 using position
-    p2_resp = docx_insert_paragraph(session_id, "P2", position=f"after:{p1_id}")
+    p2_resp = docx_insert_paragraph("P2", position=f"after:{p1_id}")
     p2_id = extract_element_id(p2_resp)
 
     # Verify Order
@@ -46,16 +44,13 @@ def test_add_paragraph_position_after():
     assert "P1" in p2_resp
 
 def test_add_paragraph_position_before():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create P2
-    p2_resp = docx_insert_paragraph(session_id, "P2", position="end:document_body")
+    p2_resp = docx_insert_paragraph("P2", position="end:document_body")
     p2_id = extract_element_id(p2_resp)
 
     # Insert P1 before P2
-    p1_resp = docx_insert_paragraph(session_id, "P1", position=f"before:{p2_id}")
+    p1_resp = docx_insert_paragraph("P1", position=f"before:{p2_id}")
 
     # Verify Order
     session = session_manager.get_session(session_id)
@@ -64,14 +59,11 @@ def test_add_paragraph_position_before():
     assert paras[1].text == "P2"
 
 def test_add_paragraph_position_start():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
-    docx_insert_paragraph(session_id, "Existing", position="end:document_body")
+    setup_active_session()
+    docx_insert_paragraph("Existing", position="end:document_body")
 
     # Insert at start of document
-    docx_insert_paragraph(session_id, "Start", position="start:document_body")
+    docx_insert_paragraph("Start", position="start:document_body")
 
     session = session_manager.get_session(session_id)
     paras = session.document.paragraphs

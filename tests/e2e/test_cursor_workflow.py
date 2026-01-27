@@ -7,7 +7,7 @@ from tests.helpers import (
     is_error
 )
 import json
-from docx_mcp_server.tools.session_tools import docx_create
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table, docx_get_cell, docx_insert_paragraph_to_cell
 from docx_mcp_server.server import session_manager
@@ -21,30 +21,27 @@ def _extract(response):
 
 def test_cursor_workflow():
     # 1. Create session
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # 2. Add initial content (Para 1, Para 2, Para 3)
-    p1_resp = docx_insert_paragraph(session_id, "Paragraph 1", position="end:document_body")
+    p1_resp = docx_insert_paragraph("Paragraph 1", position="end:document_body")
     p1 = _extract(p1_resp)["element_id"]
 
-    p2_resp = docx_insert_paragraph(session_id, "Paragraph 2", position="end:document_body")
+    p2_resp = docx_insert_paragraph("Paragraph 2", position="end:document_body")
     p2 = _extract(p2_resp)["element_id"]
 
-    p3_resp = docx_insert_paragraph(session_id, "Paragraph 3", position="end:document_body")
+    p3_resp = docx_insert_paragraph("Paragraph 3", position="end:document_body")
     p3 = _extract(p3_resp)["element_id"]
 
     # 3. Insert "Paragraph 1.5" (Should be between 1 and 2)
-    p1_5_resp = docx_insert_paragraph(session_id, "Paragraph 1.5", position=f"before:{p2}")
+    p1_5_resp = docx_insert_paragraph("Paragraph 1.5", position=f"before:{p2}")
     p1_5 = _extract(p1_5_resp)["element_id"]
 
     # 4. Insert "Paragraph 2.5" (Should be between 2 and 3)
-    p2_5_resp = docx_insert_paragraph(session_id, "Paragraph 2.5", position=f"after:{p2}")
+    p2_5_resp = docx_insert_paragraph("Paragraph 2.5", position=f"after:{p2}")
     p2_5 = _extract(p2_5_resp)["element_id"]
 
     # 5. Insert Table AFTER Paragraph 2.5
-    t1_resp = docx_insert_table(session_id, 2, 2, position=f"after:{p2_5}")
+    t1_resp = docx_insert_table(2, 2, position=f"after:{p2_5}")
     t1 = _extract(t1_resp)["element_id"]
 
     # 8. Verify Order
@@ -74,23 +71,20 @@ def test_cursor_workflow():
     assert "P: Paragraph 3" in content_log[5]
 
 def test_cursor_inside_container():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create a table
-    t1_resp = docx_insert_table(session_id, 1, 1, position="end:document_body")
+    t1_resp = docx_insert_table(1, 1, position="end:document_body")
     t1 = _extract(t1_resp)["element_id"]
 
     # Get the only cell (0,0)
-    cell_resp = docx_get_cell(session_id, t1, 0, 0)
+    cell_resp = docx_get_cell(t1, 0, 0)
     cell_id = _extract(cell_resp)["element_id"]
 
     # Insert Paragraph "Start" at start of cell
-    docx_insert_paragraph_to_cell(session_id, "Start", position=f"start:{cell_id}")
+    docx_insert_paragraph_to_cell("Start", position=f"start:{cell_id}")
 
     # Insert Paragraph "End" at end of cell
-    docx_insert_paragraph_to_cell(session_id, "End", position=f"end:{cell_id}")
+    docx_insert_paragraph_to_cell("End", position=f"end:{cell_id}")
 
     # Verify cell content
     session = session_manager.get_session(session_id)

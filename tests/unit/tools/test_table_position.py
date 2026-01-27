@@ -1,6 +1,6 @@
 import pytest
 import json
-from docx_mcp_server.server import docx_create, session_manager
+from docx_mcp_server.server import session_manager
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table
 
@@ -17,18 +17,16 @@ from helpers import (
     is_error,
     extract_error_message
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 def test_add_table_position_after():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create Anchor Paragraph
-    p1_resp = docx_insert_paragraph(session_id, "Anchor", position="end:document_body")
+    p1_resp = docx_insert_paragraph("Anchor", position="end:document_body")
     p1_id = extract_element_id(p1_resp)
 
     # Insert Table after Anchor
-    t_resp = docx_insert_table(session_id, rows=2, cols=2, position=f"after:{p1_id}")
+    t_resp = docx_insert_table(rows=2, cols=2, position=f"after:{p1_id}")
     t_id = extract_element_id(t_resp)
 
     # Verify Order
@@ -53,13 +51,11 @@ def test_add_table_position_after():
     assert "Anchor" in visual
 
 def test_add_table_position_start():
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-    docx_insert_paragraph(session_id, "Existing", position="end:document_body")
+    setup_active_session()
+    docx_insert_paragraph("Existing", position="end:document_body")
 
     # Insert Table at start
-    docx_insert_table(session_id, 1, 1, position="start:document_body")
+    docx_insert_table(1, 1, position="start:document_body")
 
     session = session_manager.get_session(session_id)
     children = list(session.document._body._element.iterchildren())

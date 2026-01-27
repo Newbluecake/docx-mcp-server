@@ -3,7 +3,6 @@ import json
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_paragraph,
     docx_insert_run,
     docx_set_font,

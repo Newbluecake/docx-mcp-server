@@ -30,51 +30,46 @@ from docx_mcp_server.tools.format_tools import (
     docx_apply_format_template
 )
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
-from docx_mcp_server.tools.session_tools import docx_create, docx_close
+from docx_mcp_server.tools.session_tools import docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 
 def test_add_run_returns_json():
     """Test that docx_insert_run returns valid JSON."""
-    session_response = docx_create()
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("", position="end:document_body"))
 
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "", position="end:document_body"))
-
-    result = docx_insert_run(session_id, "Test Run", position=f"inside:{para_id}")
+    result = docx_insert_run("Test Run", position=f"inside:{para_id}")
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") is not None
     assert extract_metadata_field(result, "element_id").startswith("run_")
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_update_run_text_returns_json():
     """Test that docx_update_run_text returns valid JSON."""
-    session_response = docx_create()
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("", position="end:document_body"))
+    run_id = extract_element_id(docx_insert_run("Old", position=f"inside:{para_id}"))
 
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "", position="end:document_body"))
-    run_id = extract_element_id(docx_insert_run(session_id, "Old", position=f"inside:{para_id}"))
-
-    result = docx_update_run_text(session_id, run_id, "New")
+    result = docx_update_run_text(run_id, "New")
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == run_id
     assert extract_metadata_field(result, "changed_fields") is not None
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_set_font_returns_json():
     """Test that docx_set_font returns valid JSON."""
-    session_response = docx_create()
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("", position="end:document_body"))
+    run_id = extract_element_id(docx_insert_run("Text", position=f"inside:{para_id}"))
 
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "", position="end:document_body"))
-    run_id = extract_element_id(docx_insert_run(session_id, "Text", position=f"inside:{para_id}"))
-
-    result = docx_set_font(session_id, run_id, bold=True, size=12, color_hex="FF0000")
+    result = docx_set_font(run_id, bold=True, size=12, color_hex="FF0000")
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == run_id
@@ -82,31 +77,27 @@ def test_set_font_returns_json():
     assert extract_metadata_field(result, "bold") is not None
     assert extract_metadata_field(result, "color") is not None
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_set_alignment_returns_json():
     """Test that docx_set_alignment returns valid JSON."""
-    session_response = docx_create()
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("Text", position="end:document_body"))
 
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "Text", position="end:document_body"))
-
-    result = docx_set_alignment(session_id, para_id, "center")
+    result = docx_set_alignment(para_id, "center")
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == para_id
     assert extract_metadata_field(result, "alignment") == "center"
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_set_properties_returns_json():
     """Test that docx_set_properties returns valid JSON."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "Text", position="end:document_body"))
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("Text", position="end:document_body"))
 
     props = json.dumps({"font": {"bold": True}})
     # set_properties usually works on runs or paragraphs. For paragraphs it sets para props.
@@ -114,38 +105,33 @@ def test_set_properties_returns_json():
     # Let's add a run to test font props or use paragraph_format for paragraph.
 
     props = json.dumps({"paragraph_format": {"alignment": "center"}})
-    result = docx_set_properties(session_id, props, element_id=para_id)
+    result = docx_set_properties(props, element_id=para_id)
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == para_id
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_format_copy_returns_json():
     """Test that docx_format_copy returns valid JSON."""
-    session_response = docx_create()
+    setup_active_session()
+    para1_id = extract_element_id(docx_insert_paragraph("Source", position="end:document_body"))
+    para2_id = extract_element_id(docx_insert_paragraph("Target", position="end:document_body"))
 
-    session_id = extract_session_id(session_response)
-    para1_id = extract_element_id(docx_insert_paragraph(session_id, "Source", position="end:document_body"))
-    para2_id = extract_element_id(docx_insert_paragraph(session_id, "Target", position="end:document_body"))
-
-    result = docx_format_copy(session_id, para1_id, para2_id)
+    result = docx_format_copy(para1_id, para2_id)
 
     assert is_success(result)
     assert extract_metadata_field(result, "element_id") == para2_id
     assert extract_metadata_field(result, "source_id") == para1_id
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_set_margins_returns_json():
     """Test that docx_set_margins returns valid JSON."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
-    result = docx_set_margins(session_id, top=1.0)
+    setup_active_session()
+    result = docx_set_margins(top=1.0)
 
     assert is_success(result)
     assert extract_metadata_field(result, "margins") is not None
@@ -157,19 +143,17 @@ def test_set_margins_returns_json():
             margins_val = ast.literal_eval(margins_val)
     assert margins_val["top"] == 1.0
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_template_operations_return_json():
     """Test extract and apply template return JSON."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-    para_id = extract_element_id(docx_insert_paragraph(session_id, "Template", position="end:document_body"))
-    docx_set_alignment(session_id, para_id, "right")
+    setup_active_session()
+    para_id = extract_element_id(docx_insert_paragraph("Template", position="end:document_body"))
+    docx_set_alignment(para_id, "right")
 
     # Extract
-    extract_result = docx_extract_format_template(session_id, para_id)
+    extract_result = docx_extract_format_template(para_id)
     extract_data = json.loads(extract_result)
     assert extract_data["status"] == "success"
     assert "template" in extract_data["data"]
@@ -177,7 +161,7 @@ def test_template_operations_return_json():
     template_obj = extract_data["data"].get("template") or extract_metadata_field(extract_result, "template")
 
     # Apply
-    para2_id = extract_element_id(docx_insert_paragraph(session_id, "Apply", position="end:document_body"))
+    para2_id = extract_element_id(docx_insert_paragraph("Apply", position="end:document_body"))
 
     # Note: apply takes the raw JSON string of the template usually,
     # but our new extract returns a wrapped JSON response.
@@ -198,10 +182,10 @@ def test_template_operations_return_json():
         template_obj = {"element_type": "Paragraph", "properties": {}}
     template_json_str = json.dumps(template_obj)
 
-    apply_result = docx_apply_format_template(session_id, para2_id, template_json_str)
+    apply_result = docx_apply_format_template(para2_id, template_json_str)
     apply_data = json.loads(apply_result)
 
     assert apply_data["status"] == "success"
     assert extract_metadata_field(apply_result, "element_id") == para2_id
 
-    docx_close(session_id)
+    teardown_active_session()

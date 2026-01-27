@@ -6,6 +6,7 @@ from docx_mcp_server.core.response import (
     create_error_response,
     create_context_aware_response
 )
+from docx_mcp_server.utils.session_helpers import get_active_session
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,6 @@ def docx_cursor_get() -> str:
     Get the current cursor position and state.
 
     Args:
-        session_id (str): Active session ID.
-
     Returns:
         str: JSON response with cursor state containing:
             - parent_id: ID of the container
@@ -26,12 +25,11 @@ def docx_cursor_get() -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_cursor_get called: session_id={session_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_cursor_get failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_cursor_get called: session_id={session.session_id}")
 
     cursor = session.cursor
 
@@ -57,16 +55,13 @@ def docx_cursor_get() -> str:
         )
 
 def docx_cursor_move(
-    session_id: str,
     element_id: str,
     position: str = "after"
 ) -> str:
     """
     Move the insertion cursor to a specific location.
 
-    Args:
-        session_id (str): Active session ID.
-        element_id (str): Reference element ID (paragraph, table, etc.) or container ID.
+    Args:        element_id (str): Reference element ID (paragraph, table, etc.) or container ID.
         position (str): Relation to element.
             - "before": Place cursor before the element.
             - "after": Place cursor after the element.
@@ -78,12 +73,11 @@ def docx_cursor_move(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_cursor_move called: session_id={session_id}, element_id={element_id}, position={position}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_cursor_move failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_cursor_move called: session_id={session.session_id}, element_id={element_id}, position={position}")
 
     # Validate position
     if position not in ["before", "after", "inside_start", "inside_end"]:

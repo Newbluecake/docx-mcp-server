@@ -27,7 +27,6 @@ def docx_insert_table(rows: int, cols: int, position: str) -> str:
     Adds a table with the specified dimensions. Supports precise positioning.
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
         rows (int): Number of rows to create (must be >= 1).
         cols (int): Number of columns to create (must be >= 1).
         position (str): Insertion position string (e.g., "after:para_123").
@@ -35,13 +34,11 @@ def docx_insert_table(rows: int, cols: int, position: str) -> str:
     Returns:
         str: JSON response with element_id and visual cursor context.
     """
-    from docx_mcp_server.server import session_manager
+    session, error = get_active_session()
+    if error:
+        return error
 
-    logger.debug(f"docx_insert_table called: session_id={session_id}, rows={rows}, cols={cols}, position={position}")
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_insert_table failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    logger.debug(f"docx_insert_table called: session_id={session.session_id}, rows={rows}, cols={cols}, position={position}")
 
     # Resolve Target Parent and Position
     target_parent = session.document
@@ -117,11 +114,11 @@ def docx_get_table(index: int) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_get_table called: session_id={session_id}, index={index}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_get_table called: session_id={session.session_id}, index={index}")
 
     try:
         finder = Finder(session.document)
@@ -285,9 +282,9 @@ def docx_get_cell(table_id: str, row: int, col: int) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
 
@@ -339,16 +336,14 @@ def docx_insert_paragraph_to_cell(text: str, position: str) -> str:
     """
     Add a paragraph to a table cell.
 
-    Args:
-        session_id (str): Active session ID.
-        text (str): Paragraph text.
+    Args:        text (str): Paragraph text.
         position (str): Insertion position string targeting a cell (e.g., "inside:cell_123").
     """
     from docx_mcp_server.server import session_manager
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
         resolver = PositionResolver(session)
@@ -412,11 +407,11 @@ def docx_insert_table_row(position: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_table_row called: session_id={session_id}, position={position}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_insert_table_row called: session_id={session.session_id}, position={position}")
 
     try:
         resolver = PositionResolver(session)
@@ -469,11 +464,11 @@ def docx_insert_table_col(position: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_table_col called: session_id={session_id}, position={position}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_insert_table_col called: session_id={session.session_id}, position={position}")
 
     try:
         resolver = PositionResolver(session)
@@ -543,7 +538,6 @@ def _set_cell_text(cell, text: str, preserve_formatting: bool, painter: FormatPa
 
 
 def docx_fill_table(
-    session_id: str,
     data: str,
     table_id: str = None,
     start_row: int = 0,
@@ -561,11 +555,11 @@ def docx_fill_table(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_fill_table called: session_id={session_id}, data_len={len(data)}, table_id={table_id}, start_row={start_row}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_fill_table called: session_id={session.session_id}, data_len={len(data)}, table_id={table_id}, start_row={start_row}")
 
     if not table_id:
         table_id = session.last_accessed_id
@@ -658,11 +652,11 @@ def docx_copy_table(table_id: str, position: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_copy_table called: session_id={session_id}, table_id={table_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_copy_table called: session_id={session.session_id}, table_id={table_id}")
 
     try:
 

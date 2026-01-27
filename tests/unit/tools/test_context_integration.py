@@ -28,7 +28,7 @@ def test_paragraph_context():
     session_id = session_manager.create_session()
 
     # Add first paragraph
-    result1 = docx_insert_paragraph(session_id, "First paragraph", position="end:document_body")
+    result1 = docx_insert_paragraph("First paragraph", position="end:document_body")
     assert is_success(result1)
     element_id1 = extract_element_id(result1)
     assert "para_" in element_id1
@@ -36,7 +36,7 @@ def test_paragraph_context():
     assert "Document Context" in result1
 
     # Add second paragraph
-    result2 = docx_insert_paragraph(session_id, "Second paragraph", position="end:document_body")
+    result2 = docx_insert_paragraph("Second paragraph", position="end:document_body")
     assert is_success(result2)
     assert "Document Context" in result2
 
@@ -47,7 +47,7 @@ def test_heading_context():
 
     session_id = session_manager.create_session()
 
-    result = docx_insert_heading(session_id, "My Heading", position="end:document_body", level=1)
+    result = docx_insert_heading("My Heading", position="end:document_body", level=1)
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "para_" in element_id
@@ -59,10 +59,10 @@ def test_run_context():
 
     session_id = session_manager.create_session()
 
-    para_result = docx_insert_paragraph(session_id, "", position="end:document_body")
+    para_result = docx_insert_paragraph("", position="end:document_body")
     para_id = extract_element_id(para_result)
 
-    result = docx_insert_run(session_id, "Run text", position=f"inside:{para_id}")
+    result = docx_insert_run("Run text", position=f"inside:{para_id}")
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "run_" in element_id
@@ -75,10 +75,10 @@ def test_table_context():
     session_id = session_manager.create_session()
 
     # Add paragraph first
-    docx_insert_paragraph(session_id, "Before table", position="end:document_body")
+    docx_insert_paragraph("Before table", position="end:document_body")
 
     # Add table
-    result = docx_insert_table(session_id, rows=2, cols=2, position="end:document_body")
+    result = docx_insert_table(rows=2, cols=2, position="end:document_body")
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "table_" in element_id
@@ -90,13 +90,13 @@ def test_table_cell_context():
 
     session_id = session_manager.create_session()
 
-    table_result = docx_insert_table(session_id, rows=2, cols=2, position="end:document_body")
+    table_result = docx_insert_table(rows=2, cols=2, position="end:document_body")
     table_id = extract_element_id(table_result)
 
-    cell_result = docx_get_cell(session_id, table_id, 0, 0)
+    cell_result = docx_get_cell(table_id, 0, 0)
     cell_id = extract_element_id(cell_result)
 
-    result = docx_insert_paragraph_to_cell(session_id, "Cell content", position=f"inside:{cell_id}")
+    result = docx_insert_paragraph_to_cell("Cell content", position=f"inside:{cell_id}")
     assert is_success(result)
     element_id = extract_element_id(result)
     assert "para_" in element_id
@@ -111,16 +111,16 @@ def test_cursor_tools_context():
     )
 
     session_id = session_manager.create_session()
-    para_result = docx_insert_paragraph(session_id, "Para 1", position="end:document_body")
+    para_result = docx_insert_paragraph("Para 1", position="end:document_body")
     para_id = extract_element_id(para_result)
 
     # Move cursor
-    move_result = docx_cursor_move(session_id, para_id, "after")
+    move_result = docx_cursor_move(para_id, "after")
     assert is_success(move_result)
     assert "Document Context" in move_result
 
     # Get cursor info
-    get_result = docx_cursor_get(session_id)
+    get_result = docx_cursor_get()
     assert is_success(get_result)
 
 
@@ -141,7 +141,7 @@ def test_advanced_tools_context():
         img_path = f.name
 
     try:
-        result = docx_insert_image(session_id, img_path, position="end:document_body")
+        result = docx_insert_image(img_path, position="end:document_body")
         assert is_success(result)
         element_id = extract_element_id(result)
         assert "para_" in element_id or "run_" in element_id

@@ -15,18 +15,19 @@ from docx_mcp_server.server import (
     docx_insert_table_col,
     docx_fill_table,
     session_manager,
-    docx_create,
     docx_insert_table
 )
 from helpers import extract_session_id, extract_element_id
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 def test_table_operations_flow():
     # 1. Create session
-    session_response = docx_create()
-    sid = extract_session_id(session_response)
+    setup_active_session()
+    from docx_mcp_server.core.global_state import global_state
+    sid = global_state.active_session_id
 
     # 2. Add table
-    t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
+    t_response = docx_insert_table(rows=2, cols=2, position="end:document_body")
     t_id = extract_element_id(t_response)
     session = session_manager.get_session(sid)
     table = session.get_object(t_id)
@@ -34,17 +35,20 @@ def test_table_operations_flow():
     assert len(table.columns) == 2
 
     # 3. Add row
-    docx_insert_table_row(sid, position=f"inside:{t_id}")
+    docx_insert_table_row(position=f"inside:{t_id}")
     assert len(table.rows) == 3
 
     # 4. Add column
-    docx_insert_table_col(sid, position=f"inside:{t_id}")
+    docx_insert_table_col(position=f"inside:{t_id}")
     assert len(table.columns) == 3
 
+    teardown_active_session()
+
 def test_fill_table():
-    session_response = docx_create()
-    sid = extract_session_id(session_response)
-    t_response = docx_insert_table(sid, rows=1, cols=2, position="end:document_body")
+    setup_active_session()
+    from docx_mcp_server.core.global_state import global_state
+    sid = global_state.active_session_id
+    t_response = docx_insert_table(rows=1, cols=2, position="end:document_body")
     t_id = extract_element_id(t_response)
 
     # Data for 2 rows (will need to add 1 row)
@@ -54,7 +58,7 @@ def test_fill_table():
     ]
     json_data = json.dumps(data)
 
-    docx_fill_table(sid, json_data, t_id)
+    docx_fill_table(json_data, t_id)
 
     session = session_manager.get_session(sid)
     table = session.get_object(t_id)
@@ -63,14 +67,17 @@ def test_fill_table():
     assert table.rows[0].cells[0].text == "Header 1"
     assert table.rows[1].cells[1].text == "Value 2"
 
+    teardown_active_session()
+
 def test_copy_table():
-    session_response = docx_create()
-    sid = extract_session_id(session_response)
-    t_response = docx_insert_table(sid, rows=2, cols=2, position="end:document_body")
+    setup_active_session()
+    from docx_mcp_server.core.global_state import global_state
+    sid = global_state.active_session_id
+    t_response = docx_insert_table(rows=2, cols=2, position="end:document_body")
     t_id = extract_element_id(t_response)
 
     # Copy it
-    t_copy_response = docx_copy_table(sid, t_id, position="end:document_body")
+    t_copy_response = docx_copy_table(t_id, position="end:document_body")
     t_copy_id = extract_element_id(t_copy_response)
 
     assert t_copy_id != t_id
@@ -84,10 +91,13 @@ def test_copy_table():
     assert len(t_copy.rows) == 2
     assert len(t_copy.columns) == 2
 
+    teardown_active_session()
+
 def test_find_table():
-    session_response = docx_create()
-    sid = extract_session_id(session_response)
-    t_response = docx_insert_table(sid, rows=1, cols=1, position="end:document_body")
+    setup_active_session()
+    from docx_mcp_server.core.global_state import global_state
+    sid = global_state.active_session_id
+    t_response = docx_insert_table(rows=1, cols=1, position="end:document_body")
     t_id = extract_element_id(t_response)
 
     # Set text
@@ -96,7 +106,7 @@ def test_find_table():
     table.cell(0, 0).text = "UniqueRevenueData"
 
     # Find it
-    found_response = docx_find_table(sid, "Revenue")
+    found_response = docx_find_table("Revenue")
     found_id = extract_element_id(found_response)
     # Note: found_id might be different string if registered again, or same?
     # The register_object generates new ID every time unless we cache.
@@ -104,3 +114,5 @@ def test_find_table():
 
     found_table = session.get_object(found_id)
     assert "UniqueRevenueData" in found_table.cell(0, 0).text
+
+    teardown_active_session()

@@ -7,8 +7,8 @@ import re
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from helpers import extract_session_id, extract_element_id
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_paragraph,
     docx_insert_run,
     docx_set_font,
@@ -26,84 +26,79 @@ from docx_mcp_server.server import (
 
 def test_update_paragraph_text():
     """Test updating paragraph text."""
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create paragraph
-    para_response = docx_insert_paragraph(session_id, "Original text", position="end:document_body")
+    para_response = docx_insert_paragraph("Original text", position="end:document_body")
     para_id = extract_element_id(para_response)
 
     # Update it
-    result = docx_update_paragraph_text(session_id, para_id, "Updated text")
+    result = docx_update_paragraph_text(para_id, "Updated text")
     # Result can be JSON or plain string
     result_str = result if isinstance(result, str) else str(result)
     assert "updated" in result_str.lower() or "success" in result_str.lower()
 
     # Verify content
-    content = docx_read_content(session_id)
+    content = docx_read_content()
     assert "Updated text" in content
     assert "Original text" not in content
 
-    docx_close(session_id)
+    teardown_active_session()
 
 def test_update_run_text():
     """Test updating run text while preserving formatting."""
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create formatted run
-    para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
+    para_response = docx_insert_paragraph("", position="end:document_body")
     para_id = extract_element_id(para_response)
-    run_response = docx_insert_run(session_id, "Original", position=f"inside:{para_id}")
+    run_response = docx_insert_run("Original", position=f"inside:{para_id}")
     run_id = extract_element_id(run_response)
-    docx_set_font(session_id, run_id, bold=True, size=16)
+    docx_set_font(run_id, bold=True, size=16)
 
     # Update run text
-    result = docx_update_run_text(session_id, run_id, "Updated")
+    result = docx_update_run_text(run_id, "Updated")
     result_str = result if isinstance(result, str) else str(result)
     assert "updated" in result_str.lower() or "success" in result_str.lower()
 
     # Verify content
-    content = docx_read_content(session_id)
+    content = docx_read_content()
     assert "Updated" in content
     assert "Original" not in content
 
-    docx_close(session_id)
+    teardown_active_session()
 
 def test_update_paragraph_with_multiple_runs():
     """Test updating paragraph replaces all runs."""
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create paragraph with multiple runs
-    para_response = docx_insert_paragraph(session_id, "", position="end:document_body")
+    para_response = docx_insert_paragraph("", position="end:document_body")
     para_id = extract_element_id(para_response)
-    docx_insert_run(session_id, "Part 1 ", position=f"inside:{para_id}")
-    docx_insert_run(session_id, "Part 2", position=f"inside:{para_id}")
+    docx_insert_run("Part 1 ", position=f"inside:{para_id}")
+    docx_insert_run("Part 2", position=f"inside:{para_id}")
 
     # Update paragraph (should replace all runs)
-    docx_update_paragraph_text(session_id, para_id, "New single text")
+    docx_update_paragraph_text(para_id, "New single text")
 
     # Verify content
-    content = docx_read_content(session_id)
+    content = docx_read_content()
     assert "New single text" in content
     assert "Part 1" not in content
     assert "Part 2" not in content
 
-    docx_close(session_id)
+    teardown_active_session()
 
 def test_update_paragraph_invalid_session():
-    """Test updating with invalid session ID."""
-    result = docx_update_paragraph_text("invalid_session", "para_123", "text")
-    # Should return error JSON response
-    assert "not found" in result.lower() or "Error" in result
+    """Test updating paragraph when no active session exists."""
+    # Ensure no active session
+    teardown_active_session()
+
+    result = docx_update_paragraph_text("para_123", "text")
+    # Should return NoActiveSession error
+    assert "NoActiveSession" in result or "no active session" in result.lower()
 
 def test_update_paragraph_invalid_id():
     """Test updating with invalid paragraph ID."""
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
-    result = docx_update_paragraph_text(session_id, "para_invalid", "text")
+    setup_active_session()
+    result = docx_update_paragraph_text("para_invalid", "text")
     # Should return error JSON response
     try:
         data = json.loads(result)
@@ -112,25 +107,21 @@ def test_update_paragraph_invalid_id():
     except (json.JSONDecodeError, KeyError):
         assert "not found" in result.lower()
 
-    docx_close(session_id)
+    teardown_active_session()
 
 def test_update_run_invalid_session():
-    """Test updating run with invalid session ID."""
-    result = docx_update_run_text("invalid_session", "run_123", "text")
-    # Should return error JSON response
-    try:
-        data = json.loads(result)
-        assert data["status"] == "error"
-        assert "not found" in data["message"].lower()
-    except (json.JSONDecodeError, KeyError):
-        assert "not found" in result.lower()
+    """Test updating run when no active session exists."""
+    # Ensure no active session
+    teardown_active_session()
+
+    result = docx_update_run_text("run_123", "text")
+    # Should return NoActiveSession error
+    assert "NoActiveSession" in result or "no active session" in result.lower()
 
 def test_update_run_invalid_id():
     """Test updating run with invalid run ID."""
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
-    result = docx_update_run_text(session_id, "run_invalid", "text")
+    setup_active_session()
+    result = docx_update_run_text("run_invalid", "text")
     # Should return error JSON response
     try:
         data = json.loads(result)
@@ -139,7 +130,7 @@ def test_update_run_invalid_id():
     except (json.JSONDecodeError, KeyError):
         assert "not found" in result.lower()
 
-    docx_close(session_id)
+    teardown_active_session()
 
 if __name__ == "__main__":
     test_update_paragraph_text()

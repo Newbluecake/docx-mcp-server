@@ -69,12 +69,11 @@ def docx_replace_text(old_text: str, new_text: str, scope_id: str = None) -> str
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_replace_text called: session_id={session_id}, old_text='{old_text}', new_text='{new_text}', scope_id={scope_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_replace_text failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_replace_text called: session_id={session.session_id}, old_text='{old_text}', new_text='{new_text}', scope_id={scope_id}")
 
     # Use shared scope resolution logic
     tools = TextTools()
@@ -156,12 +155,11 @@ def docx_batch_replace_text(replacements_json: str, scope_id: str = None) -> str
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_batch_replace_text called: session_id={session_id}, replacements_len={len(replacements_json)}, scope_id={scope_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_batch_replace_text failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_batch_replace_text called: session_id={session.session_id}, replacements_len={len(replacements_json)}, scope_id={scope_id}")
 
     try:
         replacements = json.loads(replacements_json)
@@ -270,12 +268,11 @@ def docx_insert_image(image_path: str, position: str, width: float = None, heigh
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_image called: session_id={session_id}, image_path={image_path}, width={width}, height={height}, position={position}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_insert_image failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_insert_image called: session_id={session.session_id}, image_path={image_path}, width={width}, height={height}, position={position}")
 
     if not os.path.exists(image_path):
         logger.error(f"docx_insert_image failed: Image file not found - {image_path}")

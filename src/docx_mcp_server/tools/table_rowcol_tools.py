@@ -46,11 +46,11 @@ def docx_insert_row_at(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_row_at called: session_id={session_id}, table_id={table_id}, position={position}, row_index={row_index}, copy_format={copy_format}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_insert_row_at called: session_id={session.session_id}, table_id={table_id}, position={position}, row_index={row_index}, copy_format={copy_format}")
 
     # Get the table object
     try:
@@ -176,11 +176,11 @@ def docx_insert_col_at(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_insert_col_at called: session_id={session_id}, table_id={table_id}, position={position}, col_index={col_index}, copy_format={copy_format}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_insert_col_at called: session_id={session.session_id}, table_id={table_id}, position={position}, col_index={col_index}, copy_format={copy_format}")
 
     # Get the table object
     try:
@@ -307,11 +307,11 @@ def docx_delete_row(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_delete_row called: session_id={session_id}, table_id={table_id}, row_index={row_index}, row_id={row_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_delete_row called: session_id={session.session_id}, table_id={table_id}, row_index={row_index}, row_id={row_id}")
 
     # Get the table object
     try:
@@ -429,11 +429,11 @@ def docx_delete_col(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_delete_col called: session_id={session_id}, table_id={table_id}, col_index={col_index}, col_id={col_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_delete_col called: session_id={session.session_id}, table_id={table_id}, col_index={col_index}, col_id={col_id}")
 
     # Get the table object
     try:

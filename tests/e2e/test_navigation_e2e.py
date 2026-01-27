@@ -11,7 +11,7 @@ from tests.helpers import (
 import json
 import tempfile
 import os
-from docx_mcp_server.server import docx_create, docx_save, docx_close, session_manager
+from docx_mcp_server.server import docx_save, docx_close, session_manager
 from docx_mcp_server.tools.paragraph_tools import docx_insert_heading, docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table
 from docx_mcp_server.tools.advanced_tools import docx_insert_image
@@ -60,26 +60,23 @@ def test_complex_navigation_scenario(temp_image):
     [3] Intro
     [4] Conclusion
     """
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # 1. Add Intro
-    intro_data = _extract(docx_insert_paragraph(session_id, "Intro Paragraph", position="end:document_body"))
+    intro_data = _extract(docx_insert_paragraph("Intro Paragraph", position="end:document_body"))
     intro_id = intro_data["element_id"]
 
     # 2. Add Conclusion (appended)
-    concl_data = _extract(docx_insert_paragraph(session_id, "Conclusion Paragraph", position="end:document_body"))
+    concl_data = _extract(docx_insert_paragraph("Conclusion Paragraph", position="end:document_body"))
 
     # 3. Insert Heading BEFORE Intro
-    head_data = _extract(docx_insert_heading(session_id, "Chapter 1", position=f"before:{intro_id}", level=1))
+    head_data = _extract(docx_insert_heading("Chapter 1", position=f"before:{intro_id}", level=1))
     head_id = head_data["element_id"]
 
     # 4. Insert Table AFTER Heading
-    table_data = _extract(docx_insert_table(session_id, rows=2, cols=2, position=f"after:{head_id}"))
+    table_data = _extract(docx_insert_table(rows=2, cols=2, position=f"after:{head_id}"))
 
     # 5. Insert Image AT START
-    img_data = _extract(docx_insert_image(session_id, temp_image, position="start:document_body"))
+    img_data = _extract(docx_insert_image(temp_image, position="start:document_body"))
 
     # --- Verification ---
     session = session_manager.get_session(session_id)

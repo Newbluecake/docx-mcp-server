@@ -12,21 +12,20 @@ from tests.helpers import (
     is_error
 )
 import json
-from docx_mcp_server.tools.session_tools import docx_create, docx_close
+from docx_mcp_server.tools.session_tools import docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.table_tools import docx_insert_table
 from docx_mcp_server.tools.composite_tools import docx_smart_fill_table
 
 
 def test_smart_fill_with_auto_resize():
     """Test smart fill with auto resize."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
+    setup_active_session()
     assert session_id is not None
 
     try:
         # Create small table
-        result = docx_insert_table(session_id, rows=2, cols=2, position="end:document_body")
+        result = docx_insert_table(rows=2, cols=2, position="end:document_body")
         data = json.loads(result)
         table_id = data["data"]["element_id"]
 
@@ -54,4 +53,4 @@ def test_smart_fill_with_auto_resize():
             assert isinstance(fill_meta.get("skipped_regions"), (list, str))
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()

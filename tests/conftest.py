@@ -25,6 +25,28 @@ def reset_global_state():
     global_state.clear()
 
 
+@pytest.fixture
+def active_session():
+    """Create and teardown an active session for testing.
+
+    This fixture provides a session_id that is automatically set as the
+    active session in global_state. Tests can use this fixture instead
+    of manually calling setup_active_session/teardown_active_session.
+
+    Usage:
+        def test_something(active_session):
+            # active_session is already set in global_state
+            result = docx_insert_paragraph("text", position="end:document_body")
+            # ... assertions ...
+            # teardown happens automatically
+    """
+    from tests.helpers.session_helpers import setup_active_session, teardown_active_session
+
+    session_id = setup_active_session()
+    yield session_id
+    teardown_active_session()
+
+
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TESTS_DIR = os.path.abspath(os.path.dirname(__file__))
 

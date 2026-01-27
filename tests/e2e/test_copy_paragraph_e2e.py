@@ -11,7 +11,6 @@ from tests.helpers import extract_session_id, extract_element_id
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_paragraph,
     docx_insert_run,
     docx_set_font,
@@ -37,39 +36,36 @@ def test_copy_paragraph_e2e():
 
     try:
         # Create session
-        session_response = docx_create()
-
-        session_id = extract_session_id(session_response)
-
+        setup_active_session()
         # Create original paragraph with formatting
-        p1_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
+        p1_resp = docx_insert_paragraph("", position="end:document_body")
         para1_id = _extract(p1_resp)["element_id"]
 
-        docx_insert_run(session_id, "This is ", position=f"inside:{para1_id}")
+        docx_insert_run("This is ", position=f"inside:{para1_id}")
 
-        r2_resp = docx_insert_run(session_id, "formatted ", position=f"inside:{para1_id}")
+        r2_resp = docx_insert_run("formatted ", position=f"inside:{para1_id}")
         run2_id = _extract(r2_resp)["element_id"]
 
-        docx_set_font(session_id, run2_id, bold=True, color_hex="FF0000")
-        docx_insert_run(session_id, "text", position=f"inside:{para1_id}")
+        docx_set_font(run2_id, bold=True, color_hex="FF0000")
+        docx_insert_run("text", position=f"inside:{para1_id}")
 
-        docx_set_alignment(session_id, para1_id, "center")
+        docx_set_alignment(para1_id, "center")
 
         # Copy the paragraph
-        cp_resp = docx_copy_paragraph(session_id, para1_id, position="end:document_body")
+        cp_resp = docx_copy_paragraph(para1_id, position="end:document_body")
         _extract(cp_resp) # verify success
 
         # Add another paragraph
-        p3_resp = docx_insert_paragraph(session_id, "Normal paragraph", position="end:document_body")
+        p3_resp = docx_insert_paragraph("Normal paragraph", position="end:document_body")
         para3_id = _extract(p3_resp)["element_id"]
 
         # Copy it too
-        cp2_resp = docx_copy_paragraph(session_id, para3_id, position="end:document_body")
+        cp2_resp = docx_copy_paragraph(para3_id, position="end:document_body")
         _extract(cp2_resp)
 
         # Save
-        docx_save(session_id, output_path)
-        docx_close(session_id)
+        docx_save(output_path)
+        teardown_active_session()
 
         # Verify the saved document
         doc = Document(output_path)

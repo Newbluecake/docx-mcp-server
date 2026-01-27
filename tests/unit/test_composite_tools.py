@@ -8,7 +8,8 @@ from docx_mcp_server.tools.composite_tools import (
     docx_smart_fill_table,
     docx_format_range
 )
-from docx_mcp_server.tools.session_tools import docx_create, docx_close
+from docx_mcp_server.tools.session_tools import docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table
 
@@ -28,10 +29,7 @@ from helpers import (
 
 def test_add_formatted_paragraph():
     """Test creating formatted paragraph in one step"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Create formatted paragraph
         result = docx_insert_formatted_paragraph(
@@ -48,19 +46,16 @@ def test_add_formatted_paragraph():
         assert para_id.startswith("para_")
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_quick_edit():
     """Test quick edit functionality"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add some paragraphs
-        docx_insert_paragraph(session_id, "This is a test paragraph", position="end:document_body")
-        docx_insert_paragraph(session_id, "Another test paragraph", position="end:document_body")
+        docx_insert_paragraph("This is a test paragraph", position="end:document_body")
+        docx_insert_paragraph("Another test paragraph", position="end:document_body")
 
         # Quick edit
         result_json = docx_quick_edit(
@@ -75,20 +70,17 @@ def test_quick_edit():
         assert len(result["paragraph_ids"]) == 2
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_get_structure_summary():
     """Test lightweight structure extraction"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add some content
-        docx_insert_paragraph(session_id, "Test", position="end:document_body", style="Heading 1")
-        docx_insert_paragraph(session_id, "Body text", position="end:document_body")
-        docx_insert_table(session_id, 2, 2, position="end:document_body")
+        docx_insert_paragraph("Test", position="end:document_body", style="Heading 1")
+        docx_insert_paragraph("Body text", position="end:document_body")
+        docx_insert_table(2, 2, position="end:document_body")
 
         # Get summary
         summary_json = docx_get_structure_summary(
@@ -105,18 +97,15 @@ def test_get_structure_summary():
         assert summary["summary"]["total_tables"] >= 1
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_smart_fill_table():
     """Test smart table filling"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Create table
-        table_response = docx_insert_table(session_id, 2, 3, position="end:document_body")
+        table_response = docx_insert_table(2, 3, position="end:document_body")
         table_id = extract_element_id(table_response)
 
         # Fill with data
@@ -138,20 +127,17 @@ def test_smart_fill_table():
         assert extract_metadata_field(result, "rows_filled") == 3
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_format_range():
     """Test formatting a range of paragraphs"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Add paragraphs
-        docx_insert_paragraph(session_id, "Start marker", position="end:document_body")
-        docx_insert_paragraph(session_id, "Middle content", position="end:document_body")
-        docx_insert_paragraph(session_id, "End marker", position="end:document_body")
+        docx_insert_paragraph("Start marker", position="end:document_body")
+        docx_insert_paragraph("Middle content", position="end:document_body")
+        docx_insert_paragraph("End marker", position="end:document_body")
 
         # Format range
         result_json = docx_format_range(
@@ -166,17 +152,14 @@ def test_format_range():
         assert result["formatted_count"] == 3
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_quick_edit_no_matches():
     """Test quick edit with no matches"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
-        docx_insert_paragraph(session_id, "Test paragraph", position="end:document_body")
+        docx_insert_paragraph("Test paragraph", position="end:document_body")
 
         result_json = docx_quick_edit(
             session_id,
@@ -188,18 +171,15 @@ def test_quick_edit_no_matches():
         assert result["modified_count"] == 0
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()
 
 
 def test_smart_fill_table_with_table_id():
     """Test smart table filling using table ID instead of index"""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     try:
         # Create table and get its ID
-        table_response = docx_insert_table(session_id, 2, 3, position="end:document_body")
+        table_response = docx_insert_table(2, 3, position="end:document_body")
         table_id = extract_element_id(table_response)
 
         # Fill with data using table ID
@@ -223,4 +203,4 @@ def test_smart_fill_table_with_table_id():
         assert extract_metadata_field(result, "rows_added") == 2  # Should add 2 rows (started with 2, need 4 total)
 
     finally:
-        docx_close(session_id)
+        teardown_active_session()

@@ -1,6 +1,7 @@
 import json
 
-from docx_mcp_server.tools.session_tools import docx_create, docx_close
+from docx_mcp_server.tools.session_tools import docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table, docx_list_tables
 from docx_mcp_server.tools.content_tools import docx_read_content

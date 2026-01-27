@@ -10,7 +10,6 @@ from tests.helpers import extract_session_id, extract_element_id
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_paragraph,
     docx_insert_run,
     docx_set_font,
@@ -27,31 +26,28 @@ def test_update_text_e2e():
 
     try:
         # Create session
-        session_response = docx_create()
-
-        session_id = extract_session_id(session_response)
-
+        setup_active_session()
         # Create original content
-        result = docx_insert_paragraph(session_id, "Original paragraph 1", position="end:document_body")
+        result = docx_insert_paragraph("Original paragraph 1", position="end:document_body")
         para1_id = extract_element_id(result)
 
-        result = docx_insert_paragraph(session_id, "", position="end:document_body")
+        result = docx_insert_paragraph("", position="end:document_body")
         para2_id = extract_element_id(result)
 
-        result = docx_insert_run(session_id, "Original run", position=f"inside:{para2_id}")
+        result = docx_insert_run("Original run", position=f"inside:{para2_id}")
         run1_id = extract_element_id(result)
 
-        docx_set_font(session_id, run1_id, bold=True, size=14)
+        docx_set_font(run1_id, bold=True, size=14)
 
         # Update paragraph text
-        docx_update_paragraph_text(session_id, para1_id, "Updated paragraph 1")
+        docx_update_paragraph_text(para1_id, "Updated paragraph 1")
 
         # Update run text (should preserve formatting)
-        docx_update_run_text(session_id, run1_id, "Updated run")
+        docx_update_run_text(run1_id, "Updated run")
 
         # Save
-        docx_save(session_id, output_path)
-        docx_close(session_id)
+        docx_save(output_path)
+        teardown_active_session()
 
         # Verify the saved document
         doc = Document(output_path)

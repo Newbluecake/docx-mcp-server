@@ -47,7 +47,7 @@ def docx_switch_session(session_id: str) -> str:
     from docx_mcp_server.server import session_manager
     from docx_mcp_server.core.global_state import global_state
 
-    logger.info(f"docx_switch_session called: session_id={session_id}")
+    logger.info(f"docx_switch_session called: session_id={session.session_id}")
 
     session = session_manager.get_session(session_id)
     if not session:
@@ -114,7 +114,7 @@ def docx_close() -> str:
         return error
 
     session_id = session.session_id
-    logger.info(f"docx_close called: session_id={session_id}")
+    logger.info(f"docx_close called: session_id={session.session_id}")
 
     from docx_mcp_server.server import session_manager
     success = session_manager.close_session(session_id)
@@ -193,7 +193,7 @@ def docx_save(
 
     session_id = session.session_id
     logger.info(
-        f"docx_save called: session_id={session_id}, file_path={file_path}, "
+        f"docx_save called: session_id={session.session_id}, file_path={file_path}, "
         f"backup={backup}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
     )
 

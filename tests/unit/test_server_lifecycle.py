@@ -1,7 +1,7 @@
 import unittest
 import os
 import tempfile
-from docx_mcp_server.server import docx_create, docx_save, docx_close, session_manager
+from docx_mcp_server.server import docx_save, docx_close, session_manager
 
 # Add parent directory to path for helpers import
 import sys
@@ -15,6 +15,7 @@ from helpers import (
     is_success,
     is_error
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 class TestServerLifecycle(unittest.TestCase):
     def setUp(self):
@@ -22,22 +23,17 @@ class TestServerLifecycle(unittest.TestCase):
         session_manager.sessions.clear()
 
     def test_create_session(self):
-        session_response = docx_create()
-
-        session_id = extract_session_id(session_response)
+        setup_active_session()
         self.assertIsNotNone(session_id)
         self.assertIn(session_id, session_manager.sessions)
 
     def test_save_document(self):
-        session_response = docx_create()
-
-        session_id = extract_session_id(session_response)
-
+        setup_active_session()
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
             tmp_path = tmp.name
 
         try:
-            result = docx_save(session_id, tmp_path)
+            result = docx_save(tmp_path)
             self.assertTrue(is_success(result))
             self.assertTrue(os.path.exists(tmp_path))
             # Basic check if it's a zip file (docx format)
@@ -49,10 +45,8 @@ class TestServerLifecycle(unittest.TestCase):
                 os.remove(tmp_path)
 
     def test_close_session(self):
-        session_response = docx_create()
-
-        session_id = extract_session_id(session_response)
-        result = docx_close(session_id)
+        setup_active_session()
+        result = teardown_active_session()
         self.assertTrue(is_success(result))
         self.assertNotIn(session_id, session_manager.sessions)
 

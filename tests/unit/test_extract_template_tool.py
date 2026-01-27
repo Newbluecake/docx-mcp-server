@@ -1,7 +1,7 @@
 """Integration test for docx_extract_template_structure tool."""
 import json
 from docx import Document
-from docx_mcp_server.server import docx_create, docx_extract_template_structure, docx_close
+from docx_mcp_server.server import docx_extract_template_structure, docx_close
 
 # Add parent directory to path for helpers import
 import sys
@@ -15,15 +15,13 @@ from helpers import (
     is_success,
     is_error
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 
 def test_extract_template_structure_integration():
     """Test the MCP tool integration."""
     # Create a session with a simple template
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Create the document using the docx API directly
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
@@ -41,7 +39,7 @@ def test_extract_template_structure_integration():
                 run.bold = True
 
     # Extract structure
-    result_json = docx_extract_template_structure(session_id)
+    result_json = docx_extract_template_structure()
     result = json.loads(result_json)
 
     # Verify structure
@@ -61,7 +59,7 @@ def test_extract_template_structure_integration():
     assert table_data["headers"] == ["Header 1", "Header 2"]
 
     # Clean up
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_extract_template_structure_error_handling():

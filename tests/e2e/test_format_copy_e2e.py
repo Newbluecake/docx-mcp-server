@@ -11,7 +11,7 @@ from tests.helpers import (
 import json
 import os
 from docx_mcp_server.server import (
-    docx_create, docx_save, docx_close,
+    docx_save, docx_close,
     docx_insert_heading, docx_insert_paragraph, docx_insert_run, docx_set_font,
     docx_copy_paragraph, docx_copy_elements_range,
     docx_extract_format_template, docx_apply_format_template,
@@ -48,34 +48,31 @@ def test_format_copy_system_workflow(tmp_path):
     """
     # 1. Setup
     output_file = tmp_path / "e2e_format_copy.docx"
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # --- Step 1: Create Template Content ---
     # Heading 1
-    h1_resp = docx_insert_heading(session_id, "Template Section", position="end:document_body", level=1)
+    h1_resp = docx_insert_heading("Template Section", position="end:document_body", level=1)
     h1_id = _extract(h1_resp)["element_id"]
 
     # Styled Paragraph
-    p_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
+    p_resp = docx_insert_paragraph("", position="end:document_body")
     p_id = _extract(p_resp)["element_id"]
 
-    run_resp = docx_insert_run(session_id, "Key: ", position=f"inside:{p_id}")
+    run_resp = docx_insert_run("Key: ", position=f"inside:{p_id}")
     run_id = _extract(run_resp)["element_id"]
-    docx_set_font(session_id, run_id, bold=True, color_hex="0000FF") # Blue bold label
+    docx_set_font(run_id, bold=True, color_hex="0000FF") # Blue bold label
 
-    val_run_resp = docx_insert_run(session_id, "{VALUE}", position=f"inside:{p_id}")
+    val_run_resp = docx_insert_run("{VALUE}", position=f"inside:{p_id}")
     val_run_id = _extract(val_run_resp)["element_id"]
-    docx_set_font(session_id, val_run_id, italic=True) # Italic placeholder
+    docx_set_font(val_run_id, italic=True) # Italic placeholder
 
     # End marker for range
-    end_p_resp = docx_insert_paragraph(session_id, "--- End Template ---", position="end:document_body")
+    end_p_resp = docx_insert_paragraph("--- End Template ---", position="end:document_body")
     end_p_id = _extract(end_p_resp)["element_id"]
 
     # --- Step 2: Extract Formatting Template ---
     # Extract the blue bold style from the first run
-    template_resp = docx_extract_format_template(session_id, run_id)
+    template_resp = docx_extract_format_template(run_id)
     template_data = _extract(template_resp)
     template_json = json.dumps(template_data["template"])
 
@@ -85,7 +82,7 @@ def test_format_copy_system_workflow(tmp_path):
     # --- Step 3: Range Copy ---
     # Copy from Heading to End Marker
     # We expect 3 elements: Heading, Styled Para, End Marker
-    new_ids_resp = docx_copy_elements_range(session_id, h1_id, end_p_id, position="end:document_body")
+    new_ids_resp = docx_copy_elements_range(h1_id, end_p_id, position="end:document_body")
 
     # Handle response which might be Markdown or JSON
     try:
@@ -118,14 +115,14 @@ def test_format_copy_system_workflow(tmp_path):
 
     # --- Step 4: Apply Formatting Template ---
     # Create a raw paragraph
-    raw_p_resp = docx_insert_paragraph(session_id, "", position="end:document_body")
+    raw_p_resp = docx_insert_paragraph("", position="end:document_body")
     raw_p_id = _extract(raw_p_resp)["element_id"]
 
-    raw_run_resp = docx_insert_run(session_id, "Applied Style Text", position=f"inside:{raw_p_id}")
+    raw_run_resp = docx_insert_run("Applied Style Text", position=f"inside:{raw_p_id}")
     raw_run_id = _extract(raw_run_resp)["element_id"]
 
     # Apply the blue bold template
-    docx_apply_format_template(session_id, raw_run_id, template_json)
+    docx_apply_format_template(raw_run_id, template_json)
 
     # --- Step 5: Batch Replace ---
     # Replace {VALUE} with "Actual Data" globally (should affect original and copy)
@@ -133,10 +130,10 @@ def test_format_copy_system_workflow(tmp_path):
         "{VALUE}": "Actual Data",
         "Template Section": "Generated Section"
     }
-    docx_batch_replace_text(session_id, json.dumps(replacements))
+    docx_batch_replace_text(json.dumps(replacements))
 
     # --- Verification ---
-    content_resp = docx_read_content(session_id)
+    content_resp = docx_read_content()
     content = content_resp  # This tool returns plain text
 
     print(f"Document Content:\n{content}")
@@ -152,7 +149,7 @@ def test_format_copy_system_workflow(tmp_path):
     assert content.count("Key: Actual Data") >= 2
 
     # Save
-    docx_save(session_id, str(output_file))
-    docx_close(session_id)
+    docx_save(str(output_file))
+    teardown_active_session()
 
     assert os.path.exists(output_file)

@@ -7,11 +7,11 @@ from tests.helpers import (
     is_error,
     create_session_with_file,
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 import json
 import re
 from unittest.mock import MagicMock, patch
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_paragraph,
     docx_insert_run,
     docx_set_properties,
@@ -53,7 +53,7 @@ def test_create_with_autosave(tmp_path):
 
 def test_implicit_context_flow():
     # 1. Create session
-    response = docx_create()
+    response = setup_active_session()
     sid = _extract_session_id(response)
     assert sid is not None
     session = session_manager.get_session(sid)
@@ -75,7 +75,7 @@ def test_implicit_context_flow():
     assert len(para_obj.runs) == 2 # "Hello" + " World" (first run created by add_paragraph)
 
 def test_set_properties_flow():
-    response = docx_create()
+    response = setup_active_session()
     sid = _extract_session_id(response)
     p_response = docx_insert_paragraph(sid, "Test Prop", position="end:document_body")
     p_id = _extract_element_id(p_response)
@@ -92,7 +92,7 @@ def test_set_properties_flow():
     assert para_obj.paragraph_format.alignment == WD_ALIGN_PARAGRAPH.CENTER
 
 def test_set_properties_implicit_context():
-    response = docx_create()
+    response = setup_active_session()
     sid = _extract_session_id(response)
     assert sid is not None
     p_response = docx_insert_paragraph(sid, "Context Test", position="end:document_body")

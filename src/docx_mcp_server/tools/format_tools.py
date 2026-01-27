@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 from docx_mcp_server.core.properties import set_properties
+from docx_mcp_server.utils.session_helpers import get_active_session
 from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.format_template import TemplateManager
 from docx_mcp_server.core.response import (
@@ -37,9 +38,7 @@ def docx_set_alignment(paragraph_id: str, alignment: str) -> str:
         - Right-align dates or signatures
         - Justify body text for formal documents
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        paragraph_id (str): ID of the paragraph to align.
+    Args:        paragraph_id (str): ID of the paragraph to align.
         alignment (str): Alignment value. Must be one of:
             - "left": Align text to left margin (default)
             - "center": Center text between margins
@@ -56,16 +55,16 @@ def docx_set_alignment(paragraph_id: str, alignment: str) -> str:
     Examples:
         Center a heading:
         >>> session_id = docx_create()
-        >>> para_id = docx_insert_heading(session_id, "Title", position="end:document_body", level=0)
-        >>> docx_set_alignment(session_id, para_id, "center")
+        >>> para_id = docx_insert_heading("Title", position="end:document_body", level=0)
+        >>> docx_set_alignment(para_id, "center")
 
         Right-align a date:
-        >>> para_id = docx_insert_paragraph(session_id, "January 21, 2026", position="end:document_body")
-        >>> docx_set_alignment(session_id, para_id, "right")
+        >>> para_id = docx_insert_paragraph("January 21, 2026", position="end:document_body")
+        >>> docx_set_alignment(para_id, "right")
 
         Justify body text:
-        >>> para_id = docx_insert_paragraph(session_id, "Long paragraph text...", position="end:document_body")
-        >>> docx_set_alignment(session_id, para_id, "justify")
+        >>> para_id = docx_insert_paragraph("Long paragraph text...", position="end:document_body")
+        >>> docx_set_alignment(para_id, "justify")
 
     Notes:
         - Alignment is case-insensitive
@@ -78,12 +77,11 @@ def docx_set_alignment(paragraph_id: str, alignment: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_set_alignment called: session_id={session_id}, paragraph_id={paragraph_id}, alignment={alignment}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_set_alignment failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_set_alignment called: session_id={session.session_id}, paragraph_id={paragraph_id}, alignment={alignment}")
 
     try:
 
@@ -140,9 +138,7 @@ def docx_set_properties(properties: str, element_id: str = None) -> str:
         - Set properties not covered by dedicated tools
         - Batch apply multiple formatting options
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        properties (str): JSON string defining properties to set. Structure:
+    Args:        properties (str): JSON string defining properties to set. Structure:
             {
                 "font": {"bold": true, "size": 12, "name": "Arial"},
                 "paragraph_format": {"alignment": "center", "line_spacing": 1.5}
@@ -161,14 +157,14 @@ def docx_set_properties(properties: str, element_id: str = None) -> str:
     Examples:
         Set font properties:
         >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run_id = docx_insert_run(session_id, "Text", position=f"inside:{para_id}")
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run_id = docx_insert_run("Text", position=f"inside:{para_id}")
         >>> props = '{"font": {"bold": true, "size": 14, "name": "Arial"}}'
-        >>> docx_set_properties(session_id, props, element_id=run_id)
+        >>> docx_set_properties(props, element_id=run_id)
 
         Set paragraph format:
         >>> props = '{"paragraph_format": {"alignment": "center", "line_spacing": 1.5}}'
-        >>> docx_set_properties(session_id, props, element_id=para_id)
+        >>> docx_set_properties(props, element_id=para_id)
 
     Notes:
         - JSON must be valid and properly escaped
@@ -181,12 +177,11 @@ def docx_set_properties(properties: str, element_id: str = None) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_set_properties called: session_id={session_id}, element_id={element_id}, properties_len={len(properties)}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_set_properties failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_set_properties called: session_id={session.session_id}, element_id={element_id}, properties_len={len(properties)}")
 
     target_id = element_id
     if not target_id:
@@ -254,9 +249,7 @@ def docx_format_copy(source_id: str, target_id: str) -> str:
         - Replicate styling from templates
         - Maintain formatting consistency
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        source_id (str): ID of source element to copy formatting from.
+    Args:        source_id (str): ID of source element to copy formatting from.
         target_id (str): ID of target element to apply formatting to.
 
     Returns:
@@ -269,17 +262,17 @@ def docx_format_copy(source_id: str, target_id: str) -> str:
     Examples:
         Copy run formatting:
         >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run1 = docx_insert_run(session_id, "Styled", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run1, bold=True, size=14, color_hex="FF0000")
-        >>> run2 = docx_insert_run(session_id, "Copy style", position=f"inside:{para_id}")
-        >>> docx_format_copy(session_id, run1, run2)
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run1 = docx_insert_run("Styled", position=f"inside:{para_id}")
+        >>> docx_set_font(run1, bold=True, size=14, color_hex="FF0000")
+        >>> run2 = docx_insert_run("Copy style", position=f"inside:{para_id}")
+        >>> docx_format_copy(run1, run2)
 
         Copy paragraph formatting:
-        >>> para1 = docx_insert_paragraph(session_id, "Source", position="end:document_body")
-        >>> docx_set_alignment(session_id, para1, "center")
-        >>> para2 = docx_insert_paragraph(session_id, "Target", position="end:document_body")
-        >>> docx_format_copy(session_id, para1, para2)
+        >>> para1 = docx_insert_paragraph("Source", position="end:document_body")
+        >>> docx_set_alignment(para1, "center")
+        >>> para2 = docx_insert_paragraph("Target", position="end:document_body")
+        >>> docx_format_copy(para1, para2)
 
     Notes:
         - Source and target must be same type (run/paragraph/table)
@@ -293,12 +286,11 @@ def docx_format_copy(source_id: str, target_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_format_copy called: session_id={session_id}, source_id={source_id}, target_id={target_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_format_copy failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_format_copy called: session_id={session.session_id}, source_id={source_id}, target_id={target_id}")
 
     try:
 
@@ -365,7 +357,6 @@ def docx_format_copy(source_id: str, target_id: str) -> str:
         return create_error_response(f"Failed to copy format: {str(e)}", error_type="CopyError")
 
 def docx_set_margins(
-    session_id: str,
     top: float = None,
     bottom: float = None,
     left: float = None,
@@ -382,9 +373,7 @@ def docx_set_margins(
         - Create narrow margins for more content
         - Set wide margins for annotations
 
-    Args:
-        session_id (str): Active session ID returned by docx_create().
-        top (float, optional): Top margin in inches.
+    Args:        top (float, optional): Top margin in inches.
         bottom (float, optional): Bottom margin in inches.
         left (float, optional): Left margin in inches.
         right (float, optional): Right margin in inches.
@@ -398,13 +387,13 @@ def docx_set_margins(
     Examples:
         Set all margins:
         >>> session_id = docx_create()
-        >>> docx_set_margins(session_id, top=1.0, bottom=1.0, left=1.0, right=1.0)
+        >>> docx_set_margins(top=1.0, bottom=1.0, left=1.0, right=1.0)
 
         Set narrow margins:
-        >>> docx_set_margins(session_id, top=0.5, bottom=0.5, left=0.5, right=0.5)
+        >>> docx_set_margins(top=0.5, bottom=0.5, left=0.5, right=0.5)
 
         Set only top and bottom:
-        >>> docx_set_margins(session_id, top=1.5, bottom=1.5)
+        >>> docx_set_margins(top=1.5, bottom=1.5)
 
     Notes:
         - All measurements are in inches (1 inch = 2.54 cm)
@@ -417,12 +406,11 @@ def docx_set_margins(
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_set_margins called: session_id={session_id}, top={top}, bottom={bottom}, left={left}, right={right}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_set_margins failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_set_margins called: session_id={session.session_id}, top={top}, bottom={bottom}, left={left}, right={right}")
 
     try:
         # For simplicity, apply to the last section (usually where we are working)
@@ -462,9 +450,7 @@ def docx_extract_format_template(element_id: str) -> str:
         - "Pickup" formatting to apply elsewhere
         - Persist styles between sessions
 
-    Args:
-        session_id (str): Active session ID.
-        element_id (str): ID of the element to extract format from.
+    Args:        element_id (str): ID of the element to extract format from.
 
     Returns:
         str: JSON response containing the format template.
@@ -474,12 +460,11 @@ def docx_extract_format_template(element_id: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_extract_format_template called: session_id={session_id}, element_id={element_id}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_extract_format_template failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_extract_format_template called: session_id={session.session_id}, element_id={element_id}")
 
     try:
 
@@ -535,9 +520,7 @@ def docx_apply_format_template(element_id: str, template_json: str) -> str:
         - Replicate formatting extracted earlier
         - Batch format elements
 
-    Args:
-        session_id (str): Active session ID.
-        element_id (str): Target element ID.
+    Args:        element_id (str): Target element ID.
         template_json (str): JSON string returned by docx_extract_format_template.
 
     Returns:
@@ -545,12 +528,11 @@ def docx_apply_format_template(element_id: str, template_json: str) -> str:
     """
     from docx_mcp_server.server import session_manager
 
-    logger.debug(f"docx_apply_format_template called: session_id={session_id}, element_id={element_id}, template_len={len(template_json)}")
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_apply_format_template failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
+    logger.debug(f"docx_apply_format_template called: session_id={session.session_id}, element_id={element_id}, template_len={len(template_json)}")
 
     try:
 

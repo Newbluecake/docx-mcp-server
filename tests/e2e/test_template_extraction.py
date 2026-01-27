@@ -10,16 +10,13 @@ from tests.helpers import (
 )
 from docx import Document
 from docx_mcp_server.server import (
-    docx_create, docx_extract_template_structure, docx_save, docx_close
+    docx_extract_template_structure, docx_save, docx_close
 )
 
 
 def test_extract_complete_template():
     """Test extracting a complete template with all element types."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     # Access the document
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
@@ -48,7 +45,7 @@ def test_extract_complete_template():
             table.rows[row_idx].cells[col_idx].text = f"Data-{row_idx}-{col_idx}"
 
     # Extract structure
-    result_json = docx_extract_template_structure(session_id)
+    result_json = docx_extract_template_structure()
     result = json.loads(result_json)
 
     # Verify metadata
@@ -81,15 +78,12 @@ def test_extract_complete_template():
     assert structure[4]["headers"] == ["Name", "Age", "Department"]
 
     # Clean up
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_extract_with_header_detection():
     """Test header detection with bold formatting."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
     doc = session.document
@@ -103,7 +97,7 @@ def test_extract_with_header_detection():
                 run.bold = True
 
     # Extract
-    result_json = docx_extract_template_structure(session_id)
+    result_json = docx_extract_template_structure()
     result = json.loads(result_json)
 
     # Verify header detection
@@ -112,15 +106,12 @@ def test_extract_with_header_detection():
     assert table_data["header_row"] == 0
     assert table_data["headers"] == ["Column1", "Column2"]
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_extract_header_detection_fail():
     """Test that tables without detectable headers are skipped."""
-    session_response = docx_create()
-
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
     doc = session.document
@@ -132,10 +123,10 @@ def test_extract_header_detection_fail():
         # Deliberately not making it bold
 
     # Extract - should skip the table
-    result_json = docx_extract_template_structure(session_id)
+    result_json = docx_extract_template_structure()
     result = json.loads(result_json)
 
     # Table should be skipped due to header detection failure
     assert len(result["document_structure"]) == 0
 
-    docx_close(session_id)
+    teardown_active_session()

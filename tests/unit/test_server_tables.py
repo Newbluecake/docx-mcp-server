@@ -1,7 +1,6 @@
 import unittest
 import json
 from docx_mcp_server.server import (
-    docx_create,
     docx_insert_table,
     docx_get_cell,
     docx_insert_paragraph_to_cell,

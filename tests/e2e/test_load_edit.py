@@ -14,7 +14,6 @@ import os
 import json
 from docx import Document
 from docx_mcp_server.server import (
-    docx_create,
     docx_save,
     docx_read_content,
     docx_find_paragraphs,
@@ -34,15 +33,14 @@ class TestLoadEditE2E:
 
         # 2. Load the document
         session_response = create_session_with_file(str(initial_doc_path))
-        session_id = extract_session_id(session_response)
         assert session_id is not None
 
         # 3. Read content to confirm
-        content = docx_read_content(session_id)
+        content = docx_read_content()
         assert "Target: This needs editing." in content
 
         # 4. Find specific paragraph
-        results_resp = docx_find_paragraphs(session_id, "Target:")
+        results_resp = docx_find_paragraphs("Target:")
         results = []
         if is_success(results_resp):
             meta = extract_all_metadata(results_resp)
@@ -74,17 +72,17 @@ class TestLoadEditE2E:
         para_id = results[0]["id"]
 
         # 5. Edit (Append text)
-        result = docx_insert_run(session_id, " [EDITED]", position=f"inside:{para_id}")
+        result = docx_insert_run(" [EDITED]", position=f"inside:{para_id}")
         assert is_success(result)
         run_id = extract_element_id(result)
         assert run_id is not None
 
         # 6. Style the new run
-        docx_set_font(session_id, run_id, bold=True, color_hex="FF0000")
+        docx_set_font(run_id, bold=True, color_hex="FF0000")
 
         # 7. Save to new file
         final_doc_path = tmp_path / "final.docx"
-        docx_save(session_id, str(final_doc_path))
+        docx_save(str(final_doc_path))
 
         # 8. Verification
         doc_final = Document(str(final_doc_path))

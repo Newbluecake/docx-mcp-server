@@ -17,9 +17,9 @@ from helpers import (
     extract_error_message,
     create_session_with_file,
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 from docx_mcp_server.tools.session_tools import (
-    docx_create,
     docx_close,
     docx_save,
     docx_get_context,
@@ -31,15 +31,13 @@ from docx_mcp_server.server import session_manager
 
 def test_create_and_context_with_backup_flags():
     session_response = docx_create(auto_save=False, backup_on_save=True, backup_suffix="-bak")
-    session_id = extract_session_id(session_response)
-
-    ctx_result = docx_get_context(session_id)
+    ctx_result = docx_get_context()
 
     assert extract_metadata_field(ctx_result, "session_id") == session_id
     assert extract_metadata_field(ctx_result, "auto_save") == False
     assert extract_metadata_field(ctx_result, "backup_on_save") == True
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_save_with_backup_creates_backup_file(tmp_path):
@@ -47,38 +45,33 @@ def test_save_with_backup_creates_backup_file(tmp_path):
 
     # Create session bound to the target path
     session_response = create_session_with_file(str(target), auto_save=False)
-    session_id = extract_session_id(session_response)
-
     # First save creates the file
-    first_result = docx_save(session_id, str(target))
+    first_result = docx_save(str(target))
     assert is_success(first_result)
     assert os.path.exists(target)
 
     # Second save with backup should produce a backup file
-    second_result = docx_save(session_id, str(target), backup=True, backup_suffix="-bak")
+    second_result = docx_save(str(target), backup=True, backup_suffix="-bak")
     assert is_success(second_result)
     backup_path = extract_metadata_field(second_result, "backup_path")
     assert backup_path
     assert os.path.exists(backup_path)
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_list_sessions_includes_active_session():
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
-
+    setup_active_session()
     listing = docx_list_sessions()
     # Note: docx_list_sessions might still return JSON, need to check
     # For now, assume it returns Markdown
     assert is_success(listing)
 
-    docx_close(session_id)
+    teardown_active_session()
 
 
 def test_cleanup_sessions_removes_idle():
-    session_response = docx_create()
-    session_id = extract_session_id(session_response)
+    setup_active_session()
     session = session_manager.get_session(session_id)
 
     # Simulate idleness
