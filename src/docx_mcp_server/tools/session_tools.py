@@ -8,104 +8,69 @@ from docx_mcp_server.core.response import create_markdown_response, create_error
 logger = logging.getLogger(__name__)
 
 
-def docx_create(
-    auto_save: bool = False,
-    backup_on_save: bool = False,
-    backup_dir: str = "",
-    backup_suffix: str = ""
-) -> str:
-    """
-    Create a new Word document session using the global active file.
 
-    This is the entry point for all document operations. Creates an isolated session
-    with a unique session_id that maintains document state and object registry.
+def docx_get_current_session() -> str:
+    """Get the current active session information.
 
-    **Breaking Change (v3.0)**: The file_path parameter has been removed. Files are now
-    managed centrally by the Launcher via HTTP API (/api/file/switch). Use the Launcher
-    to select files, or run the server with --file parameter to set initial active file.
-
-    Typical Use Cases:
-        - Create a session for the current active file (set by Launcher)
-        - Enable auto-save for real-time document updates
-
-    Args:
-        auto_save (bool, optional): Enable automatic saving after each modification.
-            Requires active_file to be set. Defaults to False.
+    Returns information about the globally active session.
 
     Returns:
-        str: Markdown-formatted response with session_id.
+        str: Markdown-formatted response with session details
+    """
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    Raises:
-        FileNotFoundError: If active_file is set but file does not exist.
-        ValueError: If auto_save is True but active_file is None.
+    session, error = get_active_session()
+    if error:
+        return error
 
-    Examples:
-        Create a session for the active file:
-        >>> session_id = docx_create()
-        >>> print(session_id)
-        'abc-123-def-456'
+    return create_markdown_response(
+        session=None,
+        message="Current session retrieved successfully",
+        operation="Get Current Session",
+        show_context=False,
+        session_id=session.session_id,
+        file_path=session.file_path or "None",
+        auto_save=session.auto_save,
+        has_unsaved_changes=session.has_unsaved_changes()
+    )
 
-        Enable auto-save mode:
-        >>> session_id = docx_create(auto_save=True)
 
-    Notes:
-        - File selection is now handled by the Launcher GUI or --file CLI parameter
-        - Each session is independent and isolated from others
-        - Sessions auto-expire after 1 hour of inactivity
-        - Always call docx_close() when done to free resources
+def docx_switch_session(session_id: str) -> str:
+    """Switch to a different active session.
 
-    Migration from v2.x:
-        Old (v2.x):
-        >>> session_id = docx_create(file_path="./template.docx")
+    Args:
+        session_id: The session ID to switch to
 
-        New (v3.0):
-        1. Use Launcher to select file (calls /api/file/switch)
-        2. Then create session:
-        >>> session_id = docx_create()
-
-    See Also:
-        - docx_save: Save document to disk
-        - docx_close: Close session and free resources
-        - /api/file/switch: HTTP API to switch active file (called by Launcher)
+    Returns:
+        str: Markdown-formatted success message
     """
     from docx_mcp_server.server import session_manager
     from docx_mcp_server.core.global_state import global_state
 
-    # Get active file from global state
-    file_path = global_state.active_file
+    logger.info(f"docx_switch_session called: session_id={session_id}")
 
-    logger.info(
-        f"docx_create called: active_file={file_path}, auto_save={auto_save}, "
-        f"backup_on_save={backup_on_save}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
-    )
-    try:
-        session_id = session_manager.create_session(
-            file_path or None,
-            auto_save=auto_save,
-            backup_on_save=backup_on_save,
-            backup_dir=backup_dir or None,
-            backup_suffix=backup_suffix or None,
-        )
-        logger.info(f"docx_create success: session_id={session_id}")
-
-        return create_markdown_response(
-            session=None,
-            message=f"Session created successfully: {session_id}",
-            element_id=None,
-            operation="Create Session",
-            show_context=False,
-            session_id=session_id,
-            file_path=file_path or "New blank document",
-            auto_save=auto_save
-        )
-    except Exception as e:
-        logger.exception(f"docx_create failed: {e}")
+    session = session_manager.get_session(session_id)
+    if not session:
         return create_error_response(
-            message=f"Failed to create session: {str(e)}",
-            error_type="CreationError"
+            message=f"Session {session_id} not found or expired",
+            error_type="SessionNotFound"
         )
 
-def docx_close(session_id: str) -> str:
+    global_state.active_session_id = session_id
+    global_state.active_file = session.file_path
+
+    logger.info(f"Switched to session {session_id}")
+    return create_markdown_response(
+        session=None,
+        message=f"Switched to session {session_id}",
+        operation="Switch Session",
+        show_context=False,
+        session_id=session_id,
+        file_path=session.file_path or "None"
+    )
+
+
+def docx_close() -> str:
     """
     Close the session and free all associated resources.
 
@@ -142,9 +107,16 @@ def docx_close(session_id: str) -> str:
         - docx_create: Create a new session
         - docx_save: Save before closing
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
+    session, error = get_active_session()
+    if error:
+        return error
+
+    session_id = session.session_id
     logger.info(f"docx_close called: session_id={session_id}")
+
+    from docx_mcp_server.server import session_manager
     success = session_manager.close_session(session_id)
     if success:
         return create_markdown_response(
@@ -162,7 +134,6 @@ def docx_close(session_id: str) -> str:
         )
 
 def docx_save(
-    session_id: str,
     file_path: str,
     backup: bool = False,
     backup_dir: str = "",
@@ -214,19 +185,17 @@ def docx_save(
         - docx_create: Create session with auto_save option
         - docx_close: Close session after saving
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
+    session, error = get_active_session()
+    if error:
+        return error
+
+    session_id = session.session_id
     logger.info(
         f"docx_save called: session_id={session_id}, file_path={file_path}, "
         f"backup={backup}, backup_dir={backup_dir}, backup_suffix={backup_suffix}"
     )
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_save failed: Session {session_id} not found")
-        return create_error_response(
-            message=f"Session {session_id} not found or expired",
-            error_type="SessionNotFound"
-        )
 
     # Security check: Ensure we are writing to an allowed location if needed.
     # For now, we assume the user (Claude) acts with the user's permissions.
@@ -272,7 +241,7 @@ def docx_save(
         backup=backup
     )
 
-def docx_get_context(session_id: str) -> str:
+def docx_get_context() -> str:
     """
     Get the current context state of the session.
 
@@ -310,14 +279,11 @@ def docx_get_context(session_id: str) -> str:
     See Also:
         - docx_create: Create session with configuration
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(
-            message=f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
+    session, error = get_active_session()
+    if error:
+        return error
 
     return create_markdown_response(
         session=None,
@@ -461,7 +427,8 @@ def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
 
 def register_tools(mcp: FastMCP):
     """Register session management tools"""
-    mcp.tool()(docx_create)
+    mcp.tool()(docx_get_current_session)
+    mcp.tool()(docx_switch_session)
     mcp.tool()(docx_close)
     mcp.tool()(docx_save)
     mcp.tool()(docx_get_context)
