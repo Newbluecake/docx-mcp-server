@@ -13,19 +13,84 @@ from unittest.mock import Mock, patch
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
-    # Import server and create a test instance with custom routes
-    from docx_mcp_server.server import mcp
-    from mcp.server.fastmcp import FastMCP
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+    from starlette.responses import JSONResponse
+    from docx_mcp_server.api.file_controller import FileController
+    from docx_mcp_server.core.global_state import global_state
+    from docx_mcp_server.server import session_manager, VERSION
 
-    # Create a test FastMCP instance
-    test_mcp = FastMCP("docx-mcp-server-test", host="127.0.0.1", port=8000)
+    # Create a simple Starlette app with just the API routes
+    async def health(request):
+        return JSONResponse({
+            "status": "ok",
+            "version": VERSION,
+            "transport": "test"
+        })
 
-    # Register custom routes
-    from docx_mcp_server.server import register_custom_routes
-    register_custom_routes(test_mcp)
+    async def get_status(request):
+        return JSONResponse({
+            "currentFile": global_state.active_file,
+            "sessionId": global_state.active_session_id,
+            "hasUnsaved": False,
+            "serverVersion": VERSION
+        })
 
-    # Get the underlying FastAPI app
-    return TestClient(test_mcp.app)
+    async def switch_file(request):
+        data = await request.json()
+        path = data.get("path")
+        force = data.get("force", False)
+
+        # Validate required field
+        if not path:
+            return JSONResponse(
+                {"detail": [{"loc": ["body", "path"], "msg": "field required", "type": "value_error.missing"}]},
+                status_code=422
+            )
+
+        try:
+            result = FileController.switch_file(path, force)
+            return JSONResponse(result)
+        except FileNotFoundError as e:
+            return JSONResponse({"detail": str(e)}, status_code=404)
+        except PermissionError as e:
+            return JSONResponse({"detail": str(e)}, status_code=403)
+        except Exception as e:
+            if "locked" in str(e).lower():
+                return JSONResponse({"detail": str(e)}, status_code=423)
+            elif "unsaved" in str(e).lower():
+                return JSONResponse({
+                    "detail": {
+                        "error": str(e),
+                        "message": "File has unsaved changes. Use force=true to discard."
+                    }
+                }, status_code=409)
+            return JSONResponse({"detail": str(e)}, status_code=500)
+
+    async def close_session(request):
+        data = await request.json()
+        save = data.get("save", False)
+
+        session_id = global_state.active_session_id
+        if session_id and save:
+            session = session_manager.get_session(session_id)
+            if session and session.file_path:
+                session.document.save(session.file_path)
+
+        if session_id:
+            session_manager.close_session(session_id)
+            global_state.active_session_id = None
+
+        return JSONResponse({"success": True})
+
+    app = Starlette(routes=[
+        Route("/health", health, methods=["GET"]),
+        Route("/api/status", get_status, methods=["GET"]),
+        Route("/api/file/switch", switch_file, methods=["POST"]),
+        Route("/api/session/close", close_session, methods=["POST"]),
+    ])
+
+    return TestClient(app)
 
 
 @pytest.fixture

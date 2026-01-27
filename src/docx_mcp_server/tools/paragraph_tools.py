@@ -170,18 +170,82 @@ def docx_insert_paragraph(session_id: str, text: str, position: str, style: str 
 
 def docx_insert_heading(session_id: str, text: str, position: str, level: int = 1) -> str:
     """
-    Add a heading to the document.
+    Add a heading paragraph to the document with specified level.
 
-    Creates a heading paragraph with the specified level. Supports positioning.
+    Creates a heading with the specified level (0=Title, 1-9=Heading 1-9).
+    Headings are styled paragraphs that provide document structure.
+
+    **Session Context**: This tool operates on the document associated with
+    session_id. Create a session first using docx_create(), which uses the
+    global active file set by the Launcher GUI or --file parameter.
+
+    Typical Use Cases:
+        - Create document structure with hierarchical headings
+        - Add section titles and subtitles
+        - Build table of contents structure
+        - Organize long documents
 
     Args:
-        session_id (str): Active session ID.
+        session_id (str): Active session ID returned by docx_create().
+            The session maintains document state and object registry.
         text (str): Heading text content.
-        position (str): Insertion position (e.g., "before:para_123").
-        level (int): Heading level (0-9).
+        position (str): Insertion position string.
+            Format: "mode:target_id". Examples:
+            - "end:document_body" - Add at document end
+            - "after:para_123" - Insert after specified element
+            - "before:para_456" - Insert before specified element
+        level (int, optional): Heading level (0-9).
+            - 0: Title style
+            - 1-9: Heading 1 through Heading 9
+            Defaults to 1 (Heading 1).
 
     Returns:
-        str: JSON response with element_id and visual context.
+        str: Markdown-formatted response containing:
+            - **Element ID**: Unique identifier for the heading (e.g., "para_abc123")
+            - **Status**: Success/Error indicator
+            - **Document Context**: ASCII visualization showing heading position
+            - **Level**: Heading level applied
+
+    Raises:
+        SessionNotFound: If session_id is invalid or session has expired.
+        ValidationError: If position format is invalid or level out of range.
+        InvalidParent: If target cannot contain headings.
+        CreationError: If heading creation fails.
+
+    Examples:
+        Basic usage - add heading at document end:
+        >>> # Step 1: Create session
+        >>> session_id = docx_create()
+        >>> # Step 2: Insert heading
+        >>> result = docx_insert_heading(session_id, "Chapter 1", position="end:document_body", level=1)
+        >>> # Step 3: Extract element_id
+        >>> import re
+        >>> match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', result)
+        >>> heading_id = match.group(1) if match else None
+
+        Create document structure:
+        >>> session_id = docx_create()
+        >>> h1 = docx_insert_heading(session_id, "Introduction", position="end:document_body", level=1)
+        >>> p1 = docx_insert_paragraph(session_id, "Content...", position="end:document_body")
+        >>> h2 = docx_insert_heading(session_id, "Background", position="end:document_body", level=2)
+        >>> docx_save(session_id, "./document.docx")
+        >>> docx_close(session_id)
+
+        Use Title style (level 0):
+        >>> result = docx_insert_heading(session_id, "Document Title", position="start:document_body", level=0)
+
+    Notes:
+        - Headings are special paragraphs with built-in styles
+        - Level 0 uses "Title" style, levels 1-9 use "Heading X" styles
+        - Headings automatically appear in Word's navigation pane
+        - Use consistent heading levels for proper document structure
+        - Cursor automatically moves to the new heading
+
+    See Also:
+        - docx_create: Create session for active file
+        - docx_insert_paragraph: Insert regular paragraphs
+        - docx_set_alignment: Modify heading alignment
+        - docx_update_paragraph_text: Change heading text
     """
     from docx_mcp_server.server import session_manager
 
