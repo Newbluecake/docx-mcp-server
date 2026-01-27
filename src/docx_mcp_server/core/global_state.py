@@ -45,7 +45,7 @@ class GlobalState:
 
     def __init__(self):
         """Initialize the global state with thread safety."""
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._active_file: Optional[str] = None
         self._active_session_id: Optional[str] = None
         logger.debug("GlobalState initialized")
