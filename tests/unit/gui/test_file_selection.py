@@ -6,6 +6,10 @@ Tests the HTTP-based file selection, status polling, and health check functional
 import pytest
 import os
 from unittest.mock import Mock, MagicMock, patch
+
+# Ensure offscreen platform is used for headless testing
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 from docx_server_launcher.gui.main_window import MainWindow
