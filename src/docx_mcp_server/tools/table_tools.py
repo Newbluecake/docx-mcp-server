@@ -146,15 +146,15 @@ def docx_get_table(index: int) -> str:
         return create_error_response(f"Failed to get table: {str(e)}", error_type="RetrievalError")
 
 
-def docx_list_tables(session_id: str, max_results: int = 50, start_element_id: str = None) -> str:
+def docx_list_tables(max_results: int = 50, start_element_id: str = None) -> str:
     """
     List tables in document order with basic metadata.
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
         tables = list(session.document.tables)
@@ -207,13 +207,13 @@ def docx_find_table(text: str, max_results: int = 1, start_element_id: str = Non
     Find the first table containing specific text in any cell.
     Optionally start search after a given element and limit results.
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    logger.debug(f"docx_find_table called: session_id={session_id}, text='{text}'")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    logger.debug(f"docx_find_table called: text='{text}'")
 
     try:
         finder = Finder(session.document)
@@ -740,25 +740,21 @@ def docx_copy_table(table_id: str, position: str) -> str:
 
 
 
-def docx_get_table_structure(session_id: str, table_id: str) -> str:
+def docx_get_table_structure(table_id: str) -> str:
     """
     Get table structure with ASCII visualization.
 
     Args:
-        session_id: Session ID
         table_id: Table ID
 
     Returns:
         JSON response with ASCII visualization and metadata
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(
-            f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
+    session, error = get_active_session()
+    if error:
+        return error
 
     table = session.get_object(table_id)
     if not table or not isinstance(table, Table):

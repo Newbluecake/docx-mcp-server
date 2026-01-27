@@ -25,7 +25,6 @@ def docx_insert_run(text: str, position: str) -> str:
         - Build complex formatted content incrementally
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
         text (str): Text content for the run.
         position (str): Insertion position string.
             Format: "mode:target_id". Modes: after, before, inside, start, end.
@@ -35,26 +34,26 @@ def docx_insert_run(text: str, position: str) -> str:
         str: JSON response with element_id and cursor context.
 
     Raises:
-        ValueError: If session_id is invalid.
-        ValueError: If position is invalid or target element not found.
-        ValueError: If target element cannot contain runs.
+        NoActiveSession: If no file has been selected via Launcher or --file.
+        SessionNotFound: If the active session has expired.
+        ValidationError: If position is invalid or target element not found.
+        InvalidElementType: If target element cannot contain runs.
 
     Examples:
         Add run to specific paragraph:
-        >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run_id = docx_insert_run(session_id, "Hello ", position=f"inside:{para_id}")
-        >>> run_id2 = docx_insert_run(session_id, "World", position=f"inside:{para_id}")
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run_id = docx_insert_run("Hello ", position=f"inside:{para_id}")
+        >>> run_id2 = docx_insert_run("World", position=f"inside:{para_id}")
 
         Insert into a paragraph by position:
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run_id = docx_insert_run(session_id, "Explicit insert", position=f"inside:{para_id}")
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run_id = docx_insert_run("Explicit insert", position=f"inside:{para_id}")
 
         Build formatted paragraph:
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run1 = docx_insert_run(session_id, "Normal ", position=f"inside:{para_id}")
-        >>> run2 = docx_insert_run(session_id, "Bold", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run2, bold=True)
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run1 = docx_insert_run("Normal ", position=f"inside:{para_id}")
+        >>> run2 = docx_insert_run("Bold", position=f"inside:{para_id}")
+        >>> docx_set_font(run2, bold=True)
 
     Notes:
         - Runs are inserted relative to paragraph/run targets.
@@ -65,14 +64,13 @@ def docx_insert_run(text: str, position: str) -> str:
         - docx_set_font: Format the run
         - docx_update_run_text: Modify existing run
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    logger.debug(f"docx_insert_run called: session_id={session_id}, text_len={len(text)}, position={position}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_insert_run failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    logger.debug(f"docx_insert_run called: text_len={len(text)}, position={position}")
 
     try:
         resolver = PositionResolver(session)
@@ -132,7 +130,6 @@ def docx_update_run_text(run_id: str, new_text: str) -> str:
         - Modify specific text portions in a paragraph
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
         run_id (str): ID of the run to update.
         new_text (str): New text content to replace existing text.
 
@@ -140,16 +137,17 @@ def docx_update_run_text(run_id: str, new_text: str) -> str:
         str: JSON response with success message and cursor context.
 
     Raises:
-        ValueError: If session_id or run_id is invalid.
-        ValueError: If specified object is not a run.
+        NoActiveSession: If no file has been selected via Launcher or --file.
+        SessionNotFound: If the active session has expired.
+        ElementNotFound: If run_id is invalid.
+        InvalidElementType: If specified object is not a run.
 
     Examples:
         Update run text:
-        >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run_id = docx_insert_run(session_id, "Old", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run_id, bold=True, size=14)
-        >>> result = docx_update_run_text(session_id, run_id, "New")
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run_id = docx_insert_run("Old", position=f"inside:{para_id}")
+        >>> docx_set_font(run_id, bold=True, size=14)
+        >>> result = docx_update_run_text(run_id, "New")
         >>> print(result)
         'Run run_xxx updated successfully'
 
@@ -162,14 +160,13 @@ def docx_update_run_text(run_id: str, new_text: str) -> str:
         - docx_update_paragraph_text: Replace entire paragraph content
         - docx_set_font: Modify run formatting
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    logger.debug(f"docx_update_run_text called: session_id={session_id}, run_id={run_id}, new_text_len={len(new_text)}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_update_run_text failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    logger.debug(f"docx_update_run_text called: run_id={run_id}, new_text_len={len(new_text)}")
 
     try:
         run = session.get_object(run_id)
@@ -214,7 +211,6 @@ def docx_update_run_text(run_id: str, new_text: str) -> str:
         return create_error_response(f"Failed to update run text: {str(e)}", error_type="UpdateError")
 
 def docx_set_font(
-    session_id: str,
     run_id: str,
     size: float = None,
     bold: bool = None,
@@ -233,7 +229,6 @@ def docx_set_font(
         - Create styled headings and emphasis
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
         run_id (str): ID of the text run to format.
         size (float, optional): Font size in points (e.g., 12.0, 14.5).
         bold (bool, optional): True to make bold, False to remove bold.
@@ -245,23 +240,24 @@ def docx_set_font(
         str: JSON response with success message and cursor context.
 
     Raises:
-        ValueError: If session_id or run_id is invalid.
-        ValueError: If color_hex is not valid 6-character hex string.
+        NoActiveSession: If no file has been selected via Launcher or --file.
+        SessionNotFound: If the active session has expired.
+        ElementNotFound: If run_id is invalid.
+        ValidationError: If color_hex is not valid 6-character hex string.
 
     Examples:
         Basic formatting:
-        >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
-        >>> run_id = docx_insert_run(session_id, "Important", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run_id, size=14, bold=True)
+        >>> para_id = docx_insert_paragraph("", position="end:document_body")
+        >>> run_id = docx_insert_run("Important", position=f"inside:{para_id}")
+        >>> docx_set_font(run_id, size=14, bold=True)
 
         Apply color:
-        >>> run_id = docx_insert_run(session_id, "Red text", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run_id, color_hex="FF0000")
+        >>> run_id = docx_insert_run("Red text", position=f"inside:{para_id}")
+        >>> docx_set_font(run_id, color_hex="FF0000")
 
         Multiple properties:
-        >>> run_id = docx_insert_run(session_id, "Styled", position=f"inside:{para_id}")
-        >>> docx_set_font(session_id, run_id, size=16, bold=True, italic=True, color_hex="0000FF")
+        >>> run_id = docx_insert_run("Styled", position=f"inside:{para_id}")
+        >>> docx_set_font(run_id, size=16, bold=True, italic=True, color_hex="0000FF")
 
     Notes:
         - Size is in points (1 point = 1/72 inch)
@@ -273,14 +269,13 @@ def docx_set_font(
         - docx_insert_run: Create run to format
         - docx_set_properties: Advanced formatting options
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    logger.debug(f"docx_set_font called: session_id={session_id}, run_id={run_id}, size={size}, bold={bold}, italic={italic}, color_hex={color_hex}")
+    session, error = get_active_session()
+    if error:
+        return error
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        logger.error(f"docx_set_font failed: Session {session_id} not found")
-        return create_error_response(f"Session {session_id} not found", error_type="SessionNotFound")
+    logger.debug(f"docx_set_font called: run_id={run_id}, size={size}, bold={bold}, italic={italic}, color_hex={color_hex}")
 
     try:
         run = session.get_object(run_id)

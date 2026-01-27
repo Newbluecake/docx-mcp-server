@@ -14,25 +14,21 @@ from docx_mcp_server.core.response import (
 logger = logging.getLogger(__name__)
 
 
-def docx_log(session_id: str, limit: int = 10) -> str:
+def docx_log(limit: int = 10) -> str:
     """
     Get commit history log.
 
     Args:
-        session_id: Session ID
         limit: Maximum number of commits to return (default: 10)
 
     Returns:
         JSON response with commit list
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(
-            f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
         commits = session.get_commit_log(limit=limit)
@@ -54,25 +50,21 @@ def docx_log(session_id: str, limit: int = 10) -> str:
         )
 
 
-def docx_rollback(session_id: str, commit_id: str = None) -> str:
+def docx_rollback(commit_id: str = None) -> str:
     """
     Rollback to specified commit or previous commit.
 
     Args:
-        session_id: Session ID
         commit_id: Target commit ID (None = rollback to previous)
 
     Returns:
         JSON response with rollback details
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(
-            f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
         rollback_info = session.rollback(commit_id)
@@ -97,25 +89,21 @@ def docx_rollback(session_id: str, commit_id: str = None) -> str:
         )
 
 
-def docx_checkout(session_id: str, commit_id: str) -> str:
+def docx_checkout(commit_id: str) -> str:
     """
     Checkout to specified commit state.
 
     Args:
-        session_id: Session ID
         commit_id: Target commit ID
 
     Returns:
         JSON response with checkout details
     """
-    from docx_mcp_server.server import session_manager
+    from docx_mcp_server.utils.session_helpers import get_active_session
 
-    session = session_manager.get_session(session_id)
-    if not session:
-        return create_error_response(
-            f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
+    session, error = get_active_session()
+    if error:
+        return error
 
     try:
         checkout_info = session.checkout(commit_id)
