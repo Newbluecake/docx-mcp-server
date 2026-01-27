@@ -8,13 +8,24 @@ import tempfile
 import os
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
-from docx_mcp_server.combined_server import app
 
 
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
-    return TestClient(app)
+    # Import server and create a test instance with custom routes
+    from docx_mcp_server.server import mcp
+    from mcp.server.fastmcp import FastMCP
+
+    # Create a test FastMCP instance
+    test_mcp = FastMCP("docx-mcp-server-test", host="127.0.0.1", port=8000)
+
+    # Register custom routes
+    from docx_mcp_server.server import register_custom_routes
+    register_custom_routes(test_mcp)
+
+    # Get the underlying FastAPI app
+    return TestClient(test_mcp.app)
 
 
 @pytest.fixture
