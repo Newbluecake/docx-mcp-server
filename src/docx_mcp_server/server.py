@@ -111,101 +111,104 @@ register_all_tools(mcp)
 from starlette.responses import JSONResponse
 from starlette.requests import Request
 
-@mcp.custom_route("/health", methods=["GET"])
-async def health_check(request: Request):
-    """Health check endpoint for Launcher GUI."""
-    from docx_mcp_server.core.global_state import global_state
-    return JSONResponse({
-        "status": "healthy",
-        "version": VERSION,
-        "transport": "sse+custom_routes",
-        "activeFile": global_state.active_file,
-        "activeSessionId": global_state.active_session_id
-    })
+def register_custom_routes(mcp_instance: FastMCP):
+    """Register custom HTTP routes on the given MCP instance."""
 
-@mcp.custom_route("/api/status", methods=["GET"])
-async def get_status(request: Request):
-    """Get current server status."""
-    from docx_mcp_server.api.file_controller import FileController
-    try:
-        status = FileController.get_status()
-        return JSONResponse(status)
-    except Exception as e:
-        logger.exception(f"Error getting status: {e}")
-        return JSONResponse(
-            {"error": str(e)},
-            status_code=500
-        )
+    @mcp_instance.custom_route("/health", methods=["GET"])
+    async def health_check(request: Request):
+        """Health check endpoint for Launcher GUI."""
+        from docx_mcp_server.core.global_state import global_state
+        return JSONResponse({
+            "status": "healthy",
+            "version": VERSION,
+            "transport": "sse+custom_routes",
+            "activeFile": global_state.active_file,
+            "activeSessionId": global_state.active_session_id
+        })
 
-@mcp.custom_route("/api/file/switch", methods=["POST"])
-async def switch_file(request: Request):
-    """Switch to a different active file."""
-    from docx_mcp_server.api.file_controller import (
-        FileController,
-        FileLockError,
-        UnsavedChangesError
-    )
-    try:
-        body = await request.json()
-        path = body.get("path")
-        force = body.get("force", False)
-
-        if not path:
+    @mcp_instance.custom_route("/api/status", methods=["GET"])
+    async def get_status(request: Request):
+        """Get current server status."""
+        from docx_mcp_server.api.file_controller import FileController
+        try:
+            status = FileController.get_status()
+            return JSONResponse(status)
+        except Exception as e:
+            logger.exception(f"Error getting status: {e}")
             return JSONResponse(
-                {"error": "Missing 'path' parameter"},
-                status_code=400
+                {"error": str(e)},
+                status_code=500
             )
 
-        result = FileController.switch_file(path, force=force)
-        logger.info(f"File switched to: {path}")
-        return JSONResponse(result)
-
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        return JSONResponse({"error": str(e)}, status_code=404)
-    except PermissionError as e:
-        logger.error(f"Permission denied: {e}")
-        return JSONResponse({"error": str(e)}, status_code=403)
-    except FileLockError as e:
-        logger.error(f"File locked: {e}")
-        return JSONResponse({"error": str(e)}, status_code=423)
-    except UnsavedChangesError as e:
-        logger.warning(f"Unsaved changes: {e}")
-        return JSONResponse(
-            {
-                "error": "Unsaved changes exist",
-                "message": "Call with force=true to discard changes"
-            },
-            status_code=409
+    @mcp_instance.custom_route("/api/file/switch", methods=["POST"])
+    async def switch_file(request: Request):
+        """Switch to a different active file."""
+        from docx_mcp_server.api.file_controller import (
+            FileController,
+            FileLockError,
+            UnsavedChangesError
         )
-    except Exception as e:
-        logger.exception(f"Error switching file: {e}")
-        return JSONResponse(
-            {"error": f"Internal server error: {str(e)}"},
-            status_code=500
-        )
+        try:
+            body = await request.json()
+            path = body.get("path")
+            force = body.get("force", False)
 
-@mcp.custom_route("/api/session/close", methods=["POST"])
-async def close_session_route(request: Request):
-    """Close the current session."""
-    from docx_mcp_server.api.file_controller import FileController
-    try:
-        body = await request.json()
-        save = body.get("save", False)
+            if not path:
+                return JSONResponse(
+                    {"error": "Missing 'path' parameter"},
+                    status_code=400
+                )
 
-        FileController.close_session(save=save)
-        logger.info(f"Session closed (save={save})")
-        return JSONResponse({"message": "Session closed successfully"})
+            result = FileController.switch_file(path, force=force)
+            logger.info(f"File switched to: {path}")
+            return JSONResponse(result)
 
-    except ValueError as e:
-        logger.error(f"No active session: {e}")
-        return JSONResponse({"error": str(e)}, status_code=404)
-    except Exception as e:
-        logger.exception(f"Error closing session: {e}")
-        return JSONResponse(
-            {"error": f"Failed to close session: {str(e)}"},
-            status_code=500
-        )
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {e}")
+            return JSONResponse({"error": str(e)}, status_code=404)
+        except PermissionError as e:
+            logger.error(f"Permission denied: {e}")
+            return JSONResponse({"error": str(e)}, status_code=403)
+        except FileLockError as e:
+            logger.error(f"File locked: {e}")
+            return JSONResponse({"error": str(e)}, status_code=423)
+        except UnsavedChangesError as e:
+            logger.warning(f"Unsaved changes: {e}")
+            return JSONResponse(
+                {
+                    "error": "Unsaved changes exist",
+                    "message": "Call with force=true to discard changes"
+                },
+                status_code=409
+            )
+        except Exception as e:
+            logger.exception(f"Error switching file: {e}")
+            return JSONResponse(
+                {"error": f"Internal server error: {str(e)}"},
+                status_code=500
+            )
+
+    @mcp_instance.custom_route("/api/session/close", methods=["POST"])
+    async def close_session_route(request: Request):
+        """Close the current session."""
+        from docx_mcp_server.api.file_controller import FileController
+        try:
+            body = await request.json()
+            save = body.get("save", False)
+
+            FileController.close_session(save=save)
+            logger.info(f"Session closed (save={save})")
+            return JSONResponse({"message": "Session closed successfully"})
+
+        except ValueError as e:
+            logger.error(f"No active session: {e}")
+            return JSONResponse({"error": str(e)}, status_code=404)
+        except Exception as e:
+            logger.exception(f"Error closing session: {e}")
+            return JSONResponse(
+                {"error": f"Failed to close session: {str(e)}"},
+                status_code=500
+            )
 
 def main():
     """Main entry point for the server with configurable transport"""
@@ -387,6 +390,9 @@ Environment Variables:
         _patch_tool_logging(custom_mcp, logger)
         # Re-register all tools to the new instance
         register_all_tools(custom_mcp)
+        # Register custom HTTP routes for Combined mode
+        if args.transport == "combined":
+            register_custom_routes(custom_mcp)
         server_instance = custom_mcp
     else:
         # Use the default module-level instance for stdio
