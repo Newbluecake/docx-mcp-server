@@ -60,8 +60,11 @@ class TestFileControllerSwitchFile:
 
     def test_switch_file_not_found(self, mock_session_manager):
         """Test switching to non-existent file."""
+        from pathlib import Path
+        non_existent = str(Path(tempfile.gettempdir()) / "nonexistent_file.docx")
+
         with pytest.raises(FileNotFoundError) as exc_info:
-            FileController.switch_file("/nonexistent/file.docx")
+            FileController.switch_file(non_existent)
 
         assert "File not found" in str(exc_info.value)
 
@@ -82,7 +85,7 @@ class TestFileControllerSwitchFile:
     def test_switch_file_with_unsaved_changes_no_force(self, temp_docx, mock_session_manager):
         """Test switching with unsaved changes (force=False) raises error."""
         # Setup: active session with unsaved changes
-        global_state.active_file = "/old.docx"
+        global_state.active_file = os.path.abspath("old.docx")
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -95,13 +98,13 @@ class TestFileControllerSwitchFile:
 
         assert "Unsaved changes exist" in str(exc_info.value)
         # Should not close session or switch file
-        assert global_state.active_file == "/old.docx"
+        assert global_state.active_file == os.path.abspath("old.docx")
         assert global_state.active_session_id == "session-123"
 
     def test_switch_file_with_unsaved_changes_force(self, temp_docx, mock_session_manager):
         """Test switching with unsaved changes (force=True) succeeds."""
         # Setup: active session with unsaved changes
-        global_state.active_file = "/old.docx"
+        global_state.active_file = os.path.abspath("old.docx")
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -120,7 +123,7 @@ class TestFileControllerSwitchFile:
     def test_switch_file_closes_existing_session(self, temp_docx, mock_session_manager):
         """Test that switching closes existing session."""
         # Setup: active session without unsaved changes
-        global_state.active_file = "/old.docx"
+        global_state.active_file = os.path.abspath("old.docx")
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -138,7 +141,9 @@ class TestFileControllerSwitchFile:
     def test_switch_file_invalid_path(self, mock_session_manager):
         """Test switching with invalid path."""
         with pytest.raises(FileNotFoundError):
-            FileController.switch_file("../../../etc/passwd")
+            # On Windows, forward slashes and simple names might be valid or invalid differently
+            # Use a path that is syntactically okay but definitely doesn't exist
+            FileController.switch_file(os.path.join("..", "nonexistent_file_for_test"))
 
     @patch('docx_mcp_server.api.file_controller.FileController._is_file_locked')
     def test_switch_file_locked(self, mock_is_locked, temp_docx, mock_session_manager):
@@ -165,17 +170,19 @@ class TestFileControllerGetStatus:
 
     def test_get_status_with_active_file_no_session(self, mock_session_manager):
         """Test status query with active file but no session."""
-        global_state.active_file = "/path/to/doc.docx"
+        test_file = os.path.abspath("doc.docx")
+        global_state.active_file = test_file
 
         status = FileController.get_status()
 
-        assert status["currentFile"] == "/path/to/doc.docx"
+        assert status["currentFile"] == test_file
         assert status["sessionId"] is None
         assert status["hasUnsaved"] is False
 
     def test_get_status_with_active_session_no_changes(self, mock_session_manager):
         """Test status query with active session without changes."""
-        global_state.active_file = "/path/to/doc.docx"
+        test_file = os.path.abspath("doc.docx")
+        global_state.active_file = test_file
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -184,13 +191,14 @@ class TestFileControllerGetStatus:
 
         status = FileController.get_status()
 
-        assert status["currentFile"] == "/path/to/doc.docx"
+        assert status["currentFile"] == test_file
         assert status["sessionId"] == "session-123"
         assert status["hasUnsaved"] is False
 
     def test_get_status_with_unsaved_changes(self, mock_session_manager):
         """Test status query with unsaved changes."""
-        global_state.active_file = "/path/to/doc.docx"
+        test_file = os.path.abspath("doc.docx")
+        global_state.active_file = test_file
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -225,7 +233,8 @@ class TestFileControllerCloseSession:
 
     def test_close_session_with_save(self, mock_session_manager):
         """Test closing session with save."""
-        global_state.active_file = "/path/to/doc.docx"
+        test_file = os.path.abspath("doc.docx")
+        global_state.active_file = test_file
         global_state.active_session_id = "session-123"
 
         mock_session = Mock()
@@ -236,7 +245,7 @@ class TestFileControllerCloseSession:
         result = FileController.close_session(save=True)
 
         assert result["success"] is True
-        mock_document.save.assert_called_once_with("/path/to/doc.docx")
+        mock_document.save.assert_called_once_with(test_file)
         mock_session_manager.close_session.assert_called_once_with("session-123")
 
 

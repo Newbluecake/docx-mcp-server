@@ -133,9 +133,12 @@ class TestSwitchFileEndpoint:
 
     def test_switch_file_not_found(self, client):
         """Test switching to non-existent file."""
+        from pathlib import Path
+        path = str(Path(tempfile.gettempdir()) / "nonexistent.docx")
+
         response = client.post(
             "/api/file/switch",
-            json={"path": "/nonexistent/file.docx", "force": False}
+            json={"path": path, "force": False}
         )
 
         assert response.status_code == 404
@@ -291,7 +294,10 @@ class TestAPIEndpointRouting:
     def test_all_api_endpoints_exist(self, client):
         """Test that all expected API endpoints exist."""
         # Test POST /api/file/switch
-        response = client.post("/api/file/switch", json={"path": "/test.docx"})
+        from pathlib import Path
+        path = str(Path(tempfile.gettempdir()) / "test.docx")
+
+        response = client.post("/api/file/switch", json={"path": path})
         # Should not be 404 or 405 (should be 404 from FileController for non-existent file)
         assert response.status_code != 405
 
