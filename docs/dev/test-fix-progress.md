@@ -11,9 +11,9 @@
 
 | 指标 | 数值 | 百分比 |
 |------|------|--------|
-| 总测试数 | 93 | 100% |
-| 通过 | 77 | 83% |
-| 失败 | 16 | 17% |
+| 总测试数 | 68 | 100% |
+| 通过 | 68 | 100% |
+| 失败 | 0 | 0% |
 
 ## 各测试文件详情
 
@@ -23,15 +23,11 @@
 - **关键问题**: FastMCP settings 初始化问题
 - **提交**: 0acf639
 
-### ⏳ test_cli_launcher.py (待修复)
-- **状态**: 28/44 通过 (64%)
-- **失败数**: 16
-- **主要问题**:
-  - `AttributeError: 'CLILauncher' object has no attribute 'launch'`
-  - `AttributeError: 'CLILauncher' object has no attribute '_log_launch'`
-  - 命令构建格式变化
-- **根本原因**: CLILauncher 类已重构，测试未更新
-- **修复策略**: 需要大幅更新测试以匹配新的 CLILauncher API
+### ✅ test_cli_launcher.py (已完成)
+- **状态**: 19/19 通过 (100%)
+- **修复方法**: 更新 TestCommandBuilder 测试以匹配新的 CLILauncher API，删除测试已移除功能（launch, _log_launch）的过时测试类
+- **关键问题**: API 从 `build_command(config, extra)` 变更为 `build_command(url, transport, extra)`，以及移除了 launch 方法
+- **提交**: 待提交
 
 ### ✅ test_file_controller.py (已完成)
 - **状态**: 19/19 通过 (100%)
@@ -39,13 +35,11 @@
 - **关键问题**: Mock 位置错误，Commit 类实例化错误
 - **提交**: 7e853a1
 
-### ⏳ test_server_manager_fix.py (待修复)
-- **状态**: 1/3 通过 (33%)
-- **失败数**: 2
-- **主要问题**:
-  - `AssertionError: assert 'sse' in ['--transport', 'combined', ...]`
-- **根本原因**: transport 参数从 'sse' 改为 'combined'
-- **修复策略**: 更新测试断言以匹配新的 transport 值
+### ✅ test_server_manager_fix.py (已完成)
+- **状态**: 3/3 通过 (100%)
+- **修复方法**: 更新测试断言以匹配 'combined' 传输模式
+- **关键问题**: 默认 transport 从 'sse' 变更为 'combined'
+- **提交**: 待提交
 
 ### ✅ test_session_dirty_tracking.py (已完成)
 - **状态**: 12/12 通过 (100%)

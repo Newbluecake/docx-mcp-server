@@ -86,7 +86,7 @@ class TestServerManagerBugFix:
                 # Key assertion: should include --server-mode flag
                 assert "--server-mode" in args, "Args must include --server-mode"
                 assert "--transport" in args
-                assert "sse" in args
+                assert "combined" in args  # Changed from 'sse' to 'combined'
 
             finally:
                 # Clean up
@@ -119,7 +119,7 @@ class TestServerManagerBugFix:
             args = call_args[0][1]
 
             assert "--transport" in args
-            assert "sse" in args
+            assert "combined" in args  # Changed from 'sse' to 'combined'
             assert "--port" in args
             assert "9000" in args
             assert "--host" in args
