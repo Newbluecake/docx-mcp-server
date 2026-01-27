@@ -7,12 +7,22 @@ This adds the repository root and the tests directory to sys.path so that
 import os
 import sys
 import json
+import pytest
+from docx_mcp_server.core.global_state import global_state
 
 from tests.helpers import (
     extract_status,
     extract_all_metadata,
     extract_error_message,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    """Reset global state before each test to ensure isolation."""
+    global_state.clear()
+    yield
+    global_state.clear()
 
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
