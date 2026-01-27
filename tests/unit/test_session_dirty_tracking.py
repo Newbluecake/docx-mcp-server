@@ -86,7 +86,11 @@ class TestDirtyTracking:
         from docx_mcp_server.core.commit import Commit
 
         # Add a commit to history
-        session.history_stack.append(Commit())
+        session.history_stack.append(Commit.create(
+            operation="test_operation",
+            changes={},
+            affected_elements=[]
+        ))
 
         # Even without explicit dirty flag, should return True
         # because history_stack has grown since last save
@@ -97,8 +101,16 @@ class TestDirtyTracking:
         from docx_mcp_server.core.commit import Commit
 
         # Add some commits
-        session.history_stack.append(Commit())
-        session.history_stack.append(Commit())
+        session.history_stack.append(Commit.create(
+            operation="test_operation_1",
+            changes={},
+            affected_elements=[]
+        ))
+        session.history_stack.append(Commit.create(
+            operation="test_operation_2",
+            changes={},
+            affected_elements=[]
+        ))
 
         # Mark as saved
         session.mark_saved()
@@ -111,12 +123,20 @@ class TestDirtyTracking:
         from docx_mcp_server.core.commit import Commit
 
         # Add a commit and save
-        session.history_stack.append(Commit())
+        session.history_stack.append(Commit.create(
+            operation="test_operation_1",
+            changes={},
+            affected_elements=[]
+        ))
         session.mark_saved()
         assert not session.has_unsaved_changes()
 
         # Add another commit
-        session.history_stack.append(Commit())
+        session.history_stack.append(Commit.create(
+            operation="test_operation_2",
+            changes={},
+            affected_elements=[]
+        ))
 
         # Should now have unsaved changes
         assert session.has_unsaved_changes()
