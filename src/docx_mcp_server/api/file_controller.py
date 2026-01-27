@@ -90,12 +90,15 @@ class FileController:
             FileLockError: File is locked by another process (HTTP 423)
             UnsavedChangesError: Unsaved changes exist and force=False (HTTP 409)
         """
+        logger.debug(f"switch_file() called: {file_path}, force={force}")
+
         # Use lazy import to avoid circular dependency
         session_manager = _get_session_manager()
 
         # 1. Validate path safety
         try:
             validate_path_safety(file_path)
+            logger.debug("Path validation passed")
         except ValueError as e:
             logger.error(f"Path validation failed: {e}")
             raise
@@ -104,41 +107,45 @@ class FileController:
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
             raise FileNotFoundError(f"File not found: {file_path}")
+        logger.debug("File exists check passed")
 
         # 3. Check file permissions
         if not os.access(file_path, os.R_OK | os.W_OK):
             logger.error(f"Permission denied: {file_path}")
             raise PermissionError(f"Permission denied: {file_path}")
+        logger.debug("Permission check passed")
 
         # 4. Check file lock (best effort)
         if FileController._is_file_locked(file_path):
             logger.error(f"File is locked: {file_path}")
             raise FileLockError(f"File is locked by another process: {file_path}")
+        logger.debug("File lock check passed")
 
-        # 5. Check unsaved changes
-        with global_state.atomic():
-            current_session_id = global_state.active_session_id
+        # 5. Check unsaved changes (read current state without atomic)
+        current_session_id = global_state.active_session_id
+        logger.debug(f"Current session ID: {current_session_id}")
 
-            if current_session_id:
-                session = session_manager.get_session(current_session_id)
-                if session and FileController._has_unsaved_changes(session):
-                    if not force:
-                        current_file = global_state.active_file or "unknown"
-                        logger.warning(f"Unsaved changes in {current_file}, force=False")
-                        raise UnsavedChangesError(
-                            f"Unsaved changes exist in {current_file}. "
-                            f"Call with force=true to discard changes."
-                        )
-                    logger.warning(f"Discarding unsaved changes (force=True)")
+        if current_session_id:
+            session = session_manager.get_session(current_session_id)
+            if session and FileController._has_unsaved_changes(session):
+                if not force:
+                    current_file = global_state.active_file or "unknown"
+                    logger.warning(f"Unsaved changes in {current_file}, force=False")
+                    raise UnsavedChangesError(
+                        f"Unsaved changes exist in {current_file}. "
+                        f"Call with force=true to discard changes."
+                    )
+                logger.warning(f"Discarding unsaved changes (force=True)")
 
-            # 6. Close active session if exists
-            if current_session_id:
-                logger.info(f"Closing session before file switch: {current_session_id}")
-                session_manager.close_session(current_session_id)
+        # 6. Close active session if exists
+        if current_session_id:
+            logger.info(f"Closing session before file switch: {current_session_id}")
+            session_manager.close_session(current_session_id)
 
-            # 7. Set new active file
-            global_state.active_file = file_path
-            global_state.active_session_id = None
+        # 7. Set new active file (atomic write)
+        global_state.active_file = file_path
+        global_state.active_session_id = None
+        logger.debug("Active file and session updated")
 
         logger.info(f"File switched to: {file_path}")
         return {
@@ -198,33 +205,33 @@ class FileController:
         Returns:
             dict: Result dictionary with success status and message
         """
+        logger.debug(f"close_session() called: save={save}")
         session_manager = _get_session_manager()
 
-        with global_state.atomic():
-            current_session_id = global_state.active_session_id
+        current_session_id = global_state.active_session_id
 
-            if not current_session_id:
-                logger.debug("No active session to close")
-                return {
-                    "success": True,
-                    "message": "No active session"
-                }
+        if not current_session_id:
+            logger.debug("No active session to close")
+            return {
+                "success": True,
+                "message": "No active session"
+            }
 
-            # Save if requested
-            if save and global_state.active_file:
-                session = session_manager.get_session(current_session_id)
-                if session:
-                    try:
-                        session.document.save(global_state.active_file)
-                        logger.info(f"Saved before closing: {global_state.active_file}")
-                    except Exception as e:
-                        logger.error(f"Failed to save before closing: {e}")
-                        raise
+        # Save if requested
+        if save and global_state.active_file:
+            session = session_manager.get_session(current_session_id)
+            if session:
+                try:
+                    session.document.save(global_state.active_file)
+                    logger.info(f"Saved before closing: {global_state.active_file}")
+                except Exception as e:
+                    logger.error(f"Failed to save before closing: {e}")
+                    raise
 
-            # Close session
-            session_manager.close_session(current_session_id)
-            global_state.active_session_id = None
-            logger.info(f"Session closed: {current_session_id}")
+        # Close session
+        session_manager.close_session(current_session_id)
+        global_state.active_session_id = None
+        logger.info(f"Session closed: {current_session_id}")
 
         return {
             "success": True,
