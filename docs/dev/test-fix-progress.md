@@ -12,8 +12,8 @@
 | 指标 | 数值 | 百分比 |
 |------|------|--------|
 | 总测试数 | 93 | 100% |
-| 通过 | 64 | 69% |
-| 失败 | 29 | 31% |
+| 通过 | 77 | 83% |
+| 失败 | 16 | 17% |
 
 ## 各测试文件详情
 
@@ -33,16 +33,11 @@
 - **根本原因**: CLILauncher 类已重构，测试未更新
 - **修复策略**: 需要大幅更新测试以匹配新的 CLILauncher API
 
-### ⏳ test_file_controller.py (待修复)
-- **状态**: 11/19 通过 (58%)
-- **失败数**: 8
-- **主要问题**:
-  - Mock 断言失败 (`assert_called_once` 失败)
-  - `TypeError: Commit.__init__() missing 5 required positional arguments`
-- **根本原因**:
-  1. FileController 实现变化，某些方法调用方式改变
-  2. Commit 类构造函数签名变化
-- **修复策略**: 更新 mock 断言和 Commit 对象创建方式
+### ✅ test_file_controller.py (已完成)
+- **状态**: 19/19 通过 (100%)
+- **修复方法**: 更新 mock 以 patch _get_session_manager 和 _get_version，使用 Commit.create()
+- **关键问题**: Mock 位置错误，Commit 类实例化错误
+- **提交**: 7e853a1
 
 ### ⏳ test_server_manager_fix.py (待修复)
 - **状态**: 1/3 通过 (33%)
@@ -52,13 +47,11 @@
 - **根本原因**: transport 参数从 'sse' 改为 'combined'
 - **修复策略**: 更新测试断言以匹配新的 transport 值
 
-### ⏳ test_session_dirty_tracking.py (待修复)
-- **状态**: 9/12 通过 (75%)
-- **失败数**: 3
-- **主要问题**:
-  - `TypeError: Commit.__init__() missing 5 required positional arguments`
-- **根本原因**: Commit 类构造函数签名变化
-- **修复策略**: 更新 Commit 对象创建方式，提供所有必需参数
+### ✅ test_session_dirty_tracking.py (已完成)
+- **状态**: 12/12 通过 (100%)
+- **修复方法**: 使用 Commit.create() 替代 Commit()
+- **关键问题**: Commit 类构造函数需要 5 个必需参数
+- **提交**: 32a30c8
 
 ## 修复优先级
 
@@ -88,4 +81,6 @@
 ## 相关提交
 
 - `0acf639`: fix(tests): fix test_api_routes.py by using standalone Starlette app
+- `32a30c8`: fix(tests): fix test_session_dirty_tracking.py by using Commit.create()
+- `7e853a1`: fix(tests): fix test_file_controller.py by updating mocks and Commit usage
 - `2b893dd`: docs(mcp-tools): optimize tool docstrings for Claude AI
