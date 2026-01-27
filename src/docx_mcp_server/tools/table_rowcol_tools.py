@@ -9,13 +9,13 @@ from docx_mcp_server.core.response import (
     create_error_response,
 )
 from docx_mcp_server.services.navigation import PositionResolver
+from docx_mcp_server.utils.session_helpers import get_active_session
 
 logger = logging.getLogger(__name__)
 
 
 def docx_insert_row_at(
-    session_id: str,
-    table_id: str,
+        table_id: str,
     position: str,
     row_index: int = None,
     copy_format: bool = False
@@ -145,8 +145,7 @@ def docx_insert_row_at(
 
 
 def docx_insert_col_at(
-    session_id: str,
-    table_id: str,
+        table_id: str,
     position: str,
     col_index: int = None,
     copy_format: bool = False
@@ -276,8 +275,7 @@ def docx_insert_col_at(
 
 
 def docx_delete_row(
-    session_id: str,
-    table_id: str,
+        table_id: str,
     row_index: int = None,
     row_id: str = None
 ) -> str:
@@ -399,8 +397,7 @@ def docx_delete_row(
 
 
 def docx_delete_col(
-    session_id: str,
-    table_id: str,
+        table_id: str,
     col_index: int = None,
     col_id: str = None
 ) -> str:

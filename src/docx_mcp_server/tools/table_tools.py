@@ -9,6 +9,7 @@ from docx_mcp_server.utils.copy_engine import CopyEngine
 from docx_mcp_server.core.format_painter import FormatPainter
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.core.table_analyzer import TableStructureAnalyzer
+from docx_mcp_server.utils.session_helpers import get_active_session
 from docx_mcp_server.core.response import (
     create_markdown_response,
     create_error_response
@@ -19,7 +20,7 @@ from docx_mcp_server.core.xml_util import ElementManipulator
 logger = logging.getLogger(__name__)
 
 
-def docx_insert_table(session_id: str, rows: int, cols: int, position: str) -> str:
+def docx_insert_table(rows: int, cols: int, position: str) -> str:
     """
     Create a new table in the document.
 
@@ -110,7 +111,7 @@ def docx_insert_table(session_id: str, rows: int, cols: int, position: str) -> s
         logger.exception(f"docx_insert_table failed: {e}")
         return create_error_response(f"Failed to create table: {str(e)}", error_type="CreationError")
 
-def docx_get_table(session_id: str, index: int) -> str:
+def docx_get_table(index: int) -> str:
     """
     Get a table by its position index in the document.
     """
@@ -201,7 +202,7 @@ def docx_list_tables(session_id: str, max_results: int = 50, start_element_id: s
         logger.exception(f"docx_list_tables failed: {e}")
         return create_error_response(f"Failed to list tables: {str(e)}", error_type="SearchError")
 
-def docx_find_table(session_id: str, text: str, max_results: int = 1, start_element_id: str = None, return_structure: bool = False) -> str:
+def docx_find_table(text: str, max_results: int = 1, start_element_id: str = None, return_structure: bool = False) -> str:
     """
     Find the first table containing specific text in any cell.
     Optionally start search after a given element and limit results.
@@ -278,7 +279,7 @@ def docx_find_table(session_id: str, text: str, max_results: int = 1, start_elem
         logger.exception(f"docx_find_table failed: {e}")
         return create_error_response(f"Failed to find table: {str(e)}", error_type="SearchError")
 
-def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
+def docx_get_cell(table_id: str, row: int, col: int) -> str:
     """
     Get a cell from a table by its row and column indices.
     """
@@ -334,7 +335,7 @@ def docx_get_cell(session_id: str, table_id: str, row: int, col: int) -> str:
         logger.exception(f"docx_get_cell failed: {e}")
         return create_error_response(f"Failed to get cell: {str(e)}", error_type="RetrievalError")
 
-def docx_insert_paragraph_to_cell(session_id: str, text: str, position: str) -> str:
+def docx_insert_paragraph_to_cell(text: str, position: str) -> str:
     """
     Add a paragraph to a table cell.
 
@@ -401,7 +402,7 @@ def docx_insert_paragraph_to_cell(session_id: str, text: str, position: str) -> 
         logger.exception(f"docx_insert_paragraph_to_cell failed: {e}")
         return create_error_response(f"Failed to add paragraph to cell: {str(e)}", error_type="CreationError")
 
-def docx_insert_table_row(session_id: str, position: str) -> str:
+def docx_insert_table_row(position: str) -> str:
     """
     Add a new row to the end of a table.
 
@@ -458,7 +459,7 @@ def docx_insert_table_row(session_id: str, position: str) -> str:
         logger.exception(f"docx_insert_table_row failed: {e}")
         return create_error_response(f"Failed to add row: {str(e)}", error_type="ModificationError")
 
-def docx_insert_table_col(session_id: str, position: str) -> str:
+def docx_insert_table_col(position: str) -> str:
     """
     Add a new column to the right side of a table.
 
@@ -651,7 +652,7 @@ def docx_fill_table(
          logger.exception(f"docx_fill_table failed: {e}")
          return create_error_response(f"Failed to fill table: {str(e)}", error_type="FillError")
 
-def docx_copy_table(session_id: str, table_id: str, position: str) -> str:
+def docx_copy_table(table_id: str, position: str) -> str:
     """
     Create a deep copy of an existing table.
     """
