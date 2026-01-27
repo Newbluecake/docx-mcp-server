@@ -334,7 +334,51 @@ def docx_get_context(session_id: str) -> str:
 
 
 def docx_list_sessions() -> str:
-    """List active sessions with metadata."""
+    """
+    List all active sessions with their metadata.
+
+    Returns information about all currently active document editing sessions,
+    including session IDs, file paths, and configuration settings.
+
+    **No Session Required**: This tool operates at the server level and does
+    not need a session_id. Use it to inspect active sessions for debugging
+    or monitoring purposes.
+
+    Typical Use Cases:
+        - Debug session state and identify active sessions
+        - Monitor server resource usage
+        - Verify session creation before operations
+        - Check which files are currently being edited
+
+    Returns:
+        str: Markdown-formatted response containing:
+            - **Active Sessions**: Count of active sessions
+            - **Sessions**: JSON array with session details (id, file_path, auto_save, etc.)
+
+    Examples:
+        List all active sessions:
+        >>> result = docx_list_sessions()
+        >>> # Response includes session count and details
+
+        Check if specific session exists:
+        >>> result = docx_list_sessions()
+        >>> import json, re
+        >>> match = re.search(r'\*\*Sessions\*\*:\s*```json\n(.+?)\n```', result, re.DOTALL)
+        >>> if match:
+        ...     sessions = json.loads(match.group(1))
+        ...     session_ids = [s['session_id'] for s in sessions]
+        ...     print(f"Active sessions: {session_ids}")
+
+    Notes:
+        - Sessions auto-expire after 1 hour of inactivity
+        - Each session maintains independent document state
+        - Use docx_cleanup_sessions() to manually remove expired sessions
+
+    See Also:
+        - docx_create: Create a new session
+        - docx_cleanup_sessions: Remove expired sessions
+        - docx_get_context: Get detailed context for a specific session
+    """
     from docx_mcp_server.server import session_manager
 
     sessions = session_manager.list_sessions()
@@ -349,7 +393,59 @@ def docx_list_sessions() -> str:
 
 
 def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
-    """Clean up expired/idle sessions. If max_idle_seconds is provided, use it; otherwise use default ttl."""
+    """
+    Clean up expired or idle sessions to free server resources.
+
+    Removes sessions that have exceeded their idle timeout, releasing memory
+    and clearing object registries. Can be called manually or runs automatically
+    via the session manager's cleanup mechanism.
+
+    **No Session Required**: This tool operates at the server level and does
+    not need a session_id. Use it for server maintenance and resource management.
+
+    Typical Use Cases:
+        - Free memory after batch document processing
+        - Clean up abandoned sessions in long-running servers
+        - Force cleanup before server shutdown
+        - Implement custom session timeout policies
+
+    Args:
+        max_idle_seconds (int, optional): Maximum idle time in seconds before
+            a session is considered expired. If 0 or not provided, uses the
+            default TTL (3600 seconds = 1 hour). Defaults to 0.
+
+    Returns:
+        str: Markdown-formatted response containing:
+            - **Cleaned**: Number of sessions removed
+            - **Max Idle Seconds**: Timeout threshold used
+
+    Examples:
+        Clean up with default timeout (1 hour):
+        >>> result = docx_cleanup_sessions()
+        >>> # Removes sessions idle for more than 1 hour
+
+        Clean up with custom timeout (5 minutes):
+        >>> result = docx_cleanup_sessions(max_idle_seconds=300)
+        >>> # Removes sessions idle for more than 5 minutes
+
+        Extract cleanup count:
+        >>> result = docx_cleanup_sessions()
+        >>> import re
+        >>> match = re.search(r'\*\*Cleaned\*\*:\s*(\d+)', result)
+        >>> count = int(match.group(1)) if match else 0
+        >>> print(f"Cleaned up {count} sessions")
+
+    Notes:
+        - Closed sessions cannot be recovered - ensure work is saved first
+        - Active sessions (recently accessed) are never cleaned up
+        - Automatic cleanup runs periodically in the background
+        - Use docx_list_sessions() to check active sessions before cleanup
+
+    See Also:
+        - docx_list_sessions: View active sessions before cleanup
+        - docx_close: Explicitly close a specific session
+        - docx_save: Save session before cleanup
+    """
     from docx_mcp_server.server import session_manager
 
     cleaned = session_manager.cleanup_expired(max_idle_seconds=max_idle_seconds or None)

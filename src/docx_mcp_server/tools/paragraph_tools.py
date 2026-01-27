@@ -15,27 +15,92 @@ logger = logging.getLogger(__name__)
 
 def docx_insert_paragraph(session_id: str, text: str, position: str, style: str = None) -> str:
     """
-    Add a new paragraph to the document or a specific parent container.
+    Add a new paragraph to the document with precise positioning control.
 
-    Creates a paragraph with the specified text content. Supports precise positioning
-    via the 'position' parameter (e.g., "after:para_123").
+    Creates a paragraph with the specified text content at any location in the document.
+    Supports positioning relative to existing elements or at document start/end.
+
+    **Session Context**: This tool operates on the document associated with
+    session_id. Create a session first using docx_create(), which uses the
+    global active file set by the Launcher GUI or --file parameter.
 
     Typical Use Cases:
         - Add body text to a document
-        - Insert text at specific locations (after/before existing elements)
+        - Insert paragraphs at specific locations (after/before existing elements)
         - Add content to table cells
+        - Build document structure programmatically
 
     Args:
         session_id (str): Active session ID returned by docx_create().
-        text (str): Text content for the paragraph. Can be empty string.
+            The session maintains document state and object registry.
+        text (str): Text content for the paragraph. Can be empty string for
+            formatting-only paragraphs.
         position (str): Insertion position string.
-            Format: "mode:target_id". Modes: after, before, inside, start, end.
-            Example: "after:para_123" (insert after para_123).
-        style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text').
-            Defaults to None (Normal style).
+            Format: "mode:target_id". Modes:
+            - "after:element_id" - Insert after specified element
+            - "before:element_id" - Insert before specified element
+            - "inside:element_id" - Insert inside container (cell, etc.)
+            - "start:document_body" - Insert at document start
+            - "end:document_body" - Insert at document end
+            Example: "after:para_123", "end:document_body"
+        style (str, optional): Built-in style name (e.g., 'List Bullet', 'Body Text',
+            'Heading 1'). Defaults to None (Normal style).
 
     Returns:
-        str: JSON response with element_id, visual context tree, and cursor info.
+        str: Markdown-formatted response containing:
+            - **Element ID**: Unique identifier for the created paragraph (e.g., "para_abc123")
+            - **Status**: Success/Error indicator
+            - **Document Context**: ASCII visualization showing paragraph position
+            - **Cursor**: Updated cursor position after operation
+
+    Raises:
+        SessionNotFound: If session_id is invalid or session has expired.
+        ValidationError: If position format is invalid.
+        InvalidParent: If target cannot contain paragraphs.
+        CreationError: If paragraph creation fails.
+
+    Examples:
+        Basic usage - add paragraph at document end:
+        >>> # Step 1: Create session for active file
+        >>> session_id = docx_create()
+        >>> # Step 2: Insert paragraph
+        >>> result = docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
+        >>> # Step 3: Extract element_id
+        >>> import re
+        >>> match = re.search(r'\*\*Element ID\*\*:\s*(\w+)', result)
+        >>> para_id = match.group(1) if match else None
+
+        Insert after existing paragraph:
+        >>> result = docx_insert_paragraph(session_id, "New text", position=f"after:{para_id}")
+
+        Insert with custom style:
+        >>> result = docx_insert_paragraph(
+        ...     session_id, "Bullet point",
+        ...     position="end:document_body",
+        ...     style="List Bullet"
+        ... )
+
+        Complete workflow:
+        >>> # Set active file via Launcher or --file parameter
+        >>> session_id = docx_create()
+        >>> para1 = docx_insert_paragraph(session_id, "First paragraph", position="end:document_body")
+        >>> para2 = docx_insert_paragraph(session_id, "Second paragraph", position="end:document_body")
+        >>> docx_save(session_id, "./output.docx")
+        >>> docx_close(session_id)
+
+    Notes:
+        - Empty text creates a blank paragraph (useful for spacing)
+        - Position is required - no default position
+        - Cursor automatically moves to the new paragraph
+        - Use docx_insert_run() to add formatted text within the paragraph
+        - For headings, use docx_insert_heading() instead
+
+    See Also:
+        - docx_create: Create session for active file
+        - docx_insert_heading: Insert heading paragraphs
+        - docx_insert_run: Add formatted text to paragraph
+        - docx_update_paragraph_text: Modify existing paragraph text
+        - docx_set_alignment: Set paragraph alignment
     """
     from docx_mcp_server.server import session_manager
 
