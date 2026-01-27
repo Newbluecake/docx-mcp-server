@@ -1023,11 +1023,12 @@ class MainWindow(QMainWindow):
 
         # Delayed health check with retries
         self._health_check_retries = 0
-        self._health_check_max_retries = 15  # Max 15 retries (7.5 seconds total)
+        self._health_check_max_retries = 20  # Max 20 retries (10 seconds total)
 
-        # Use longer initial delay (3 seconds) to allow Uvicorn to start
+        # Use longer initial delay (5 seconds) to allow Uvicorn to start
+        # Windows environments may need more time for process initialization
         self.append_log(f"⏳ Waiting for HTTP server to start...")
-        QTimer.singleShot(3000, self._try_health_check)
+        QTimer.singleShot(5000, self._try_health_check)
 
     def _try_health_check(self):
         """T-010: Try to perform health check with retries."""
