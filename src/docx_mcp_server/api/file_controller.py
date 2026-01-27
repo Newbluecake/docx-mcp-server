@@ -67,7 +67,7 @@ class FileController:
 
     @staticmethod
     def switch_file(file_path: str, force: bool = False) -> Dict[str, Any]:
-        """Switch to a new active file.
+        """Switch to a new active file and auto-create session.
 
         This method performs comprehensive checks before switching files:
         1. Path safety validation (prevent path traversal)
@@ -75,13 +75,17 @@ class FileController:
         3. File permissions check (read + write)
         4. File lock check (best effort)
         5. Unsaved changes check (unless force=True)
+        6. Close existing session
+        7. Set new active file
+        8. Auto-create new session (v4.0 feature)
 
         Args:
             file_path: Absolute path to the .docx file
             force: If True, discard unsaved changes without prompting
 
         Returns:
-            dict: Status dictionary with currentFile and sessionId keys
+            dict: Status dictionary with currentFile and sessionId keys.
+                The sessionId is automatically created for the new file.
 
         Raises:
             ValueError: Invalid path format
@@ -144,13 +148,19 @@ class FileController:
 
         # 7. Set new active file (atomic write)
         global_state.active_file = file_path
-        global_state.active_session_id = None
-        logger.debug("Active file and session updated")
 
-        logger.info(f"File switched to: {file_path}")
+        # 8. Auto-create new session (v4.0 feature)
+        session_id = session_manager.create_session(
+            file_path=file_path,
+            auto_save=False  # Default to manual save
+        )
+        global_state.active_session_id = session_id
+        logger.debug(f"Active file and session updated: {file_path} -> {session_id}")
+
+        logger.info(f"File switched and session created: {file_path} -> {session_id}")
         return {
             "currentFile": file_path,
-            "sessionId": None
+            "sessionId": session_id
         }
 
     @staticmethod
