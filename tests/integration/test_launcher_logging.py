@@ -7,8 +7,20 @@ with the new logging and CLI parameter features.
 
 import pytest
 import json
+import os
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication
+from unittest.mock import MagicMock
+
+# Force offscreen platform before creating QApplication
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+# CRITICAL FIX: Mock QMessageBox BEFORE importing MainWindow
+from PyQt6.QtWidgets import QApplication, QMessageBox
+
+QMessageBox.information = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.critical = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.warning = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+
 from docx_server_launcher.gui.main_window import MainWindow
 from docx_server_launcher.core.config_manager import ConfigManager
 
@@ -20,17 +32,31 @@ def app(qtbot):
 
 
 @pytest.fixture
-def main_window(qtbot, app):
+def main_window(qtbot, app, request):
     """Create MainWindow instance."""
     window = MainWindow()
+
+    # CRITICAL FIX: Mock wait methods to prevent QEventLoop blocking
+    window._wait_for_server_stop = MagicMock(return_value=True)
+    window._wait_for_server_start = MagicMock(return_value=True)
+
     qtbot.addWidget(window)
+
+    # Add explicit cleanup
+    def cleanup():
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+
+    request.addfinalizer(cleanup)
+
     return window
 
 
 class TestCLIParamsPersistence:
     """Test CLI parameters persistence across sessions."""
 
-    def test_save_and_load_cli_params(self, main_window, qtbot):
+    def test_save_and_load_cli_params(self, main_window, qtbot, app):
         """Test that CLI parameters are saved and loaded correctly."""
         # Set CLI parameters
         main_window.model_checkbox.setChecked(True)
@@ -46,18 +72,23 @@ class TestCLIParamsPersistence:
         # Create new window to test loading
         new_window = MainWindow()
         qtbot.addWidget(new_window)
-        new_window.load_cli_params()
+        try:
+            new_window.load_cli_params()
 
-        # Verify parameters were loaded
-        assert new_window.model_checkbox.isChecked()
-        assert new_window.model_combo.currentText() == "opus"
-        assert new_window.agent_checkbox.isChecked()
-        assert new_window.agent_input.text() == "reviewer"
-        assert new_window.verbose_checkbox.isChecked()
-        assert not new_window.debug_checkbox.isChecked()
+            # Verify parameters were loaded
+            assert new_window.model_checkbox.isChecked()
+            assert new_window.model_combo.currentText() == "opus"
+            assert new_window.agent_checkbox.isChecked()
+            assert new_window.agent_input.text() == "reviewer"
+            assert new_window.verbose_checkbox.isChecked()
+            assert not new_window.debug_checkbox.isChecked()
 
-        # Cleanup
-        new_window.config_manager.clear_cli_params()
+            # Cleanup
+            new_window.config_manager.clear_cli_params()
+        finally:
+            new_window.close()
+            new_window.deleteLater()
+            app.processEvents()
 
     def test_build_cli_params_from_checkboxes(self, main_window):
         """Test building CLI parameters string from checkboxes."""

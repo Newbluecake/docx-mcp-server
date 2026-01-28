@@ -6,9 +6,20 @@ These tests verify the end-to-end integration of CLILauncher with the GUI.
 
 import pytest
 import subprocess
+import os
 from unittest.mock import patch, MagicMock
-from PyQt6.QtWidgets import QApplication
+
+# Force offscreen platform before creating QApplication
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+# CRITICAL FIX: Mock QMessageBox BEFORE importing MainWindow
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QSettings
+
+QMessageBox.information = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.critical = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.warning = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+
 from docx_server_launcher.gui.main_window import MainWindow
 from docx_server_launcher.core.cli_launcher import CLILauncher
 
@@ -29,8 +40,16 @@ class TestCLILaunchIntegration:
     def test_cli_launcher_initialized_in_main_window(self, qapp):
         """Test that CLILauncher is properly initialized."""
         window = MainWindow()
-        assert hasattr(window, "cli_launcher")
-        assert isinstance(window.cli_launcher, CLILauncher)
+        # CRITICAL FIX: Mock wait methods to prevent QEventLoop blocking
+        window._wait_for_server_stop = MagicMock(return_value=True)
+        window._wait_for_server_start = MagicMock(return_value=True)
+        try:
+            assert hasattr(window, "cli_launcher")
+            assert isinstance(window.cli_launcher, CLILauncher)
+        finally:
+            window.close()
+            window.deleteLater()
+            qapp.processEvents()
 
     def test_settings_persistence_integration(self, qapp, tmp_path):
         """Test that CLI params persist across app restarts."""
@@ -39,18 +58,34 @@ class TestCLILaunchIntegration:
 
         # First window: set and save params
         window1 = MainWindow()
-        window1.settings = QSettings(settings_file, QSettings.Format.IniFormat)
-        test_params = "--model haiku --fast"
-        window1.cli_params_input.setText(test_params)
-        window1.save_settings()
+        # CRITICAL FIX: Mock wait methods to prevent QEventLoop blocking
+        window1._wait_for_server_stop = MagicMock(return_value=True)
+        window1._wait_for_server_start = MagicMock(return_value=True)
+        try:
+            window1.settings = QSettings(settings_file, QSettings.Format.IniFormat)
+            test_params = "--model haiku --fast"
+            window1.cli_params_input.setText(test_params)
+            window1.save_settings()
+        finally:
+            window1.close()
+            window1.deleteLater()
+            qapp.processEvents()
 
         # Second window: load params
         window2 = MainWindow()
-        window2.settings = QSettings(settings_file, QSettings.Format.IniFormat)
-        window2.load_settings()
+        # CRITICAL FIX: Mock wait methods to prevent QEventLoop blocking
+        window2._wait_for_server_stop = MagicMock(return_value=True)
+        window2._wait_for_server_start = MagicMock(return_value=True)
+        try:
+            window2.settings = QSettings(settings_file, QSettings.Format.IniFormat)
+            window2.load_settings()
 
-        # Verify params were loaded
-        assert window2.cli_params_input.text() == test_params
+            # Verify params were loaded
+            assert window2.cli_params_input.text() == test_params
+        finally:
+            window2.close()
+            window2.deleteLater()
+            qapp.processEvents()
 
 
 class TestCLILauncherEndToEnd:

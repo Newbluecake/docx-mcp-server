@@ -1,34 +1,66 @@
 import pytest
 import sys
+import os
+from unittest.mock import patch, MagicMock
+
+# Force offscreen platform before creating QApplication
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+# CRITICAL FIX: Mock QMessageBox BEFORE importing MainWindow
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QTimer
-from unittest.mock import patch, MagicMock
+
+QMessageBox.information = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.critical = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+QMessageBox.warning = MagicMock(return_value=QMessageBox.StandardButton.Ok)
+
 from docx_server_launcher.gui.main_window import MainWindow
 
 # Skip GUI tests if running in headless environment without display
 # (Though xvfb/offscreen platform plugin handles this usually)
 
 @pytest.fixture
-def app(qtbot):
+def app(qtbot, request):
     """Create the main window for testing."""
     # Ensure QApplication exists
-    if not QApplication.instance():
+    qapp = QApplication.instance()
+    if not qapp:
         qapp = QApplication(sys.argv)
 
-    with patch("docx_server_launcher.gui.main_window.QSettings") as mock_settings:
-        # Mock settings to avoid file I/O during tests
-        settings_instance = MagicMock()
-        mock_settings.return_value = settings_instance
+    # Start the patch
+    patcher = patch("docx_server_launcher.gui.main_window.QSettings")
+    mock_settings = patcher.start()
 
-        # Configure side_effect to return defaults based on key
-        def get_setting(key, default=None, type=None):
-            return default
+    # Mock settings to avoid file I/O during tests
+    settings_instance = MagicMock()
+    mock_settings.return_value = settings_instance
 
-        settings_instance.value.side_effect = get_setting
+    # Configure side_effect to return defaults based on key
+    def get_setting(key, default=None, type=None):
+        return default
 
-        window = MainWindow()
-        qtbot.addWidget(window)
-        return window
+    settings_instance.value.side_effect = get_setting
+
+    window = MainWindow()
+
+    # CRITICAL FIX: Mock wait methods to prevent QEventLoop blocking
+    window._wait_for_server_stop = MagicMock(return_value=True)
+    window._wait_for_server_start = MagicMock(return_value=True)
+
+    qtbot.addWidget(window)
+
+    # Add explicit cleanup
+    def cleanup():
+        try:
+            window.close()
+            window.deleteLater()
+            qapp.processEvents()
+        finally:
+            patcher.stop()
+
+    request.addfinalizer(cleanup)
+
+    return window
 
 def test_command_display_initial_state(app):
     """Test the initial state of the command display."""
@@ -89,8 +121,14 @@ def test_command_update_on_extra_params(app, qtbot):
 
 def test_copy_command(app, qtbot):
     """Test copy button functionality."""
-    # Mock clipboard
-    with patch.object(QApplication, "clipboard") as mock_clipboard:
+    # Force update command display first
+    app._update_timer.stop()
+    app._do_update_command_display()
+
+    # Mock clipboard, QTimer, and QMessageBox
+    with patch.object(QApplication, "clipboard") as mock_clipboard, \
+         patch("docx_server_launcher.gui.main_window.QTimer") as mock_timer, \
+         patch("docx_server_launcher.gui.main_window.QMessageBox") as mock_msgbox:
         clipboard_instance = MagicMock()
         mock_clipboard.return_value = clipboard_instance
 
@@ -104,6 +142,9 @@ def test_copy_command(app, qtbot):
         # Check visual feedback
         assert app.copy_btn.text() == "Copied!"
         assert not app.copy_btn.isEnabled()
+
+        # Verify QTimer.singleShot was called
+        assert mock_timer.singleShot.called
 
 def test_copy_button_reset(app, qtbot):
     """Test that copy button resets after timeout."""
