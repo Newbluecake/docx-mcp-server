@@ -2,94 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2026-01-26
+## [0.2.0] - 2026-01-28
 
 ### 💥 Breaking Changes
 
-- **Removed Auto-Launch**: The "Launch Claude" button and automatic process management have been removed to improve reliability and flexibility. Users now copy the generated command and run it manually in their terminal.
-- **Simplified UI**: Removed legacy CLI parameter checkboxes (--model, --agent, --verbose, --debug) in favor of a single "Additional Parameters" input field.
+- **session**: Removed `file_path` parameter from `docx_create()` - files are now managed globally via Launcher GUI or `--file` CLI parameter
+- **session**: Removed `docx_list_files()` tool - file browsing is now handled by Launcher GUI
+- **session**: Removed `session_id` parameter from all MCP tools - sessions are now managed automatically via global state
 
 ### ✨ Features
 
-- **Command Display**: Added a read-only text field showing the exact Claude CLI command to be executed.
-- **Copy to Clipboard**: Added a "Copy Command" button for one-click copying of the launch command.
-- **Real-time Updates**: Command display updates instantly when server configuration (host/port) changes.
-- **Improved Windows Support**: Generated commands on Windows now correctly use `cmd.exe /c` wrapper.
+#### Session Management (v4.0)
+- **Auto-session creation**: Sessions are automatically created when switching files via API
+- **Global state management**: Simplified session handling with automatic session tracking
+- **Session helper utilities**: New `setup_active_session()` and `teardown_active_session()` for testing
 
-## [0.2.2] - 2026-01-25
+#### Launcher & Server
+- **Dual-port architecture**: Separate HTTP (file management) and MCP (tools) services
+- **FastMCP integration**: Migrated to FastMCP custom routes for better HTTP endpoint handling
+- **Health check system**: Automatic server health monitoring on startup
+- **Status polling**: Real-time server status updates in GUI
+- **File selection UI**: Enhanced file browser with recent files and working directory management
+- **HTTP client with retry**: Robust HTTP communication with automatic retry mechanism
 
-### ✨ Features
+#### API & Tools
+- **REST API endpoints**: New `/api/file/switch`, `/api/file/status`, `/api/session/close` endpoints
+- **Combined transport mode**: Support for `--transport combined` with both HTTP and MCP
+- **File parameter**: New `--file` CLI parameter for specifying active document on startup
+- **Optimized tool docstrings**: Improved descriptions for better Claude AI understanding
 
-- **GUI Launcher CLI Logging Enhancement**: Comprehensive logging and UI improvements for better debugging and user experience.
-  - **Structured Command Logging**: MCP server and Claude CLI startup commands are now logged in structured JSON format with timestamps.
-  - **CLI Parameter Checkboxes**: Added UI checkboxes for common Claude CLI parameters (--model, --agent, --verbose, --debug).
-  - **Configuration Persistence**: CLI parameter selections are automatically saved and restored across sessions using QSettings.
-  - **Error Dialog Copy Button**: Error messages now include a "Copy" button for easy bug reporting.
-  - **Sensitive Information Filtering**: Automatic redaction of API keys, tokens, passwords, and file paths in logs.
-  - **Log File Security**: Log files are created with restrictive permissions (600) for enhanced security.
+### 🐛 Bug Fixes
 
-### 🔧 Technical Improvements
+#### Test Infrastructure
+- Fixed all test failures related to v4.0 session simplification
+- Resolved Qt crash in headless CI environment
+- Fixed Windows path issues in CLI launcher tests
+- Resolved test hanging issues with proper QEventLoop handling
+- Fixed global state isolation in E2E tests
 
-- **New Modules**:
-  - `log_formatter.py`: Standardized log formatting with structured JSON output and sensitive info filtering.
-  - `config_manager.py`: Type-safe QSettings wrapper for CLI parameter persistence.
-- **Enhanced Modules**:
-  - `ServerManager`: Now logs MCP server startup commands in structured format.
-  - `CLILauncher`: Now logs Claude CLI commands with MCP config and extra parameters.
-  - `MainWindow`: Added CLI parameter UI, configuration persistence, and error dialog improvements.
-- **Testing**: 23 new tests (18 unit tests + 5 integration tests) with 100% pass rate.
-- **Deprecation Fixes**: Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)` to avoid deprecation warnings.
+#### Core Fixes
+- **GlobalState deadlock**: Switched to RLock to prevent deadlock in atomic context operations
+- **GUI freeze**: Prevented launcher freeze during server startup with proper threading
+- **Dynamic offset detection**: Fixed content pagination test CI failures
+
+### ♻️ Refactoring
+
+- **Modular tool structure**: Split monolithic server.py into domain-specific tool modules
+- **Unified logging patterns**: Standardized logging and context updates across all MCP tools
+- **Shared logic extraction**: Centralized scope resolution and metadata generation
+- **Position requirement**: All insert tools now require explicit `position` parameter
 
 ### 📚 Documentation
 
-- Updated CHANGELOG.md with new features and improvements.
-- Comprehensive test coverage for all new functionality.
+- **Migration guide**: Comprehensive v2.x → v3.0 → v4.0 migration documentation
+- **Technical design docs**: Detailed architecture and task breakdown for session simplification
+- **MCP tools guide**: Complete usage guide for all 50+ MCP tools
+- **CLAUDE.md updates**: Updated development guide for v4.0 breaking changes
+- **README updates**: Refreshed API reference and examples
 
-## [0.2.1] - 2026-01-24
+### ✅ Tests
 
-### ✨ Features
+- **100% test coverage**: All 488 unit tests passing
+- **Integration tests**: 37 E2E tests updated for v4.0
+- **Test helpers**: New Markdown response extractors for test assertions
+- **CI stability**: Resolved all platform-specific test failures (Windows/macOS/Linux)
 
-- **Special Position IDs**: Added three special position identifiers to simplify consecutive operations.
-  - `last_insert`: References the last inserted element, eliminating the need to extract and pass element IDs in consecutive insertions.
-  - `last_update`: References the last updated element, useful for format copying and batch operations.
-  - `cursor`: References the current cursor position, enabling cursor-based insertions.
-- **Session State Management**: Enhanced session object with `last_insert_id` and `last_update_id` tracking.
-- **Position Resolution**: Extended `resolve_position()` method to handle special IDs with proper initialization checks.
+### 🔧 Technical Details
 
-### 🔧 Technical Improvements
+- **Python 3.12**: Simplified CI matrix to Python 3.12 only
+- **uv migration**: All build scripts now use uv for faster dependency resolution
+- **GUI test isolation**: Proper Qt environment setup for headless CI
+- **Deprecation fixes**: Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)`
 
-- All insertion tools (`docx_insert_*`) now automatically update `last_insert_id`.
-- All update/formatting tools (`docx_update_*`, `docx_set_*`) now automatically update `last_update_id`.
-- New error type `SpecialIdNotInitialized` for better error handling when special IDs are used before initialization.
-- Comprehensive E2E tests covering all special ID scenarios (6 test cases).
-- Updated documentation with usage examples and development guidelines.
-
-### 📚 Documentation
-
-- Added "Special Position IDs" section to README.md with usage examples.
-- Updated CLAUDE.md with development guidelines for special IDs.
-- Added new error type to error classification table.
-
-## [0.2.0] - 2026-01-23
-
-### ✨ Features
-
-- **Table Row/Column Operations**: Added precise table manipulation capabilities.
-  - `docx_insert_row_at()`: Insert rows at specific positions (after:N, before:N, start, end) with optional format copying.
-  - `docx_insert_col_at()`: Insert columns at specific positions with optional format copying.
-  - `docx_delete_row()`: Delete rows by index with automatic element_id cleanup.
-  - `docx_delete_col()`: Delete columns by index with automatic element_id cleanup.
-- **Format Painter Enhancements**: Extended FormatPainter with row/column/cell format copying methods.
-- **Registry Cleaner**: New service for automatic cleanup of invalidated element_ids after deletions.
-- **Enhanced ElementManipulator**: Added low-level XML operations for table row/column manipulation.
-
-### 🔧 Technical Improvements
-
-- All new tools follow standardized JSON response format with status, message, and data fields.
-- Comprehensive error handling with specific error types (ValidationError, IndexError, ElementNotFound).
-- Boundary protection: prevents deletion of last row/column to maintain table integrity.
-- Deep copy of cell XML structure ensures proper namespace preservation during column insertion.
-- 25 comprehensive unit tests covering all scenarios and edge cases.
+**Statistics**: 286 commits since v0.1.3
+- Features: 98 | Bug Fixes: 66 | Documentation: 63 | Tests: 17 | Refactoring: 9 | Chores: 12
 
 ## [0.1.3] - 2026-01-21
 
