@@ -20,10 +20,14 @@ from tests.helpers.markdown_extractors import extract_element_id, is_success, is
 def session_id():
     """Create a test session using the global session_manager."""
     from docx_mcp_server.server import session_manager
+    from docx_mcp_server.core.global_state import global_state
     sid = session_manager.create_session()
+    # Set as active session for v4.0 session simplification
+    global_state.active_session_id = sid
     yield sid
     # Cleanup
     session_manager.close_session(sid)
+    global_state.clear()
 
 
 @pytest.fixture

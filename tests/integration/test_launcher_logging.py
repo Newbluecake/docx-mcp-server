@@ -53,73 +53,10 @@ def main_window(qtbot, app, request):
     return window
 
 
-class TestCLIParamsPersistence:
-    """Test CLI parameters persistence across sessions."""
-
-    def test_save_and_load_cli_params(self, main_window, qtbot, app):
-        """Test that CLI parameters are saved and loaded correctly."""
-        # Set CLI parameters
-        main_window.model_checkbox.setChecked(True)
-        main_window.model_combo.setCurrentText("opus")
-        main_window.agent_checkbox.setChecked(True)
-        main_window.agent_input.setText("reviewer")
-        main_window.verbose_checkbox.setChecked(True)
-        main_window.debug_checkbox.setChecked(False)
-
-        # Save settings
-        main_window.save_cli_params()
-
-        # Create new window to test loading
-        new_window = MainWindow()
-        qtbot.addWidget(new_window)
-        try:
-            new_window.load_cli_params()
-
-            # Verify parameters were loaded
-            assert new_window.model_checkbox.isChecked()
-            assert new_window.model_combo.currentText() == "opus"
-            assert new_window.agent_checkbox.isChecked()
-            assert new_window.agent_input.text() == "reviewer"
-            assert new_window.verbose_checkbox.isChecked()
-            assert not new_window.debug_checkbox.isChecked()
-
-            # Cleanup
-            new_window.config_manager.clear_cli_params()
-        finally:
-            new_window.close()
-            new_window.deleteLater()
-            app.processEvents()
-
-    def test_build_cli_params_from_checkboxes(self, main_window):
-        """Test building CLI parameters string from checkboxes."""
-        # Set some parameters
-        main_window.model_checkbox.setChecked(True)
-        main_window.model_combo.setCurrentText("opus")
-        main_window.verbose_checkbox.setChecked(True)
-
-        # Build params string
-        params = main_window.build_cli_params_from_checkboxes()
-
-        # Verify
-        assert "--model opus" in params
-        assert "--verbose" in params
-        assert "--agent" not in params  # Not checked
-
-    def test_checkbox_enables_input(self, main_window, qtbot):
-        """Test that checking a checkbox enables its input widget."""
-        # Initially disabled
-        assert not main_window.model_combo.isEnabled()
-        assert not main_window.agent_input.isEnabled()
-
-        # Check model checkbox
-        main_window.model_checkbox.setChecked(True)
-        qtbot.wait(10)  # Wait for signal processing
-        assert main_window.model_combo.isEnabled()
-
-        # Check agent checkbox
-        main_window.agent_checkbox.setChecked(True)
-        qtbot.wait(10)
-        assert main_window.agent_input.isEnabled()
+# NOTE: TestCLIParamsPersistence tests removed as the CLI parameter checkbox
+# features (model_checkbox, agent_checkbox, etc.) were removed from MainWindow
+# in favor of a simpler command-line interface. These features are no longer
+# part of the GUI and the tests are obsolete.
 
 
 class TestErrorDialogCopy:

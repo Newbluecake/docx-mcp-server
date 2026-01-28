@@ -23,7 +23,7 @@ from docx_mcp_server.tools.history_tools import (
 
 def test_docx_log():
     """Test getting commit log."""
-    setup_active_session()
+    session_id = setup_active_session()
     try:
         # Create some commits by making changes
         from docx_mcp_server.server import session_manager
@@ -49,7 +49,7 @@ def test_docx_log():
 
 def test_docx_rollback():
     """Test rollback functionality."""
-    setup_active_session()
+    session_id = setup_active_session()
     try:
         from docx_mcp_server.server import session_manager
         session = session_manager.get_session(session_id)
@@ -77,7 +77,7 @@ def test_docx_rollback():
 
 def test_docx_checkout():
     """Test checkout functionality."""
-    setup_active_session()
+    session_id = setup_active_session()
     try:
         from docx_mcp_server.server import session_manager
         session = session_manager.get_session(session_id)
