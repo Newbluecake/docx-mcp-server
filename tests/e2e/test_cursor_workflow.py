@@ -21,7 +21,7 @@ def _extract(response):
 
 def test_cursor_workflow():
     # 1. Create session
-    setup_active_session()
+    session_id = setup_active_session()
     # 2. Add initial content (Para 1, Para 2, Para 3)
     p1_resp = docx_insert_paragraph("Paragraph 1", position="end:document_body")
     p1 = _extract(p1_resp)["element_id"]
@@ -71,7 +71,7 @@ def test_cursor_workflow():
     assert "P: Paragraph 3" in content_log[5]
 
 def test_cursor_inside_container():
-    setup_active_session()
+    session_id = setup_active_session()
     # Create a table
     t1_resp = docx_insert_table(1, 1, position="end:document_body")
     t1 = _extract(t1_resp)["element_id"]

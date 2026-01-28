@@ -55,40 +55,50 @@ def test_replace_text_split_runs():
 
 def test_docx_insert_image():
     with patch("os.path.exists", return_value=True):
-        sid = extract_session_id(docx_create())
-        # Mock add_picture on run
-        with patch("docx.text.run.Run.add_picture") as mock_add_pic:
-             # Insert
-             r_response = docx_insert_image(sid, "/tmp/image.png", width=2.0, position="end:document_body")
-             r_id = extract_element_id(r_response)
+        setup_active_session()
+        try:
+            from docx_mcp_server.core.global_state import global_state
+            sid = global_state.active_session_id
+            # Mock add_picture on run
+            with patch("docx.text.run.Run.add_picture") as mock_add_pic:
+                 # Insert
+                 r_response = docx_insert_image("/tmp/image.png", width=2.0, position="end:document_body")
+                 r_id = extract_element_id(r_response)
 
-             assert r_id.startswith("run_") or r_id.startswith("para_") # Our implementation returns para_id by default if parent not specified
+                 assert r_id.startswith("run_") or r_id.startswith("para_") # Our implementation returns para_id by default if parent not specified
 
-             # Verify session update
-             session = session_manager.get_session(sid)
-             clean_id = r_id.strip().split()[0]
-             assert session.last_created_id == clean_id
+                 # Verify session update
+                 session = session_manager.get_session(sid)
+                 clean_id = r_id.strip().split()[0]
+                 assert session.last_created_id == clean_id
+        finally:
+            teardown_active_session()
 
 def test_context_and_delete():
-    sid = extract_session_id(docx_create())
-    session = session_manager.get_session(sid)
+    setup_active_session()
+    try:
+        from docx_mcp_server.core.global_state import global_state
+        sid = global_state.active_session_id
+        session = session_manager.get_session(sid)
 
-    # Check context
-    ctx = docx_get_context(sid)
-    assert extract_metadata_field(ctx, "last_created_id") is not None
+        # Check context
+        ctx = docx_get_context()
+        assert extract_metadata_field(ctx, "last_created_id") is not None
 
-    # Delete something
-    # Mock an object with _element for deletion logic
-    mock_obj = MagicMock()
-    mock_xml = MagicMock()
-    mock_parent = MagicMock()
-    mock_xml.getparent.return_value = mock_parent
-    mock_obj._element = mock_xml
+        # Delete something
+        # Mock an object with _element for deletion logic
+        mock_obj = MagicMock()
+        mock_xml = MagicMock()
+        mock_parent = MagicMock()
+        mock_xml.getparent.return_value = mock_parent
+        mock_obj._element = mock_xml
 
-    session.object_registry["obj_1"] = mock_obj
+        session.object_registry["obj_1"] = mock_obj
 
-    docx_delete(sid, "obj_1")
+        docx_delete("obj_1")
 
-    # Verify removal
-    mock_parent.remove.assert_called_with(mock_xml)
-    assert "obj_1" not in session.object_registry
+        # Verify removal
+        mock_parent.remove.assert_called_with(mock_xml)
+        assert "obj_1" not in session.object_registry
+    finally:
+        teardown_active_session()

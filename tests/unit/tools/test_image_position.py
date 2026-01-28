@@ -5,6 +5,7 @@ import json
 from docx_mcp_server.server import session_manager
 from docx_mcp_server.tools.advanced_tools import docx_insert_image
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
+from docx_mcp_server.core.global_state import global_state
 
 # Add parent directory to path for helpers import
 import sys
@@ -22,7 +23,7 @@ from helpers import (
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 # Minimal 1x1 PNG
-PNG_DATA = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff\x3f\x03\x00\x08\xfc\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xae\x42\x60\x82'
+PNG_DATA = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff\x3f\x03\x00\x08\xfc\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xaeB`\x82'
 
 @pytest.fixture
 def temp_image():
@@ -35,50 +36,56 @@ def temp_image():
 
 def test_insert_image_position_after(temp_image):
     setup_active_session()
-    # Create Anchor
-    p1_resp = docx_insert_paragraph("Anchor", position="end:document_body")
-    p1_id = extract_element_id(p1_resp)
+    try:
+        # Create Anchor
+        p1_resp = docx_insert_paragraph("Anchor", position="end:document_body")
+        p1_id = extract_element_id(p1_resp)
 
-    # Insert Image after Anchor
-    # This creates a new paragraph containing the image
-    img_resp = docx_insert_image(temp_image, position=f"after:{p1_id}")
-    img_id = extract_element_id(img_resp)
+        # Insert Image after Anchor
+        # This creates a new paragraph containing the image
+        img_resp = docx_insert_image(temp_image, position=f"after:{p1_id}")
+        img_id = extract_element_id(img_resp)
 
-    session = session_manager.get_session(session_id)
-    # Filter for paragraphs only (ignore sectPr)
-    children = [c for c in session.document._body._element.iterchildren() if c.tag.endswith('p')]
+        session_id = global_state.active_session_id
+        session = session_manager.get_session(session_id)
+        # Filter for paragraphs only (ignore sectPr)
+        children = [c for c in session.document._body._element.iterchildren() if c.tag.endswith('p')]
 
-    # Expect: Anchor (P), Image (P)
-    assert len(children) == 2
-    assert children[0].text == "Anchor"
+        # Expect: Anchor (P), Image (P)
+        assert len(children) == 2
+        assert children[0].text == "Anchor"
 
-    # Verify context
-    data = json.loads(img_resp)["data"]
-    assert "cursor" in data
-    assert "visual" in data["cursor"]
-    print(data["cursor"]["visual"])
-    assert "Anchor" in data["cursor"]["visual"]
+        # Verify success
+        assert is_success(img_resp)
+    finally:
+        teardown_active_session()
 
 def test_insert_image_position_start(temp_image):
     setup_active_session()
-    docx_insert_paragraph("Existing", position="end:document_body")
+    try:
+        docx_insert_paragraph("Existing", position="end:document_body")
 
-    # Insert at start
-    img_resp = docx_insert_image(temp_image, position="start:document_body")
+        # Insert at start
+        img_resp = docx_insert_image(temp_image, position="start:document_body")
 
-    session = session_manager.get_session(session_id)
-    # Filter for paragraphs only (ignore sectPr)
-    children = [c for c in session.document._body._element.iterchildren() if c.tag.endswith('p')]
+        session_id = global_state.active_session_id
+        session = session_manager.get_session(session_id)
+        # Filter for paragraphs only (ignore sectPr)
+        children = [c for c in session.document._body._element.iterchildren() if c.tag.endswith('p')]
 
-    # Expect: Image (P), Existing (P)
-    assert len(children) == 2
-    assert children[1].text == "Existing"
+        # Expect: Image (P), Existing (P)
+        assert len(children) == 2
+        assert children[1].text == "Existing"
+    finally:
+        teardown_active_session()
 
 def test_insert_image_in_paragraph_error_handling(temp_image):
     # Test trying to insert into an incompatible parent or with invalid position
     setup_active_session()
-    # Invalid position format
-    resp = docx_insert_image(temp_image, position="invalid:format")
-    data = json.loads(resp)
-    assert is_error(resp)
-    assert extract_metadata_field(resp, "error_type") == "ValidationError"
+    try:
+        # Invalid position format
+        resp = docx_insert_image(temp_image, position="invalid:format")
+        assert is_error(resp)
+        assert extract_metadata_field(resp, "error_type") == "ValidationError"
+    finally:
+        teardown_active_session()

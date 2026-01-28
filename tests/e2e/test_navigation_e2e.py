@@ -11,7 +11,9 @@ from tests.helpers import (
 import json
 import tempfile
 import os
-from docx_mcp_server.server import docx_save, docx_close, session_manager
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.server import session_manager
 from docx_mcp_server.tools.paragraph_tools import docx_insert_heading, docx_insert_paragraph
 from docx_mcp_server.tools.table_tools import docx_insert_table
 from docx_mcp_server.tools.advanced_tools import docx_insert_image
@@ -79,6 +81,8 @@ def test_complex_navigation_scenario(temp_image):
     img_data = _extract(docx_insert_image(temp_image, position="start:document_body"))
 
     # --- Verification ---
+    from docx_mcp_server.core.global_state import global_state
+    session_id = global_state.active_session_id
     session = session_manager.get_session(session_id)
     # Get all block-level elements (paragraphs and tables)
     body_elements = list(session.document._body._element.iterchildren())

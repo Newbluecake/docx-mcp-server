@@ -17,6 +17,10 @@ from helpers import (
 
 
 def test_session_id_short_length():
-    sid = extract_session_id(docx_create())
-    assert len(sid) <= 12
-    docx_close(sid)
+    setup_active_session()
+    try:
+        from docx_mcp_server.core.global_state import global_state
+        sid = global_state.active_session_id
+        assert len(sid) <= 12
+    finally:
+        teardown_active_session()

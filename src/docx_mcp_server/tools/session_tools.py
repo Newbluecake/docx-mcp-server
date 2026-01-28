@@ -47,7 +47,7 @@ def docx_switch_session(session_id: str) -> str:
     from docx_mcp_server.server import session_manager
     from docx_mcp_server.core.global_state import global_state
 
-    logger.info(f"docx_switch_session called: session_id={session.session_id}")
+    logger.info(f"docx_switch_session called: session_id={session_id}")
 
     session = session_manager.get_session(session_id)
     if not session:

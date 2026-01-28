@@ -101,7 +101,6 @@ def test_extract_template_structure_with_limits():
         # Extract with limits
         limits = json.dumps({"headings": 2, "paragraphs": 0, "tables": 1})
         structure_json = docx_extract_template_structure(
-            session_id,
             max_items_per_type=limits,
             include_content=False
         )
@@ -130,7 +129,6 @@ def test_extract_template_structure_no_content():
         docx_insert_paragraph("Long paragraph content" * 100, position="end:document_body")
 
         structure_json = docx_extract_template_structure(
-            session_id,
             include_content=False
         )
 

@@ -8,15 +8,16 @@ from tests.helpers import (
     is_success,
     is_error
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 import json
 import os
-from docx_mcp_server.server import (
-    docx_save, docx_close,
-    docx_insert_heading, docx_insert_paragraph, docx_insert_run, docx_set_font,
-    docx_copy_paragraph, docx_copy_elements_range,
-    docx_extract_format_template, docx_apply_format_template,
-    docx_batch_replace_text, docx_read_content
-)
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.paragraph_tools import docx_insert_heading, docx_insert_paragraph, docx_copy_paragraph
+from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
+from docx_mcp_server.tools.copy_tools import docx_copy_elements_range
+from docx_mcp_server.tools.format_tools import docx_extract_format_template, docx_apply_format_template
+from docx_mcp_server.tools.advanced_tools import docx_batch_replace_text
+from docx_mcp_server.tools.content_tools import docx_read_content
 
 def _extract(response):
     if not is_success(response):
@@ -48,7 +49,7 @@ def test_format_copy_system_workflow(tmp_path):
     """
     # 1. Setup
     output_file = tmp_path / "e2e_format_copy.docx"
-    setup_active_session()
+    session_id = setup_active_session()
     # --- Step 1: Create Template Content ---
     # Heading 1
     h1_resp = docx_insert_heading("Template Section", position="end:document_body", level=1)

@@ -16,9 +16,12 @@ def client():
     from starlette.applications import Starlette
     from starlette.routing import Route
     from starlette.responses import JSONResponse
-    from docx_mcp_server.api.file_controller import FileController
+    from docx_mcp_server.api.file_controller import FileController, set_session_manager
     from docx_mcp_server.core.global_state import global_state
     from docx_mcp_server.server import session_manager, VERSION
+
+    # Initialize the file controller with session manager (required for v4.0)
+    set_session_manager(session_manager, VERSION)
 
     # Create a simple Starlette app with just the API routes
     async def health(request):
@@ -95,10 +98,17 @@ def client():
 
 @pytest.fixture
 def temp_docx():
-    """Create a temporary .docx file for testing."""
+    """Create a temporary valid .docx file for testing."""
+    from docx import Document
+
+    # Create a valid .docx file using python-docx
+    doc = Document()
+    doc.add_paragraph("Test content")
+
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-        f.write(b"PK")  # Minimal ZIP signature
         temp_path = f.name
+
+    doc.save(temp_path)
 
     yield temp_path
 
@@ -129,7 +139,8 @@ class TestSwitchFileEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["currentFile"] == temp_docx
-        assert data["sessionId"] is None
+        # v4.0: switch_file() auto-creates session
+        assert data["sessionId"] is not None
 
     def test_switch_file_not_found(self, client):
         """Test switching to non-existent file."""
@@ -239,7 +250,8 @@ class TestGetStatusEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["currentFile"] == temp_docx
-        assert data["sessionId"] is None
+        # v4.0: switch_file() auto-creates session
+        assert data["sessionId"] is not None
 
     def test_get_status_response_structure(self, client):
         """Test that /api/status returns correct structure."""

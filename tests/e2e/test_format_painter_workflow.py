@@ -7,20 +7,15 @@ from tests.helpers import (
     is_success,
     is_error
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 import os
 import json
-from docx_mcp_server.server import (
-    docx_insert_paragraph,
-    docx_insert_run,
-    docx_set_font,
-    docx_set_alignment,
-    docx_format_copy,
-    docx_insert_table,
-    docx_get_cell,
-    docx_save,
-    docx_close,
-    session_manager
-)
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
+from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
+from docx_mcp_server.tools.format_tools import docx_set_alignment, docx_format_copy
+from docx_mcp_server.tools.table_tools import docx_insert_table, docx_get_cell
+from docx_mcp_server.server import session_manager
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
@@ -32,11 +27,10 @@ def _extract(response):
 @pytest.fixture
 def session_id():
     # Setup
-    session_response = docx_create(auto_save=False)
-    sid = extract_session_id(session_response)
+    sid = setup_active_session()
     yield sid
     # Teardown
-    docx_close(sid)
+    teardown_active_session()
     if os.path.exists("test_format_painter_e2e.docx"):
         os.remove("test_format_painter_e2e.docx")
 

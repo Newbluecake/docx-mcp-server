@@ -6,6 +6,7 @@ from docx_mcp_server.utils.copy_engine import CopyEngine
 from docx_mcp_server.utils.metadata_tools import MetadataTools
 from docx_mcp_server.services.navigation import PositionResolver
 from docx_mcp_server.core.xml_util import ElementManipulator
+from docx_mcp_server.utils.session_helpers import get_active_session
 
 logger = logging.getLogger(__name__)
 

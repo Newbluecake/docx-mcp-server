@@ -6,18 +6,13 @@ import tempfile
 import json
 from docx import Document
 from tests.helpers import extract_session_id, extract_element_id
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from docx_mcp_server.server import (
-    docx_insert_paragraph,
-    docx_insert_run,
-    docx_set_font,
-    docx_update_paragraph_text,
-    docx_update_run_text,
-    docx_save,
-    docx_close
-)
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_update_paragraph_text
+from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font, docx_update_run_text
 
 def test_update_text_e2e():
     """Test text updates and verify in saved document."""
@@ -26,7 +21,7 @@ def test_update_text_e2e():
 
     try:
         # Create session
-        setup_active_session()
+        session_id = setup_active_session()
         # Create original content
         result = docx_insert_paragraph("Original paragraph 1", position="end:document_body")
         para1_id = extract_element_id(result)

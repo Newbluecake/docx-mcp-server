@@ -13,13 +13,9 @@ from tests.helpers import (
 import os
 import json
 from docx import Document
-from docx_mcp_server.server import (
-    docx_save,
-    docx_read_content,
-    docx_find_paragraphs,
-    docx_insert_run,
-    docx_set_font
-)
+from docx_mcp_server.tools.session_tools import docx_save
+from docx_mcp_server.tools.content_tools import docx_read_content, docx_find_paragraphs
+from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
 
 class TestLoadEditE2E:
     def test_full_workflow(self, tmp_path):
@@ -32,7 +28,7 @@ class TestLoadEditE2E:
         doc.save(str(initial_doc_path))
 
         # 2. Load the document
-        session_response = create_session_with_file(str(initial_doc_path))
+        session_id = create_session_with_file(str(initial_doc_path))
         assert session_id is not None
 
         # 3. Read content to confirm

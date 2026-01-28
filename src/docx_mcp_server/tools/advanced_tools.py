@@ -10,6 +10,7 @@ from docx_mcp_server.core.response import (
     create_markdown_response,
     create_error_response
 )
+from docx_mcp_server.utils.session_helpers import get_active_session
 
 from docx_mcp_server.services.navigation import PositionResolver, ContextBuilder
 from docx_mcp_server.core.xml_util import ElementManipulator

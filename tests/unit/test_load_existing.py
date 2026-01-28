@@ -27,9 +27,11 @@ class TestLoadExisting:
         doc.add_paragraph("Existing Content")
         doc.save(str(file_path))
 
-        # Test: Load it via docx_create
-        session_response = create_session_with_file(str(file_path))
+        # Test: Load it via create_session_with_file
+        session_id = create_session_with_file(str(file_path))
+        # create_session_with_file returns session_id string directly
         assert session_id is not None
+        assert len(session_id) > 0
 
         # Verify content can be read (using our new tool later, or just save and check)
         # For now, let's verify we can add to it and save
@@ -44,16 +46,22 @@ class TestLoadExisting:
         assert "Existing Content" in texts
         assert "New Content" in texts
 
+        teardown_active_session()
+
     def test_create_with_nonexistent_file(self, tmp_path):
         # Test that creating a session with a non-existent file creates a new document
         # intended to be saved to that path later.
         target_path = tmp_path / "new_doc.docx"
-        session_response = create_session_with_file(str(target_path))
+        session_id = create_session_with_file(str(target_path))
+        # create_session_with_file returns session_id string directly
         assert session_id is not None
+        assert len(session_id) > 0
 
         # Verify it's an empty document (or default styles)
         content = docx_read_content()
         assert content == "[Empty Document]"
+
+        teardown_active_session()
 
     def test_read_content(self, tmp_path):
         # Setup
@@ -63,11 +71,13 @@ class TestLoadExisting:
         doc.add_paragraph("Line 2")
         doc.save(str(file_path))
 
-        session_response = create_session_with_file(str(file_path))
+        session_id = create_session_with_file(str(file_path))
         # Test read
         content = docx_read_content()
         assert "Line 1" in content
         assert "Line 2" in content
+
+        teardown_active_session()
 
     def test_find_paragraphs(self, tmp_path):
         # Setup
@@ -78,7 +88,7 @@ class TestLoadExisting:
         doc.add_paragraph("Last paragraph")
         doc.save(str(file_path))
 
-        session_response = create_session_with_file(str(file_path))
+        session_id = create_session_with_file(str(file_path))
         # Test find
         result_json = docx_find_paragraphs("Target")
         matches = json.loads(result_json)
@@ -96,3 +106,5 @@ class TestLoadExisting:
         result_json = docx_find_paragraphs("target")
         matches = json.loads(result_json)
         assert len(matches) == 1
+
+        teardown_active_session()

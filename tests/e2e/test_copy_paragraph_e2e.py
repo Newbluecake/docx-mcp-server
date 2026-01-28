@@ -7,18 +7,14 @@ import json
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from tests.helpers import extract_session_id, extract_element_id
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from docx_mcp_server.server import (
-    docx_insert_paragraph,
-    docx_insert_run,
-    docx_set_font,
-    docx_set_alignment,
-    docx_copy_paragraph,
-    docx_save,
-    docx_close
-)
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_copy_paragraph
+from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
+from docx_mcp_server.tools.format_tools import docx_set_alignment
 
 def _extract(response):
     # Updated to handle Markdown response
@@ -36,7 +32,7 @@ def test_copy_paragraph_e2e():
 
     try:
         # Create session
-        setup_active_session()
+        session_id = setup_active_session()
         # Create original paragraph with formatting
         p1_resp = docx_insert_paragraph("", position="end:document_body")
         para1_id = _extract(p1_resp)["element_id"]

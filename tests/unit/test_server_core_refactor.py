@@ -35,73 +35,79 @@ def _extract_element_id(response):
         return response
 
 
-def _extract_session_id(response):
-    """Extract session_id from Markdown response."""
-    sid = extract_session_id(response)
-    return sid
-
-
 def test_create_with_autosave(tmp_path):
     test_file = str(tmp_path / "test.docx")
     with patch("docx_mcp_server.core.session.Document") as mock_doc:
-        response = create_session_with_file(test_file, auto_save=True)
-        sid = _extract_session_id(response)
+        sid = create_session_with_file(test_file, auto_save=True)
         assert sid is not None
         session = session_manager.get_session(sid)
         assert session.auto_save is True
         assert session.file_path == test_file
+        teardown_active_session()
 
 def test_implicit_context_flow():
     # 1. Create session
-    response = setup_active_session()
-    sid = _extract_session_id(response)
-    assert sid is not None
-    session = session_manager.get_session(sid)
+    setup_active_session()
+    try:
+        from docx_mcp_server.core.global_state import global_state
+        sid = global_state.active_session_id
+        assert sid is not None
+        session = session_manager.get_session(sid)
 
-    # 2. Add paragraph (should set last_created_id)
-    p_response = docx_insert_paragraph(sid, "Hello", position="end:document_body")
-    p_id = _extract_element_id(p_response)
-    clean_id = p_id.strip().split()[0]
-    assert session.last_created_id == clean_id
+        # 2. Add paragraph (should set last_created_id)
+        p_response = docx_insert_paragraph("Hello", position="end:document_body")
+        p_id = _extract_element_id(p_response)
+        clean_id = p_id.strip().split()[0]
+        assert session.last_created_id == clean_id
 
-    # 3. Add run using explicit position
-    r_response = docx_insert_run(sid, " World", position=f"inside:{p_id}")
-    r_id = _extract_element_id(r_response)
-    clean_rid = r_id.strip().split()[0]
-    assert session.last_accessed_id == clean_rid
+        # 3. Add run using explicit position
+        r_response = docx_insert_run(" World", position=f"inside:{p_id}")
+        r_id = _extract_element_id(r_response)
+        clean_rid = r_id.strip().split()[0]
+        assert session.last_accessed_id == clean_rid
 
-    # Verify run was added to paragraph
-    para_obj = session.get_object(p_id)
-    assert len(para_obj.runs) == 2 # "Hello" + " World" (first run created by add_paragraph)
+        # Verify run was added to paragraph
+        para_obj = session.get_object(p_id)
+        assert len(para_obj.runs) == 2 # "Hello" + " World" (first run created by add_paragraph)
+    finally:
+        teardown_active_session()
 
 def test_set_properties_flow():
-    response = setup_active_session()
-    sid = _extract_session_id(response)
-    p_response = docx_insert_paragraph(sid, "Test Prop", position="end:document_body")
-    p_id = _extract_element_id(p_response)
-    assert sid is not None
+    setup_active_session()
+    try:
+        from docx_mcp_server.core.global_state import global_state
+        sid = global_state.active_session_id
+        p_response = docx_insert_paragraph("Test Prop", position="end:document_body")
+        p_id = _extract_element_id(p_response)
+        assert sid is not None
 
-    # Set alignment via properties
-    props = json.dumps({
-        "paragraph_format": {"alignment": "center"}
-    })
-    docx_set_properties(sid, props, element_id=p_id)
+        # Set alignment via properties
+        props = json.dumps({
+            "paragraph_format": {"alignment": "center"}
+        })
+        docx_set_properties(props, element_id=p_id)
 
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    para_obj = session_manager.get_session(sid).get_object(p_id)
-    assert para_obj.paragraph_format.alignment == WD_ALIGN_PARAGRAPH.CENTER
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        para_obj = session_manager.get_session(sid).get_object(p_id)
+        assert para_obj.paragraph_format.alignment == WD_ALIGN_PARAGRAPH.CENTER
+    finally:
+        teardown_active_session()
 
 def test_set_properties_implicit_context():
-    response = setup_active_session()
-    sid = _extract_session_id(response)
-    assert sid is not None
-    p_response = docx_insert_paragraph(sid, "Context Test", position="end:document_body")
-    p_id = _extract_element_id(p_response)
+    setup_active_session()
+    try:
+        from docx_mcp_server.core.global_state import global_state
+        sid = global_state.active_session_id
+        assert sid is not None
+        p_response = docx_insert_paragraph("Context Test", position="end:document_body")
+        p_id = _extract_element_id(p_response)
 
-    # Implicitly use p_id because it was last created/accessed
-    props = json.dumps({"alignment": "right"}) # Shortcut property
-    docx_set_properties(sid, props) # No element_id
+        # Implicitly use p_id because it was last created/accessed
+        props = json.dumps({"alignment": "right"}) # Shortcut property
+        docx_set_properties(props) # No element_id
 
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    para_obj = session_manager.get_session(sid).get_object(p_id)
-    assert para_obj.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        para_obj = session_manager.get_session(sid).get_object(p_id)
+        assert para_obj.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    finally:
+        teardown_active_session()

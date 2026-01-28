@@ -18,7 +18,8 @@ from tests.helpers import (
     extract_error_message,
     create_session_with_file,
 )
-from tests.helpers.session_helpers import setup_active_session, teardown_active_session, docx_save, docx_close
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
 from docx_mcp_server.tools.format_tools import docx_format_copy
@@ -31,7 +32,7 @@ import os
 def test_consecutive_insertion_with_last_insert():
     """Test simplified consecutive insertion using last_insert special ID."""
     # Create session
-    setup_active_session()
+    session_id = setup_active_session()
     # Insert first paragraph
     p1_resp = docx_insert_paragraph("First paragraph", position="end:document_body")
     assert is_success(p1_resp)
@@ -77,7 +78,7 @@ def test_consecutive_insertion_with_last_insert():
 
 def test_cursor_positioning():
     """Test using cursor for positioning with special IDs."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Insert initial paragraphs
     p1_resp = docx_insert_paragraph("Paragraph 1", position="end:document_body")
     assert is_success(p1_resp)
@@ -108,7 +109,7 @@ def test_cursor_positioning():
 
 def test_format_copy_with_special_ids():
     """Test format copy workflow using last_insert and last_update."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Create source paragraph with formatted run
     p1_resp = docx_insert_paragraph("", position="end:document_body")
     assert is_success(p1_resp)
@@ -152,7 +153,7 @@ def test_format_copy_with_special_ids():
 
 def test_error_recovery_uninitialized_special_ids():
     """Test error handling when using special IDs before initialization."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Try to use last_insert before any insertion
     p1_resp = docx_insert_paragraph("Test", position="after:last_insert")
     assert is_error(p1_resp)
@@ -179,7 +180,7 @@ def test_error_recovery_uninitialized_special_ids():
 
 def test_special_ids_with_file_save():
     """Test that special IDs work correctly with file save operations."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Create content using special IDs
     p1_resp = docx_insert_paragraph("Title", position="end:document_body")
     assert is_success(p1_resp)
@@ -219,8 +220,8 @@ def test_special_ids_with_file_save():
 
         assert len(doc.tables) == 1
 
-        # Cleanup
-        docx_close(session2_id)
+        # Cleanup - close the second session (which is now active)
+        docx_close()
 
     finally:
         # Clean up temp file
@@ -233,7 +234,7 @@ def test_special_ids_with_file_save():
 
 def test_mixed_special_and_explicit_ids():
     """Test mixing special IDs with explicit element IDs."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Insert with explicit position
     p1_resp = docx_insert_paragraph("Paragraph 1", position="end:document_body")
     assert is_success(p1_resp)

@@ -20,25 +20,28 @@ from tests.helpers.session_helpers import setup_active_session, teardown_active_
 def test_docx_batch_replace_tool():
     """Test the batch replace tool via server API."""
     setup_active_session()
-    # Create content
-    docx_insert_paragraph("Hello {NAME}, today is {DAY}.", position="end:document_body")
-    docx_insert_paragraph("Another {NAME} instance.", position="end:document_body")
+    try:
+        # Create content
+        docx_insert_paragraph("Hello {NAME}, today is {DAY}.", position="end:document_body")
+        docx_insert_paragraph("Another {NAME} instance.", position="end:document_body")
 
-    # Prepare replacements
-    replacements = {
-        "{NAME}": "Claude",
-        "{DAY}": "Monday"
-    }
-    replacements_json = json.dumps(replacements)
+        # Prepare replacements
+        replacements = {
+            "{NAME}": "Claude",
+            "{DAY}": "Monday"
+        }
+        replacements_json = json.dumps(replacements)
 
-    # Execute batch replace
-    result = docx_batch_replace_text(replacements_json)
-    assert is_success(result)
-    assert extract_metadata_field(result, "replacements") == 3
+        # Execute batch replace
+        result = docx_batch_replace_text(replacements_json)
+        assert is_success(result)
+        assert extract_metadata_field(result, "replacements") == 3
 
-    # Verify content (using read_content for simplicity, though it loses structure)
-    from docx_mcp_server.server import docx_read_content
-    content = docx_read_content()
+        # Verify content (using read_content for simplicity, though it loses structure)
+        from docx_mcp_server.server import docx_read_content
+        content = docx_read_content()
 
-    assert "Hello Claude, today is Monday." in content
-    assert "Another Claude instance." in content
+        assert "Hello Claude, today is Monday." in content
+        assert "Another Claude instance." in content
+    finally:
+        teardown_active_session()

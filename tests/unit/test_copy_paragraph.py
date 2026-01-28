@@ -101,14 +101,11 @@ def test_copy_paragraph_with_multiple_runs():
     teardown_active_session()
 
 def test_copy_paragraph_invalid_session():
-    """Test copying with invalid session ID."""
-    result = docx_copy_paragraph("invalid_session", "para_123", position="end:document_body")
-    try:
-        data = json.loads(result)
-        assert is_error(result)
-        assert "not found" in data["message"].lower()
-    except (json.JSONDecodeError, KeyError):
-        assert "not found" in result.lower()
+    """Test copying with no active session."""
+    teardown_active_session()
+    result = docx_copy_paragraph("para_123", position="end:document_body")
+    assert is_error(result)
+    assert "NoActiveSession" in result or "no active session" in result.lower()
 
 def test_copy_paragraph_invalid_id():
     """Test copying with invalid paragraph ID."""

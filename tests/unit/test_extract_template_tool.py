@@ -22,50 +22,51 @@ def test_extract_template_structure_integration():
     """Test the MCP tool integration."""
     # Create a session with a simple template
     setup_active_session()
-    # Create the document using the docx API directly
-    from docx_mcp_server.server import session_manager
-    session = session_manager.get_session(session_id)
-    doc = session.document
+    try:
+        # Create the document using the docx API directly
+        from docx_mcp_server.server import session_manager
+        from docx_mcp_server.core.global_state import global_state
+        session = session_manager.get_session(global_state.active_session_id)
+        doc = session.document
 
-    # Add elements
-    doc.add_heading("Test Heading", level=1)
-    doc.add_paragraph("Test paragraph")
+        # Add elements
+        doc.add_heading("Test Heading", level=1)
+        doc.add_paragraph("Test paragraph")
 
-    table = doc.add_table(rows=2, cols=2)
-    for i, cell in enumerate(table.rows[0].cells):
-        cell.text = f"Header {i + 1}"
-        for paragraph in cell.paragraphs:
-            for run in paragraph.runs:
-                run.bold = True
+        table = doc.add_table(rows=2, cols=2)
+        for i, cell in enumerate(table.rows[0].cells):
+            cell.text = f"Header {i + 1}"
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.bold = True
 
-    # Extract structure
-    result_json = docx_extract_template_structure()
-    result = json.loads(result_json)
+        # Extract structure
+        result_json = docx_extract_template_structure()
+        result = json.loads(result_json)
 
-    # Verify structure
-    assert "metadata" in result
-    assert "document_structure" in result
-    assert len(result["document_structure"]) == 3
+        # Verify structure
+        assert "metadata" in result
+        assert "document_structure" in result
+        assert len(result["document_structure"]) == 3
 
-    # Verify element types
-    assert result["document_structure"][0]["type"] == "heading"
-    assert result["document_structure"][1]["type"] == "paragraph"
-    assert result["document_structure"][2]["type"] == "table"
+        # Verify element types
+        assert result["document_structure"][0]["type"] == "heading"
+        assert result["document_structure"][1]["type"] == "paragraph"
+        assert result["document_structure"][2]["type"] == "table"
 
-    # Verify table details
-    table_data = result["document_structure"][2]
-    assert table_data["rows"] == 2
-    assert table_data["cols"] == 2
-    assert table_data["headers"] == ["Header 1", "Header 2"]
-
-    # Clean up
-    teardown_active_session()
+        # Verify table details
+        table_data = result["document_structure"][2]
+        assert table_data["rows"] == 2
+        assert table_data["cols"] == 2
+        assert table_data["headers"] == ["Header 1", "Header 2"]
+    finally:
+        # Clean up
+        teardown_active_session()
 
 
 def test_extract_template_structure_error_handling():
-    """Test error handling for invalid session."""
-    try:
-        docx_extract_template_structure("invalid_session_id")
-        assert False, "Should have raised ValueError"
-    except ValueError as e:
-        assert "not found" in str(e)
+    """Test error handling for no active session."""
+    teardown_active_session()
+    result = docx_extract_template_structure()
+    assert is_error(result)
+    assert "NoActiveSession" in result or "no active session" in result.lower()

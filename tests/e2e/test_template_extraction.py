@@ -8,15 +8,15 @@ from tests.helpers import (
     is_success,
     is_error
 )
+from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx import Document
-from docx_mcp_server.server import (
-    docx_extract_template_structure, docx_save, docx_close
-)
+from docx_mcp_server.tools.content_tools import docx_extract_template_structure
+from docx_mcp_server.tools.session_tools import docx_save, docx_close
 
 
 def test_extract_complete_template():
     """Test extracting a complete template with all element types."""
-    setup_active_session()
+    session_id = setup_active_session()
     # Access the document
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
@@ -83,7 +83,7 @@ def test_extract_complete_template():
 
 def test_extract_with_header_detection():
     """Test header detection with bold formatting."""
-    setup_active_session()
+    session_id = setup_active_session()
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
     doc = session.document
@@ -97,7 +97,7 @@ def test_extract_with_header_detection():
                 run.bold = True
 
     # Extract
-    result_json = docx_extract_template_structure()
+    result_json = docx_extract_template_structure(session_id)
     result = json.loads(result_json)
 
     # Verify header detection
@@ -111,7 +111,7 @@ def test_extract_with_header_detection():
 
 def test_extract_header_detection_fail():
     """Test that tables without detectable headers are skipped."""
-    setup_active_session()
+    session_id = setup_active_session()
     from docx_mcp_server.server import session_manager
     session = session_manager.get_session(session_id)
     doc = session.document
@@ -123,7 +123,7 @@ def test_extract_header_detection_fail():
         # Deliberately not making it bold
 
     # Extract - should skip the table
-    result_json = docx_extract_template_structure()
+    result_json = docx_extract_template_structure(session_id)
     result = json.loads(result_json)
 
     # Table should be skipped due to header detection failure

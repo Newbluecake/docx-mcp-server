@@ -51,7 +51,7 @@ def _extract(response):
 
 def test_context_awareness_workflow():
     # 1. Create a new document
-    setup_active_session()
+    session_id = setup_active_session()
     assert session_id is not None
 
     # 2. Add Title (Heading)

@@ -25,30 +25,32 @@ from helpers import (
 
 
 def test_read_content_return_json_and_ids():
-    sid = extract_session_id(docx_create())
-    docx_insert_paragraph(sid, "alpha", position="end:document_body")
-    docx_insert_paragraph(sid, "beta", position="end:document_body")
+    setup_active_session()
+    try:
+        docx_insert_paragraph("alpha", position="end:document_body")
+        docx_insert_paragraph("beta", position="end:document_body")
 
-    result = json.loads(docx_read_content(sid, return_json=True, include_ids=True))
+        result = json.loads(docx_read_content(return_json=True, include_ids=True))
 
-    assert result["status"] == "success"
-    assert result["count"] == 2
-    assert all("id" in entry and entry["text"] for entry in result["data"])
-
-    docx_close(sid)
+        assert result["status"] == "success"
+        assert result["count"] == 2
+        assert all("id" in entry and entry["text"] for entry in result["data"])
+    finally:
+        teardown_active_session()
 
 
 def test_find_paragraphs_with_context():
-    sid = extract_session_id(docx_create())
-    docx_insert_paragraph(sid, "one", position="end:document_body")
-    docx_insert_paragraph(sid, "two match", position="end:document_body")
-    docx_insert_paragraph(sid, "three", position="end:document_body")
+    setup_active_session()
+    try:
+        docx_insert_paragraph("one", position="end:document_body")
+        docx_insert_paragraph("two match", position="end:document_body")
+        docx_insert_paragraph("three", position="end:document_body")
 
-    matches = json.loads(docx_find_paragraphs(sid, "match", max_results=2, return_context=True, context_span=1))
-    assert len(matches) == 1
-    entry = matches[0]
-    assert entry["text"] == "two match"
-    assert entry["context_before"] == ["one"]
-    assert entry["context_after"] == ["three"]
-
-    docx_close(sid)
+        matches = json.loads(docx_find_paragraphs("match", max_results=2, return_context=True, context_span=1))
+        assert len(matches) == 1
+        entry = matches[0]
+        assert entry["text"] == "two match"
+        assert entry["context_before"] == ["one"]
+        assert entry["context_after"] == ["three"]
+    finally:
+        teardown_active_session()

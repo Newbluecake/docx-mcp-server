@@ -132,11 +132,12 @@ class TestInsertRowAt:
             teardown_active_session()
 
     def test_insert_row_invalid_session(self):
-        """Test inserting a row with invalid session"""
-        result = docx_insert_row_at("invalid_session", "table_123", "after:1")
+        """Test inserting a row with no active session"""
+        # No active session - should fail
+        result = docx_insert_row_at("table_123", "after:1")
 
         assert is_error(result)
-        assert extract_metadata_field(result, "error_type") == "SessionNotFound"
+        assert extract_metadata_field(result, "error_type") == "NoActiveSession"
 
     def test_insert_row_invalid_table(self):
         """Test inserting a row with invalid table_id"""
@@ -405,6 +406,7 @@ class TestElementIdCleanup:
         """Test that deleting a row removes cell element_ids from registry"""
         from docx_mcp_server.server import session_manager
         from docx_mcp_server.tools.table_tools import docx_get_cell
+        from docx_mcp_server.core.global_state import global_state
 
         setup_active_session()
         try:
@@ -414,6 +416,7 @@ class TestElementIdCleanup:
             table_id = extract_element_id(result)
 
             # Get cells in row 1 to register them
+            session_id = global_state.active_session_id
             session = session_manager.get_session(session_id)
             result1 = docx_get_cell(table_id, 1, 0)
             result2 = docx_get_cell(table_id, 1, 1)

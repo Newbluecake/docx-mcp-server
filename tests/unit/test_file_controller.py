@@ -17,10 +17,17 @@ from docx_mcp_server.core.global_state import global_state
 
 @pytest.fixture
 def temp_docx():
-    """Create a temporary .docx file for testing."""
+    """Create a temporary valid .docx file for testing."""
+    from docx import Document
+
+    # Create a valid .docx file using python-docx
+    doc = Document()
+    doc.add_paragraph("Test content")
+
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-        f.write(b"PK")  # Minimal ZIP signature
         temp_path = f.name
+
+    doc.save(temp_path)
 
     yield temp_path
 
@@ -51,12 +58,16 @@ class TestFileControllerSwitchFile:
 
     def test_switch_file_success(self, temp_docx, mock_session_manager):
         """Test successful file switch."""
+        # v4.0: switch_file() auto-creates session, mock needs to return session_id
+        mock_session_manager.create_session.return_value = "test-session-id"
+
         result = FileController.switch_file(temp_docx, force=False)
 
         assert result["currentFile"] == temp_docx
-        assert result["sessionId"] is None
+        # v4.0: switch_file() auto-creates session
+        assert result["sessionId"] == "test-session-id"
         assert global_state.active_file == temp_docx
-        assert global_state.active_session_id is None
+        assert global_state.active_session_id == "test-session-id"
 
     def test_switch_file_not_found(self, mock_session_manager):
         """Test switching to non-existent file."""
@@ -110,13 +121,16 @@ class TestFileControllerSwitchFile:
         mock_session = Mock()
         mock_session.has_unsaved_changes = Mock(return_value=True)
         mock_session_manager.get_session = Mock(return_value=mock_session)
+        # v4.0: switch_file() auto-creates session
+        mock_session_manager.create_session.return_value = "new-session-id"
 
         # Should succeed with force=True
         result = FileController.switch_file(temp_docx, force=True)
 
         assert result["currentFile"] == temp_docx
         assert global_state.active_file == temp_docx
-        assert global_state.active_session_id is None
+        # v4.0: auto-creates new session
+        assert global_state.active_session_id == "new-session-id"
         # Should close old session
         mock_session_manager.close_session.assert_called_once_with("session-123")
 
@@ -129,6 +143,8 @@ class TestFileControllerSwitchFile:
         mock_session = Mock()
         mock_session.has_unsaved_changes = Mock(return_value=False)
         mock_session_manager.get_session = Mock(return_value=mock_session)
+        # v4.0: switch_file() auto-creates session
+        mock_session_manager.create_session.return_value = "new-session-id"
 
         # Switch file
         FileController.switch_file(temp_docx)
@@ -136,7 +152,8 @@ class TestFileControllerSwitchFile:
         # Should close old session
         mock_session_manager.close_session.assert_called_once_with("session-123")
         assert global_state.active_file == temp_docx
-        assert global_state.active_session_id is None
+        # v4.0: auto-creates new session
+        assert global_state.active_session_id == "new-session-id"
 
     def test_switch_file_invalid_path(self, mock_session_manager):
         """Test switching with invalid path."""
