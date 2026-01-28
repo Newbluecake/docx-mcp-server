@@ -22,7 +22,7 @@ from docx_mcp_server.tools.table_tools import (
 
 def test_fill_regular_table():
     """Test filling regular table."""
-    setup_active_session()
+    session_id = setup_active_session()
     assert session_id is not None
 
     try:

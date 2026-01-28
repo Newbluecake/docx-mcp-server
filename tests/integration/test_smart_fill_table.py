@@ -20,7 +20,7 @@ from docx_mcp_server.tools.composite_tools import docx_smart_fill_table
 
 def test_smart_fill_with_auto_resize():
     """Test smart fill with auto resize."""
-    setup_active_session()
+    session_id = setup_active_session()
     assert session_id is not None
 
     try:
@@ -38,7 +38,6 @@ def test_smart_fill_with_auto_resize():
         ])
 
         result = docx_smart_fill_table(
-            session_id,
             table_id,
             fill_data,
             has_header=True,

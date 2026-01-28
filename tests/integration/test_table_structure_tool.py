@@ -22,7 +22,7 @@ from docx_mcp_server.tools.table_tools import (
 
 def test_get_table_structure():
     """Test getting table structure."""
-    setup_active_session()
+    session_id = setup_active_session()
     assert session_id is not None
 
     try:
