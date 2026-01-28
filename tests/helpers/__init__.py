@@ -14,6 +14,8 @@ from .markdown_extractors import (
 from .session_helpers import (
     create_session_with_file,
     clear_active_file,
+    setup_active_session,
+    teardown_active_session,
 )
 
 __all__ = [
@@ -28,4 +30,6 @@ __all__ = [
     'has_metadata_field',
     'create_session_with_file',
     'clear_active_file',
+    'setup_active_session',
+    'teardown_active_session',
 ]
