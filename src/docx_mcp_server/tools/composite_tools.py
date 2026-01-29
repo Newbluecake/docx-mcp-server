@@ -175,7 +175,7 @@ def docx_quick_edit(
         matches = json.loads(matches_json)
 
         if not matches:
-            return json.dumps({"modified_count": 0, "message": "No matching paragraphs found"})
+            return "No matching paragraphs found."
 
         modified_ids = []
 
@@ -198,13 +198,16 @@ def docx_quick_edit(
 
             modified_ids.append(para_id)
 
-        result = {
-            "modified_count": len(modified_ids),
-            "paragraph_ids": modified_ids
-        }
-
         logger.info(f"Quick edit modified {len(modified_ids)} paragraphs")
-        return json.dumps(result)
+
+        # Return Markdown format
+        md_lines = ["# Quick Edit Result\n"]
+        md_lines.append(f"**Modified Count**: {len(modified_ids)}")
+        md_lines.append(f"\n**Modified Paragraph IDs**:")
+        for pid in modified_ids:
+            md_lines.append(f"- `{pid}`")
+
+        return "\n".join(md_lines)
 
     except Exception as e:
         logger.exception(f"Quick edit failed: {e}")
@@ -310,7 +313,44 @@ def docx_get_structure_summary(
         }
 
         logger.info(f"Generated structure summary for session {session.session_id}")
-        return json.dumps(structure, ensure_ascii=False, indent=2)
+
+        # Return Markdown format
+        md_lines = ["# Document Structure Summary\n"]
+        md_lines.append("## Summary")
+        md_lines.append(f"- **Total Headings**: {heading_count}")
+        md_lines.append(f"- **Total Tables**: {table_count}")
+        md_lines.append(f"- **Total Paragraphs**: {para_count}")
+        md_lines.append("")
+
+        if structure["headings"]:
+            md_lines.append("## Headings\n")
+            for h in structure["headings"]:
+                level = h.get("level", 1)
+                text = h.get("text", "") if include_content else "[content hidden]"
+                md_lines.append(f"{'#' * (level + 1)} {text}")
+                md_lines.append(f"*ID: `{h['element_id']}`*\n")
+
+        if structure["tables"]:
+            md_lines.append("## Tables\n")
+            for idx, t in enumerate(structure["tables"], 1):
+                md_lines.append(f"### Table {idx}")
+                md_lines.append(f"- **Size**: {t['rows']}x{t['cols']}")
+                md_lines.append(f"- **ID**: `{t['element_id']}`")
+                if include_content and t.get("first_row"):
+                    md_lines.append(f"- **First Row**: {', '.join(t['first_row'])}")
+                md_lines.append("")
+
+        if structure["paragraphs"]:
+            md_lines.append("## Paragraphs\n")
+            for idx, p in enumerate(structure["paragraphs"], 1):
+                md_lines.append(f"### Paragraph {idx}")
+                md_lines.append(f"- **Style**: {p['style']}")
+                md_lines.append(f"- **ID**: `{p['element_id']}`")
+                if include_content and p.get("text"):
+                    md_lines.append(f"- **Text**: {p['text']}")
+                md_lines.append("")
+
+        return "\n".join(md_lines)
 
     except Exception as e:
         logger.exception(f"Failed to generate structure summary: {e}")
@@ -502,14 +542,15 @@ def docx_format_range(
                 docx_set_font(run_id, size=size, bold=bold, italic=italic, color_hex=color_hex)
             formatted_count += 1
 
-        result = {
-            "formatted_count": formatted_count,
-            "start_index": start_idx,
-            "end_index": end_idx
-        }
-
         logger.info(f"Formatted range: {formatted_count} paragraphs")
-        return json.dumps(result)
+
+        # Return Markdown format
+        md_lines = ["# Format Range Result\n"]
+        md_lines.append(f"**Formatted Count**: {formatted_count}")
+        md_lines.append(f"**Start Index**: {start_idx}")
+        md_lines.append(f"**End Index**: {end_idx}")
+
+        return "\n".join(md_lines)
 
     except Exception as e:
         logger.exception(f"Format range failed: {e}")

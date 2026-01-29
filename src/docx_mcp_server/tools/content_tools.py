@@ -167,8 +167,39 @@ def docx_read_content(
             "data": entries
         }, ensure_ascii=False)
 
-    result = "\n".join([str(e.get("text", "")) for e in entries]) if entries else "[Empty Document]"
-    return result
+    # Return raw Markdown content (not JSON-wrapped)
+    if not entries:
+        return "[Empty Document]"
+
+    # Build Markdown output
+    md_lines = []
+    for entry in entries:
+        entry_type = entry.get("type", "paragraph")
+        text = entry.get("text", "")
+
+        if entry_type == "table":
+            # Format table as Markdown table
+            rows = entry.get("rows", 0)
+            cols = entry.get("cols", 0)
+            cells = entry.get("cells")
+
+            if cells:
+                # Render as proper Markdown table
+                for row_idx, row_data in enumerate(cells):
+                    md_lines.append("| " + " | ".join(str(cell) for cell in row_data) + " |")
+                    if row_idx == 0:
+                        # Add header separator
+                        md_lines.append("| " + " | ".join(["---"] * len(row_data)) + " |")
+            else:
+                # Fallback: just show text content with table indicator
+                md_lines.append(f"**[Table {rows}x{cols}]**")
+                md_lines.append(text)
+            md_lines.append("")  # Empty line after table
+        else:
+            # Regular paragraph - just add the text
+            md_lines.append(text)
+
+    return "\n".join(md_lines)
 
 def docx_find_paragraphs(
     query: str,
@@ -252,7 +283,29 @@ def docx_find_paragraphs(
                 break
 
     logger.debug(f"docx_find_paragraphs success: found {len(matches)} matches (limited to {max_results})")
-    return json.dumps(matches, ensure_ascii=False)
+
+    # Return Markdown format
+    if not matches:
+        return "No matching paragraphs found."
+
+    md_lines = [f"# Found {len(matches)} matching paragraph(s)\n"]
+    for idx, match in enumerate(matches, 1):
+        md_lines.append(f"## Match {idx}")
+        md_lines.append(f"**ID**: `{match['id']}`")
+        md_lines.append(f"**Text**: {match['text']}")
+
+        if return_context and context_span > 0:
+            if match.get("context_before"):
+                md_lines.append(f"\n**Context Before**:")
+                for ctx in match["context_before"]:
+                    md_lines.append(f"> {ctx}")
+            if match.get("context_after"):
+                md_lines.append(f"\n**Context After**:")
+                for ctx in match["context_after"]:
+                    md_lines.append(f"> {ctx}")
+        md_lines.append("")
+
+    return "\n".join(md_lines)
 
 def docx_extract_template_structure(
     max_depth: int = None,
@@ -351,7 +404,43 @@ def docx_extract_template_structure(
 
         element_count = len(structure.get('document_structure', []))
         logger.debug(f"docx_extract_template_structure success: extracted {element_count} elements")
-        return json.dumps(structure, indent=2, ensure_ascii=False)
+
+        # Return Markdown format
+        md_lines = ["# Document Structure\n"]
+
+        # Summary
+        md_lines.append("## Summary")
+        md_lines.append(f"- **Total Elements**: {element_count}")
+        md_lines.append("")
+
+        # Document structure
+        md_lines.append("## Elements\n")
+        for idx, item in enumerate(structure.get('document_structure', []), 1):
+            item_type = item.get('type', 'unknown')
+            md_lines.append(f"### {idx}. {item_type.title()}")
+
+            if 'id' in item:
+                md_lines.append(f"**ID**: `{item['id']}`")
+
+            if item_type == 'heading':
+                md_lines.append(f"**Level**: {item.get('level', 'N/A')}")
+                md_lines.append(f"**Style**: {item.get('style', 'N/A')}")
+
+            if item_type == 'table':
+                md_lines.append(f"**Rows**: {item.get('rows', 0)}")
+                md_lines.append(f"**Columns**: {item.get('cols', 0)}")
+                if item.get('has_header'):
+                    md_lines.append(f"**Has Header**: Yes")
+
+            if 'text' in item:
+                text = item['text']
+                if len(text) > 100:
+                    text = text[:100] + "..."
+                md_lines.append(f"**Text**: {text}")
+
+            md_lines.append("")
+
+        return "\n".join(md_lines)
     except Exception as e:
         logger.error(f"docx_extract_template_structure failed: {e}")
         raise

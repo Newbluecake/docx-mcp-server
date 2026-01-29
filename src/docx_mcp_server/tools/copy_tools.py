@@ -36,10 +36,19 @@ def docx_get_element_source(element_id: str) -> str:
     metadata = session.get_metadata(element_id)
     if not metadata:
         logger.debug(f"docx_get_element_source success: no metadata for {element_id}")
-        return "{}"
+        return "No source metadata found for this element."
 
     logger.debug(f"docx_get_element_source success: found metadata for {element_id}")
-    return json.dumps(metadata)
+
+    # Return Markdown format
+    md_lines = ["# Element Source Metadata\n"]
+    md_lines.append(f"**Element ID**: `{element_id}`\n")
+
+    for key, value in metadata.items():
+        key_display = key.replace('_', ' ').title()
+        md_lines.append(f"**{key_display}**: {value}")
+
+    return "\n".join(md_lines)
 
 
 def docx_copy_elements_range(start_id: str, end_id: str, position: str) -> str:
@@ -155,7 +164,15 @@ def docx_copy_elements_range(start_id: str, end_id: str, position: str) -> str:
             result_map.append({"new_id": new_id, "type": prefix})
 
         logger.debug(f"docx_copy_elements_range success: copied {len(new_objects)} elements")
-        return json.dumps(result_map)
+
+        # Return Markdown format
+        md_lines = ["# Copy Elements Range Result\n"]
+        md_lines.append(f"**Copied Count**: {len(new_objects)}\n")
+        md_lines.append("## New Element IDs\n")
+        for item in result_map:
+            md_lines.append(f"- **{item['type']}**: `{item['new_id']}`")
+
+        return "\n".join(md_lines)
 
     except Exception as e:
         logger.error(f"docx_copy_elements_range failed: {e}")

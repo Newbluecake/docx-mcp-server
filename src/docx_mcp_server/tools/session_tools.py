@@ -284,14 +284,24 @@ def docx_list_sessions() -> str:
     from docx_mcp_server.server import session_manager
 
     sessions = session_manager.list_sessions()
-    return create_markdown_response(
-        session=None,
-        message=f"Active sessions: {len(sessions)}",
-        operation="List Sessions",
-        show_context=False,
-        active_sessions=len(sessions),
-        sessions=json.dumps(sessions, indent=2)
-    )
+
+    # Return Markdown format
+    md_lines = ["# Active Sessions\n"]
+    md_lines.append(f"**Count**: {len(sessions)}\n")
+
+    if sessions:
+        md_lines.append("## Session List\n")
+        for idx, sess in enumerate(sessions, 1):
+            md_lines.append(f"### Session {idx}")
+            md_lines.append(f"- **ID**: `{sess.get('session_id', 'N/A')}`")
+            md_lines.append(f"- **File**: {sess.get('file_path', 'N/A')}")
+            md_lines.append(f"- **Auto Save**: {sess.get('auto_save', False)}")
+            md_lines.append(f"- **Created**: {sess.get('created_at', 'N/A')}")
+            md_lines.append("")
+    else:
+        md_lines.append("No active sessions.")
+
+    return "\n".join(md_lines)
 
 
 def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:

@@ -36,7 +36,22 @@ def docx_server_status() -> str:
         "active_sessions": len(session_manager.sessions),
         "log_level": get_global_log_level(),
     }
-    return json.dumps(info, indent=2)
+
+    # Return Markdown format
+    md_lines = ["# Server Status\n"]
+    md_lines.append(f"**Status**: {info['status']}")
+    md_lines.append(f"**Version**: {info['version']}")
+    md_lines.append(f"**Uptime**: {info['uptime_seconds']:.2f} seconds")
+    md_lines.append(f"**Active Sessions**: {info['active_sessions']}")
+    md_lines.append(f"**Log Level**: {info['log_level']}\n")
+
+    md_lines.append("## Environment\n")
+    md_lines.append(f"**OS**: {info['os_system']} ({info['os_name']})")
+    md_lines.append(f"**Python**: {info['python_version'].split()[0]}")
+    md_lines.append(f"**Working Directory**: `{info['cwd']}`")
+    md_lines.append(f"**Path Separator**: `{info['path_sep']}`")
+
+    return "\n".join(md_lines)
 
 
 def docx_get_log_level() -> str:
