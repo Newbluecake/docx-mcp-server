@@ -6,7 +6,6 @@ from docx_mcp_server.tools.content_tools import (
     docx_find_paragraphs,
     docx_extract_template_structure
 )
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_insert_heading
 from docx_mcp_server.tools.table_tools import docx_insert_table

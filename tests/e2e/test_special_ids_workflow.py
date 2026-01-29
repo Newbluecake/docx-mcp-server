@@ -19,7 +19,7 @@ from tests.helpers import (
     create_session_with_file,
 )
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
-from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.session_tools import docx_save
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
 from docx_mcp_server.tools.format_tools import docx_format_copy
@@ -220,8 +220,7 @@ def test_special_ids_with_file_save():
 
         assert len(doc.tables) == 1
 
-        # Cleanup - close the second session (which is now active)
-        docx_close()
+        # Cleanup - session will auto-expire, no need to close explicitly
 
     finally:
         # Clean up temp file

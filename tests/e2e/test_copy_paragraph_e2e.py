@@ -11,7 +11,7 @@ from tests.helpers.session_helpers import setup_active_session, teardown_active_
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.session_tools import docx_save
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph, docx_copy_paragraph
 from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
 from docx_mcp_server.tools.format_tools import docx_set_alignment

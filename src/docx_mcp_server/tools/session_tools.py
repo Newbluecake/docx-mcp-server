@@ -70,69 +70,6 @@ def docx_switch_session(session_id: str) -> str:
     )
 
 
-def docx_close() -> str:
-    """
-    Close the session and free all associated resources.
-
-    Terminates the document session, releasing memory and clearing the object registry.
-    Should be called when document operations are complete to prevent resource leaks.
-
-    Typical Use Cases:
-        - Clean up after document generation is complete
-        - Free resources in long-running processes
-        - Ensure proper session lifecycle management
-
-    Args:
-        session_id (str): Active session ID to close.
-
-    Returns:
-        str: Markdown-formatted success message confirming session closure.
-
-    Examples:
-        Complete document workflow:
-        >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "Content", position="end:document_body")
-        >>> docx_save(session_id, "./output.docx")
-        >>> result = docx_close(session_id)
-        >>> print(result)
-        'Session abc-123 closed successfully'
-
-    Notes:
-        - Unsaved changes will be lost - always call docx_save() first
-        - Closed sessions cannot be reopened - create a new session instead
-        - Sessions auto-expire after 1 hour, but explicit closure is recommended
-        - Calling close on an already closed session returns a not-found message
-
-    See Also:
-        - docx_create: Create a new session
-        - docx_save: Save before closing
-    """
-    from docx_mcp_server.utils.session_helpers import get_active_session
-
-    session, error = get_active_session()
-    if error:
-        return error
-
-    session_id = session.session_id
-    logger.info(f"docx_close called: session_id={session.session_id}")
-
-    from docx_mcp_server.server import session_manager
-    success = session_manager.close_session(session_id)
-    if success:
-        return create_markdown_response(
-            session=None,
-            message=f"Session {session_id} closed successfully",
-            operation="Close Session",
-            show_context=False,
-            session_id=session_id
-        )
-    else:
-        logger.warning(f"docx_close: Session {session_id} not found")
-        return create_error_response(
-            message=f"Session {session_id} not found",
-            error_type="SessionNotFound"
-        )
-
 def docx_save(
     file_path: str,
     backup: bool = False,
@@ -151,7 +88,6 @@ def docx_save(
         - Checkpoint document state during long operations
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
         file_path (str): Absolute or relative path where the file should be saved.
             Parent directory must exist. Use relative paths for portability.
 
@@ -165,16 +101,16 @@ def docx_save(
 
     Examples:
         Save a new document:
-        >>> session_id = docx_create()
-        >>> para_id = docx_insert_paragraph(session_id, "Hello World", position="end:document_body")
-        >>> result = docx_save(session_id, "./output.docx")
+        >>> # Session is automatically created by Launcher GUI or HTTP API
+        >>> para_id = docx_insert_paragraph("Hello World", position="end:document_body")
+        >>> result = docx_save("./output.docx")
         >>> print(result)
         'Document saved successfully to ./output.docx'
 
         Save modified template:
-        >>> session_id = docx_create(file_path="./template.docx")
+        >>> # Load template via Launcher GUI, session is auto-created
         >>> # ... make modifications ...
-        >>> docx_save(session_id, "./filled_template.docx")
+        >>> docx_save("./filled_template.docx")
 
     Notes:
         - If file exists, it will be overwritten without warning
@@ -182,8 +118,7 @@ def docx_save(
         - Live preview feature will refresh Word if file is open
 
     See Also:
-        - docx_create: Create session with auto_save option
-        - docx_close: Close session after saving
+        - docx_get_current_session: Get current session information
     """
     from docx_mcp_server.utils.session_helpers import get_active_session
 
@@ -254,7 +189,7 @@ def docx_get_context() -> str:
         - Check session configuration
 
     Args:
-        session_id (str): Active session ID returned by docx_create().
+        None. Operates on the currently active session.
 
     Returns:
         str: Markdown-formatted session context information.
@@ -264,12 +199,12 @@ def docx_get_context() -> str:
 
     Examples:
         Check session context:
-        >>> session_id = docx_create(file_path="./report.docx")
-        >>> para_id = docx_insert_paragraph(session_id, "Text", position="end:document_body")
-        >>> context = docx_get_context(session_id)
-        >>> import json
-        >>> data = json.loads(context)
-        >>> print(f"Last created: {data['last_created_id']}")
+        >>> # Session is automatically created by Launcher GUI or HTTP API
+        >>> para_id = docx_insert_paragraph("Text", position="end:document_body")
+        >>> context = docx_get_context()
+        >>> import json, re
+        >>> match = re.search(r'\*\*Last Created ID\*\*:\s*(\w+)', context)
+        >>> print(f"Last created: {match.group(1) if match else 'None'}")
 
     Notes:
         - Useful for debugging implicit context operations
@@ -277,7 +212,8 @@ def docx_get_context() -> str:
         - Auto-save status indicates if changes are automatically persisted
 
     See Also:
-        - docx_create: Create session with configuration
+        - docx_get_current_session: Get current session information
+        - docx_list_sessions: List all active sessions
     """
     from docx_mcp_server.utils.session_helpers import get_active_session
 
@@ -341,7 +277,7 @@ def docx_list_sessions() -> str:
         - Use docx_cleanup_sessions() to manually remove expired sessions
 
     See Also:
-        - docx_create: Create a new session
+        - docx_get_current_session: Get current session information
         - docx_cleanup_sessions: Remove expired sessions
         - docx_get_context: Get detailed context for a specific session
     """
@@ -409,7 +345,6 @@ def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
 
     See Also:
         - docx_list_sessions: View active sessions before cleanup
-        - docx_close: Explicitly close a specific session
         - docx_save: Save session before cleanup
     """
     from docx_mcp_server.server import session_manager
@@ -429,7 +364,6 @@ def register_tools(mcp: FastMCP):
     """Register session management tools"""
     mcp.tool()(docx_get_current_session)
     mcp.tool()(docx_switch_session)
-    mcp.tool()(docx_close)
     mcp.tool()(docx_save)
     mcp.tool()(docx_get_context)
     mcp.tool()(docx_list_sessions)

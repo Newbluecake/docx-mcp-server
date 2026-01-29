@@ -27,7 +27,6 @@ from docx_mcp_server.tools.advanced_tools import (
     docx_insert_image
 )
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 

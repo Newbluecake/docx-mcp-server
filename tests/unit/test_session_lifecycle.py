@@ -20,7 +20,6 @@ from helpers import (
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 from docx_mcp_server.tools.session_tools import (
-    docx_close,
     docx_save,
     docx_get_context,
     docx_list_sessions,
@@ -36,7 +35,7 @@ def test_create_and_context_with_backup_flags():
         session_id = global_state.active_session_id
         ctx_result = docx_get_context()
 
-        assert extract_metadata_field(ctx_result, "session_id") == session_id
+        assert str(extract_metadata_field(ctx_result, "session_id")) == session_id
         # Note: backup_on_save and backup_suffix are set during save, not create
         # So we just check that context returns valid session info
         assert session_id is not None

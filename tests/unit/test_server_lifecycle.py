@@ -1,7 +1,7 @@
 import unittest
 import os
 import tempfile
-from docx_mcp_server.server import docx_save, docx_close, session_manager
+from docx_mcp_server.server import docx_save, session_manager
 
 # Add parent directory to path for helpers import
 import sys
@@ -51,17 +51,6 @@ class TestServerLifecycle(unittest.TestCase):
                     os.remove(tmp_path)
         finally:
             teardown_active_session()
-
-    def test_close_session(self):
-        setup_active_session()
-        from docx_mcp_server.core.global_state import global_state
-        session_id = global_state.active_session_id
-        # Call docx_close() directly to test the close functionality
-        result = docx_close()
-        self.assertTrue(is_success(result))
-        self.assertNotIn(session_id, session_manager.sessions)
-        # Clean up global state
-        global_state.clear()
 
     def test_save_invalid_session(self):
         # No active session, should fail

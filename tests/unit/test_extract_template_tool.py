@@ -1,7 +1,7 @@
 """Integration test for docx_extract_template_structure tool."""
 import json
 from docx import Document
-from docx_mcp_server.server import docx_extract_template_structure, docx_close
+from docx_mcp_server.server import docx_extract_template_structure
 
 # Add parent directory to path for helpers import
 import sys

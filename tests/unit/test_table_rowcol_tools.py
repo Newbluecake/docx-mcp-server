@@ -7,7 +7,6 @@ import os
 # Add parent directory to path for helpers import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.table_tools import docx_insert_table
 from docx_mcp_server.tools.table_rowcol_tools import (

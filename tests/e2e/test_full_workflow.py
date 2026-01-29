@@ -10,7 +10,7 @@ from tests.helpers import (
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 import os
 import json
-from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.session_tools import docx_save
 from docx_mcp_server.tools.paragraph_tools import docx_insert_paragraph
 from docx_mcp_server.tools.run_tools import docx_insert_run
 from docx_mcp_server.tools.format_tools import docx_set_properties

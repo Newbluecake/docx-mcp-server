@@ -5,7 +5,7 @@ import tempfile
 from tests.helpers import extract_session_id, extract_element_id
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
-from docx_mcp_server.tools.session_tools import docx_save, docx_close
+from docx_mcp_server.tools.session_tools import docx_save
 from docx_mcp_server.tools.paragraph_tools import docx_insert_heading, docx_insert_paragraph
 from docx_mcp_server.tools.run_tools import docx_insert_run, docx_set_font
 from docx_mcp_server.tools.table_tools import (

@@ -33,7 +33,6 @@ Session {
 **关键特性**：
 - 每个会话独立，互不干扰
 - 自动过期机制（默认 1 小时）
-- 支持显式关闭 `docx_close()`
 
 **代码位置**：`src/docx_mcp_server/core/session.py`
 
@@ -482,13 +481,13 @@ except Exception as e:
 ### 3. 会话生命周期
 
 ```
-创建 → 操作 → 保存 → 关闭
-  ↓      ↓      ↓      ↓
-create  add_*  save   close
+创建 → 操作 → 保存
+  ↓      ↓      ↓
+create  add_*  save
         set_*
 ```
 
-**重要**：提醒 Claude 在完成后调用 `docx_close()` 释放资源。
+**注意**：在 v4.0 架构中，会话会自动管理，无需显式关闭。会话会在 1 小时后自动过期。
 
 ## 快速参考
 
@@ -527,7 +526,6 @@ para_id = docx_insert_formatted_paragraph(
     bold=True, size=16, color_hex="FF0000", alignment="center"
 )
 docx_save(session_id, "/path/to/output.docx")
-docx_close(session_id)
 ```
 
 **快速编辑文档（新方式）**：
@@ -540,7 +538,6 @@ result = docx_quick_edit(
     new_text="new text", bold=True
 )
 docx_save(session_id, "/path/to/doc.docx")
-docx_close(session_id)
 ```
 
 **轻量级结构提取（新方式）**：
@@ -555,7 +552,6 @@ summary = docx_get_structure_summary(
     max_paragraphs=0
 )
 # Token 使用减少 90%
-docx_close(session_id)
 ```
 
 **智能表格填充（新方式）**：
@@ -573,7 +569,6 @@ result = docx_smart_fill_table(
     data, has_header=True, auto_resize=True
 )
 docx_save(session_id, "/path/to/output.docx")
-docx_close(session_id)
 ```
 
 ### 常用工具组合（原子操作）
@@ -584,7 +579,6 @@ docx_close(session_id)
 session_id = docx_create()
 structure_json = docx_extract_template_structure(session_id)
 structure = json.loads(structure_json)
-docx_close(session_id)
 ```
 
 **创建格式化文档（原子方式）**：
@@ -594,7 +588,6 @@ para_id = docx_insert_paragraph(session_id, "", position="end:document_body")
 run_id = docx_insert_run(session_id, "重要文本", position=f"inside:{para_id}")
 docx_set_font(session_id, run_id, bold=True, size=16, color_hex="FF0000")
 docx_save(session_id, "/path/to/output.docx")
-docx_close(session_id)
 ```
 
 **Cursor 定位系统（高级插入）**：
@@ -622,7 +615,7 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 
 ## 完整工具参考
 
-本服务器提供 51 个 MCP 工具（v2.2 新增 4 个表格行列操作工具），按功能领域分为 11 个模块：
+本服务器提供 50 个 MCP 工具（v4.0 移除 docx_close），按功能领域分为 11 个模块：
 
 ### 0. Composite Tools（复合工具，5 个）⭐ 新增
 
@@ -636,16 +629,16 @@ docx_insert_paragraph_to_cell(session_id, "单元格内容", position=f"inside:{
 | `docx_smart_fill_table(session_id, table_identifier, data, has_header, auto_resize)` | 智能表格填充 | 自动扩展行 |
 | `docx_format_range(session_id, start_text, end_text, bold, italic, size, color_hex)` | 批量格式化范围 | 批量操作 |
 
-### 1. Session Tools（会话管理，4 个）
+### 1. Session Tools（会话管理，3 个）
 
 | 工具 | 说明 |
 |------|------|
 | `docx_create(auto_save=False)` | 创建新会话（⚠️ v3.0: 移除 file_path 参数）|
 | `docx_save(session_id, file_path)` | 保存文档到指定路径 |
-| `docx_close(session_id)` | 关闭会话并释放资源 |
 | `docx_get_context(session_id)` | 获取会话上下文信息 |
 
 **v3.0 变更**: 文件选择由 Launcher GUI 或 `--file` CLI 参数管理，通过全局 `active_file` 状态共享。
+**v4.0 变更**: 移除 `docx_close()` 接口，会话自动管理，1 小时后自动过期。
 
 ### 2. Content Tools（内容检索，3 个）⭐ 已优化
 

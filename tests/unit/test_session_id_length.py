@@ -1,4 +1,3 @@
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 
 # Add parent directory to path for helpers import

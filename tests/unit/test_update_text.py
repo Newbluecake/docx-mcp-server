@@ -14,9 +14,7 @@ from docx_mcp_server.server import (
     docx_set_font,
     docx_update_paragraph_text,
     docx_update_run_text,
-    docx_read_content,
-    docx_close
-)
+    docx_read_content)
 
 
 # extract_element_id removed

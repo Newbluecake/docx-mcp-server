@@ -25,9 +25,7 @@ from docx_mcp_server.server import (
     docx_set_font,
     docx_set_alignment,
     docx_copy_paragraph,
-    docx_read_content,
-    docx_close
-)
+    docx_read_content)
 
 
 def test_copy_simple_paragraph():

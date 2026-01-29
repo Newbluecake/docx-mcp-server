@@ -253,13 +253,16 @@ cmd.exe /c claude --mcp-config {"mcpServers":{"docx-server":{"url":"http://127.0
 
 - `docx_create(auto_save=False)` - 创建新文档会话（⚠️ v3.0: 移除了 file_path 参数）
 - `docx_save(session_id, file_path)` - 保存文档到文件
-- `docx_close(session_id)` - 关闭会话并释放资源
 - `docx_get_context(session_id)` - 获取当前会话上下文信息
 
 **v3.0 文件管理变更**：
 - 文件选择现在由 Launcher GUI 或 `--file` CLI 参数管理
 - `docx_create()` 使用全局活动文件（通过 `/api/file/switch` 设置）
 - 移除了 `docx_list_files()` 工具（文件浏览由 Launcher 提供）
+
+**v4.0 会话管理变更**：
+- 移除 `docx_close()` 接口，会话自动管理
+- 会话在 1 小时后自动过期，无需手动关闭
 
 ### 内容检索与浏览
 
@@ -411,7 +414,6 @@ para_id = extract_element_id(para_response)
 
 # 保存文档
 docx_save(session_id, "/path/to/output.docx")
-docx_close(session_id)
 ```
 
 ### 示例 2：加载并编辑文档（v3.0 新方式）
@@ -437,8 +439,6 @@ for element in structure["document_structure"]:
         print(f"表格: {element['headers']}")  # 自动检测的表头
     elif element["type"] == "heading":
         print(f"标题 {element['level']}: {element['text']}")
-
-docx_close(session_id)
 ```
 
 **v2.x 旧方式（已废弃）**:
@@ -492,7 +492,6 @@ docx_replace_text(session_id, "{{name}}", "张三")
 docx_replace_text(session_id, "{{date}}", "2026-01-20")
 
 docx_save(session_id, "/path/to/result.docx")
-docx_close(session_id)
 ```
 
 #### 3.2 表格克隆与填充
@@ -517,7 +516,6 @@ data = json.dumps([
 docx_fill_table(session_id, data, table_id=new_table_id, start_row=1)
 
 docx_save(session_id, "/path/to/report.docx")
-docx_close(session_id)
 ```
 
 ## 开发指南

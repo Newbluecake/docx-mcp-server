@@ -19,7 +19,7 @@ VERSION = "0.1.3"
 
 # Re-export all tool functions for backward compatibility
 from docx_mcp_server.tools.session_tools import (
-    docx_get_current_session, docx_switch_session, docx_close, docx_save, docx_get_context
+    docx_get_current_session, docx_switch_session, docx_save, docx_get_context
 )
 from docx_mcp_server.tools.content_tools import (
     docx_read_content, docx_find_paragraphs, docx_extract_template_structure

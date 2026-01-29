@@ -17,7 +17,6 @@ from docx_mcp_server.tools.table_tools import (
     docx_fill_table,
     docx_copy_table
 )
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from helpers import (
     extract_session_id,

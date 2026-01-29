@@ -7,7 +7,6 @@ from docx import Document
 from docx_mcp_server.tools.session_tools import (
     docx_get_current_session,
     docx_switch_session,
-    docx_close,
     docx_save,
     docx_get_context
 )
@@ -60,20 +59,6 @@ class TestModifiedSessionTools:
         """Test docx_switch_session with invalid session_id."""
         result = docx_switch_session("invalid_id")
         assert "SessionNotFound" in result
-
-    def test_docx_close_no_active(self):
-        """Test docx_close with no active session."""
-        result = docx_close()
-        assert "NoActiveSession" in result
-
-    def test_docx_close_success(self):
-        """Test docx_close with active session."""
-        session_id = session_manager.create_session()
-        global_state.active_session_id = session_id
-
-        result = docx_close()
-        assert "Success" in result
-        assert session_manager.get_session(session_id) is None
 
     def test_docx_save_no_active(self):
         """Test docx_save with no active session."""

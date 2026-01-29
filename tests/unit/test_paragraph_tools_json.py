@@ -10,7 +10,6 @@ from docx_mcp_server.tools.paragraph_tools import (
     docx_delete,
     docx_insert_page_break
 )
-from docx_mcp_server.tools.session_tools import docx_close
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from tests.helpers import (
     extract_session_id,

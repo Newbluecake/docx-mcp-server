@@ -83,7 +83,6 @@ def docx_insert_paragraph(text: str, position: str, style: str = None) -> str:
         >>> para1 = docx_insert_paragraph("First paragraph", position="end:document_body")
         >>> para2 = docx_insert_paragraph("Second paragraph", position="end:document_body")
         >>> docx_save("./output.docx")
-        >>> docx_close()
 
     Notes:
         - Empty text creates a blank paragraph (useful for spacing)
@@ -221,7 +220,6 @@ def docx_insert_heading(text: str, position: str, level: int = 1) -> str:
         >>> p1 = docx_insert_paragraph("Content...", position="end:document_body")
         >>> h2 = docx_insert_heading("Background", position="end:document_body", level=2)
         >>> docx_save("./document.docx")
-        >>> docx_close()
 
         Use Title style (level 0):
         >>> result = docx_insert_heading("Document Title", position="start:document_body", level=0)
