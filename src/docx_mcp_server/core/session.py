@@ -631,9 +631,27 @@ class Session:
             logger.debug(f"Session {self.session_id} marked as saved")
 
 class SessionManager:
+    # Process-level singleton to share sessions across FastMCP instances
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, ttl_seconds: int = 3600):
+        """Ensure only one SessionManager instance exists per process."""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self, ttl_seconds: int = 3600):
+        # Only initialize once
+        if self._initialized:
+            return
         self.sessions: Dict[str, Session] = {}
         self.ttl_seconds = ttl_seconds
+        self._initialized = True
+        logger.info(f"SessionManager singleton initialized (id={id(self)})")
 
     def create_session(
         self,
