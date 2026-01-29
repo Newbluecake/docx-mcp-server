@@ -68,9 +68,9 @@ def test_list_sessions_includes_active_session():
     setup_active_session()
     try:
         listing = docx_list_sessions()
-        # Note: docx_list_sessions might still return JSON, need to check
-        # For now, assume it returns Markdown
-        assert is_success(listing)
+        # docx_list_sessions now returns Markdown format
+        assert "# Active Sessions" in listing
+        assert "**Count**:" in listing
     finally:
         teardown_active_session()
 

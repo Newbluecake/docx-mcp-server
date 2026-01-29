@@ -12,7 +12,7 @@ from tests.helpers import (
     is_error
 )
 import json
-from docx_mcp_server.tools.session_tools import docx_close
+# docx_close removed in v4.0 - sessions auto-managed
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx_mcp_server.tools.table_tools import (
     docx_insert_table,

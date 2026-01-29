@@ -6,7 +6,8 @@ from tests.helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_template_structure
 )
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 from docx import Document
@@ -43,8 +44,8 @@ def test_extract_complete_template():
             table.rows[row_idx].cells[col_idx].text = f"Data-{row_idx}-{col_idx}"
 
     # Extract structure
-    result_json = docx_extract_template_structure()
-    result = json.loads(result_json)
+    result_md = docx_extract_template_structure()
+    result = extract_template_structure(result_md)
 
     # Verify metadata
     assert "metadata" in result
@@ -95,8 +96,8 @@ def test_extract_with_header_detection():
                 run.bold = True
 
     # Extract
-    result_json = docx_extract_template_structure(session_id)
-    result = json.loads(result_json)
+    result_md = docx_extract_template_structure(session_id)
+    result = extract_template_structure(result_md)
 
     # Verify header detection
     table_data = result["document_structure"][0]
@@ -121,8 +122,8 @@ def test_extract_header_detection_fail():
         # Deliberately not making it bold
 
     # Extract - should skip the table
-    result_json = docx_extract_template_structure(session_id)
-    result = json.loads(result_json)
+    result_md = docx_extract_template_structure(session_id)
+    result = extract_template_structure(result_md)
 
     # Table should be skipped due to header detection failure
     assert len(result["document_structure"]) == 0

@@ -20,7 +20,9 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_find_paragraphs_results,
+    extract_template_structure
 )
 
 
@@ -77,8 +79,8 @@ def test_find_paragraphs_with_limit():
             docx_insert_paragraph(f"Test paragraph {i}", position="end:document_body")
 
         # Find with limit
-        matches_json = docx_find_paragraphs("Test", max_results=5)
-        matches = json.loads(matches_json)
+        matches_md = docx_find_paragraphs("Test", max_results=5)
+        matches = extract_find_paragraphs_results(matches_md)
 
         assert len(matches) == 5
 
@@ -99,12 +101,12 @@ def test_extract_template_structure_with_limits():
 
         # Extract with limits
         limits = json.dumps({"headings": 2, "paragraphs": 0, "tables": 1})
-        structure_json = docx_extract_template_structure(
+        structure_md = docx_extract_template_structure(
             max_items_per_type=limits,
             include_content=False
         )
 
-        structure = json.loads(structure_json)
+        structure = extract_template_structure(structure_md)
         doc_structure = structure["document_structure"]
 
         # Count by type
@@ -127,11 +129,11 @@ def test_extract_template_structure_no_content():
         docx_insert_heading("Test Heading", position="end:document_body", level=1)
         docx_insert_paragraph("Long paragraph content" * 100, position="end:document_body")
 
-        structure_json = docx_extract_template_structure(
+        structure_md = docx_extract_template_structure(
             include_content=False
         )
 
-        structure = json.loads(structure_json)
+        structure = extract_template_structure(structure_md)
         doc_structure = structure["document_structure"]
 
         # Check that text is truncated

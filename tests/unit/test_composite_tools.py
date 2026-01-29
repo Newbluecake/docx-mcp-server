@@ -22,7 +22,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_json_from_markdown
 )
 
 
@@ -56,13 +57,14 @@ def test_quick_edit():
         docx_insert_paragraph("Another test paragraph", position="end:document_body")
 
         # Quick edit
-        result_json = docx_quick_edit(
+        result_md = docx_quick_edit(
             "test",
             new_text="modified",
             bold=True
         )
 
-        result = json.loads(result_json)
+        # Extract data from Markdown response
+        result = extract_json_from_markdown(result_md)
         assert result["modified_count"] == 2
         assert len(result["paragraph_ids"]) == 2
 
@@ -80,13 +82,14 @@ def test_get_structure_summary():
         docx_insert_table(2, 2, position="end:document_body")
 
         # Get summary
-        summary_json = docx_get_structure_summary(
+        summary_md = docx_get_structure_summary(
             max_headings=10,
             max_tables=5,
             max_paragraphs=0
         )
 
-        summary = json.loads(summary_json)
+        # Extract data from Markdown response
+        summary = extract_json_from_markdown(summary_md)
         assert "headings" in summary
         assert "tables" in summary
         assert summary["summary"]["total_headings"] >= 1
@@ -135,14 +138,15 @@ def test_format_range():
         docx_insert_paragraph("End marker", position="end:document_body")
 
         # Format range
-        result_json = docx_format_range(
+        result_md = docx_format_range(
             "Start marker",
             "End marker",
             bold=True,
             size=14
         )
 
-        result = json.loads(result_json)
+        # Extract data from Markdown response
+        result = extract_json_from_markdown(result_md)
         assert result["formatted_count"] == 3
 
     finally:
@@ -155,12 +159,13 @@ def test_quick_edit_no_matches():
     try:
         docx_insert_paragraph("Test paragraph", position="end:document_body")
 
-        result_json = docx_quick_edit(
+        result_md = docx_quick_edit(
             "nonexistent",
             new_text="modified"
         )
 
-        result = json.loads(result_json)
+        # Extract data from Markdown response
+        result = extract_json_from_markdown(result_md)
         assert result["modified_count"] == 0
 
     finally:

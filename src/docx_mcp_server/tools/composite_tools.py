@@ -171,11 +171,30 @@ def docx_quick_edit(
 
     try:
         # Find matching paragraphs
-        matches_json = docx_find_paragraphs(search_text)
-        matches = json.loads(matches_json)
+        matches_md = docx_find_paragraphs(search_text)
+
+        # Parse Markdown response
+        if "No matching paragraphs found" in matches_md:
+            # Return Markdown format
+            md_lines = ["# Quick Edit Result\n"]
+            md_lines.append(f"**Modified Count**: 0")
+            md_lines.append(f"\n**Modified Paragraph IDs**: None")
+            return "\n".join(md_lines)
+
+        # Extract matches from Markdown
+        matches = []
+        match_pattern = r'## Match \d+\s*\n\*\*ID\*\*:\s*`([^`]+)`\s*\n\*\*Text\*\*:\s*(.+?)(?=\n##|\n\*\*Context|\Z)'
+        for match in re.finditer(match_pattern, matches_md, re.DOTALL):
+            para_id = match.group(1).strip()
+            text = match.group(2).strip()
+            matches.append({'id': para_id, 'text': text})
 
         if not matches:
-            return "No matching paragraphs found."
+            # Return Markdown format
+            md_lines = ["# Quick Edit Result\n"]
+            md_lines.append(f"**Modified Count**: 0")
+            md_lines.append(f"\n**Modified Paragraph IDs**: None")
+            return "\n".join(md_lines)
 
         modified_ids = []
 

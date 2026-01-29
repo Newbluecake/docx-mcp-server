@@ -19,7 +19,8 @@ from helpers import (
     extract_element_id,
     extract_metadata_field,
     is_success,
-    is_error
+    is_error,
+    extract_find_paragraphs_results
 )
 
 
@@ -45,7 +46,8 @@ def test_find_paragraphs_with_context():
         docx_insert_paragraph("two match", position="end:document_body")
         docx_insert_paragraph("three", position="end:document_body")
 
-        matches = json.loads(docx_find_paragraphs("match", max_results=2, return_context=True, context_span=1))
+        matches_md = docx_find_paragraphs("match", max_results=2, return_context=True, context_span=1)
+        matches = extract_find_paragraphs_results(matches_md)
         assert len(matches) == 1
         entry = matches[0]
         assert entry["text"] == "two match"

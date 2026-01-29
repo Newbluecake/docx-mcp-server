@@ -6,7 +6,8 @@ from tests.helpers import (
     extract_metadata_field,
     extract_all_metadata,
     is_success,
-    is_error
+    is_error,
+    extract_element_ids_list
 )
 from tests.helpers.session_helpers import setup_active_session, teardown_active_session
 import json
@@ -85,32 +86,8 @@ def test_format_copy_system_workflow(tmp_path):
     # We expect 3 elements: Heading, Styled Para, End Marker
     new_ids_resp = docx_copy_elements_range(h1_id, end_p_id, position="end:document_body")
 
-    # Handle response which might be Markdown or JSON
-    try:
-        new_ids = json.loads(new_ids_resp)
-    except json.JSONDecodeError:
-        # If markdown, we expect a list in the output or metadata
-        # For now, let's look for the IDs in the text or metadata
-        meta = extract_all_metadata(new_ids_resp)
-        # Assuming the tool returns the list in a field or we need to parse it
-        # If the tools are consistent, it might return a specific field
-        # Let's check if 'elements' or similar is in metadata, or if it's in the text body
-        # For this specific test fix, if it fails we might need to inspect the response
-        # But let's try to extract a list if present
-        if 'new_ids' in meta:
-             new_ids = meta['new_ids']
-             if isinstance(new_ids, str):
-                 try:
-                     new_ids = json.loads(new_ids)
-                 except:
-                     pass
-        else:
-            # Fallback: Assume success and valid count if we can't parse the list easily from MD
-            # This is a weak assertion but allows passing if the tool worked
-            if is_success(new_ids_resp):
-                 new_ids = [1, 2, 3] # Mock for length check if we can't parse
-            else:
-                 raise ValueError(f"Copy range failed: {new_ids_resp}")
+    # Extract IDs from Markdown response
+    new_ids = extract_element_ids_list(new_ids_resp)
 
     assert len(new_ids) == 3
 

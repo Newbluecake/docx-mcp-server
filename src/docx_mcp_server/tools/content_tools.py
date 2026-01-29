@@ -431,6 +431,10 @@ def docx_extract_template_structure(
                 md_lines.append(f"**Columns**: {item.get('cols', 0)}")
                 if item.get('has_header'):
                     md_lines.append(f"**Has Header**: Yes")
+                if 'header_row' in item:
+                    md_lines.append(f"**Header Row**: {item['header_row']}")
+                if 'headers' in item:
+                    md_lines.append(f"**Headers**: {', '.join(item['headers'])}")
 
             if 'text' in item:
                 text = item['text']

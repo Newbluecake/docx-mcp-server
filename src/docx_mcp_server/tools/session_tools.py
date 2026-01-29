@@ -203,7 +203,7 @@ def docx_get_context() -> str:
         >>> para_id = docx_insert_paragraph("Text", position="end:document_body")
         >>> context = docx_get_context()
         >>> import json, re
-        >>> match = re.search(r'\*\*Last Created ID\*\*:\s*(\w+)', context)
+        >>> match = re.search(r'\\*\\*Last Created ID\\*\\*:\\s*(\\w+)', context)
         >>> print(f"Last created: {match.group(1) if match else 'None'}")
 
     Notes:
@@ -265,7 +265,7 @@ def docx_list_sessions() -> str:
         Check if specific session exists:
         >>> result = docx_list_sessions()
         >>> import json, re
-        >>> match = re.search(r'\*\*Sessions\*\*:\s*```json\n(.+?)\n```', result, re.DOTALL)
+        >>> match = re.search(r'\\*\\*Sessions\\*\\*:\\s*```json\\n(.+?)\\n```', result, re.DOTALL)
         >>> if match:
         ...     sessions = json.loads(match.group(1))
         ...     session_ids = [s['session_id'] for s in sessions]
@@ -343,7 +343,7 @@ def docx_cleanup_sessions(max_idle_seconds: int = 0) -> str:
         Extract cleanup count:
         >>> result = docx_cleanup_sessions()
         >>> import re
-        >>> match = re.search(r'\*\*Cleaned\*\*:\s*(\d+)', result)
+        >>> match = re.search(r'\\*\\*Cleaned\\*\\*:\\s*(\\d+)', result)
         >>> count = int(match.group(1)) if match else 0
         >>> print(f"Cleaned up {count} sessions")
 
