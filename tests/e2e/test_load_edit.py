@@ -37,32 +37,10 @@ class TestLoadEditE2E:
 
         # 4. Find specific paragraph
         results_resp = docx_find_paragraphs("Target:")
-        results = []
-        if is_success(results_resp):
-            meta = extract_all_metadata(results_resp)
-            if 'paragraphs' in meta:
-                val = meta['paragraphs']
-                if isinstance(val, str):
-                    try:
-                        results = json.loads(val)
-                    except Exception:
-                        try:
-                            results = ast.literal_eval(val)
-                        except Exception:
-                            results = []
-                else:
-                    results = val or []
-        else:
-            # Legacy behavior: tool may return a raw JSON list
-            try:
-                results = json.loads(results_resp)
-            except Exception:
-                match = re.search(r'\[.*\]', results_resp, re.DOTALL)
-                if match:
-                    try:
-                        results = json.loads(match.group(0))
-                    except Exception:
-                        results = []
+
+        # Use the helper function to extract results from Markdown
+        from tests.helpers import extract_find_paragraphs_results
+        results = extract_find_paragraphs_results(results_resp)
 
         assert len(results) == 1
         para_id = results[0]["id"]

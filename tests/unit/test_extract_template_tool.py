@@ -26,6 +26,7 @@ def test_extract_template_structure_integration():
         # Create the document using the docx API directly
         from docx_mcp_server.server import session_manager
         from docx_mcp_server.core.global_state import global_state
+        from tests.helpers import extract_template_structure
         session = session_manager.get_session(global_state.active_session_id)
         doc = session.document
 
@@ -41,8 +42,8 @@ def test_extract_template_structure_integration():
                     run.bold = True
 
         # Extract structure
-        result_json = docx_extract_template_structure()
-        result = json.loads(result_json)
+        result_markdown = docx_extract_template_structure()
+        result = extract_template_structure(result_markdown)
 
         # Verify structure
         assert "metadata" in result

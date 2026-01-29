@@ -396,15 +396,20 @@ def _extract_structure_section(response: str, section_name: str) -> list:
         List of items in the section
     """
     items = []
-    section_pattern = rf'## {section_name}\s*\n(.*?)(?=\n##|\Z)'
+    # Match section, but stop at next major section (Summary, Headings, Tables, Paragraphs) or end
+    section_pattern = rf'## {section_name}\s*\n(.*?)(?=\n## (?:Summary|Headings|Tables|Paragraphs)\s*\n|\Z)'
     match = re.search(section_pattern, response, re.DOTALL)
 
     if match:
         section_content = match.group(1)
-        # Extract element IDs from the section
-        id_pattern = r'\*ID:\s*`([^`]+)`\*'
+        # Extract element IDs from the section - match both formats
+        # Format 1: *ID: `xxx`*
+        # Format 2: - **ID**: `xxx`
+        id_pattern = r'(?:\*ID:\s*`([^`]+)`\*|-\s*\*\*ID\*\*:\s*`([^`]+)`)'
         for id_match in re.finditer(id_pattern, section_content):
-            items.append({'element_id': id_match.group(1)})
+            element_id = id_match.group(1) or id_match.group(2)
+            if element_id:
+                items.append({'element_id': element_id})
 
     return items
 

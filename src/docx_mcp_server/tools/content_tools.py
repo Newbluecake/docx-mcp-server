@@ -419,8 +419,10 @@ def docx_extract_template_structure(
             item_type = item.get('type', 'unknown')
             md_lines.append(f"### {idx}. {item_type.title()}")
 
-            if 'id' in item:
-                md_lines.append(f"**ID**: `{item['id']}`")
+            # Check for both 'id' and 'element_id' for backward compatibility
+            element_id = item.get('id') or item.get('element_id')
+            if element_id:
+                md_lines.append(f"**ID**: `{element_id}`")
 
             if item_type == 'heading':
                 md_lines.append(f"**Level**: {item.get('level', 'N/A')}")

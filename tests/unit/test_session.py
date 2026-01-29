@@ -6,6 +6,8 @@ from docx_mcp_server.core.session import SessionManager, Session
 
 class TestSessionManager(unittest.TestCase):
     def setUp(self):
+        # Reset the singleton for testing
+        SessionManager._instance = None
         self.manager = SessionManager(ttl_seconds=1)
 
     def test_create_session(self):
@@ -19,11 +21,21 @@ class TestSessionManager(unittest.TestCase):
 
     def test_session_expiry(self):
         session_id = self.manager.create_session()
+        # Store the session object to check last_accessed later
+        session = self.manager.sessions[session_id]
+        initial_last_accessed = session.last_accessed
+
         # Wait for TTL to expire
         time.sleep(1.1)
 
-        session = self.manager.get_session(session_id)
-        self.assertIsNone(session)
+        # Verify time has passed
+        time_passed = time.time() - initial_last_accessed
+        self.assertGreater(time_passed, self.manager.ttl_seconds,
+                          f"Not enough time passed: {time_passed} <= {self.manager.ttl_seconds}")
+
+        # get_session should return None and remove the expired session
+        result = self.manager.get_session(session_id)
+        self.assertIsNone(result)
         self.assertNotIn(session_id, self.manager.sessions)
 
     def test_object_registry(self):

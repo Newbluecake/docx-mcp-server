@@ -203,6 +203,7 @@ class TestToolsWithElementId:
         try:
             from docx_mcp_server.server import session_manager
             from docx_mcp_server.core.global_state import global_state
+            from tests.helpers import extract_template_structure
             session = session_manager.get_session(global_state.active_session_id)
 
             # Add content
@@ -213,31 +214,31 @@ class TestToolsWithElementId:
                 cell.paragraphs[0].add_run("Header").bold = True
 
             # Extract structure
-            result_json = docx_extract_template_structure()
-            result = json.loads(result_json)
+            result_markdown = docx_extract_template_structure()
+            result = extract_template_structure(result_markdown)
 
             # Verify structure
             assert "document_structure" in result
             doc_structure = result["document_structure"]
             assert len(doc_structure) == 3
 
-            # Verify heading has element_id
+            # Verify heading has element_id (now 'id' in Markdown format)
             heading = doc_structure[0]
             assert heading["type"] == "heading"
-            assert "element_id" in heading
-            assert heading["element_id"].startswith("para_")
+            assert "id" in heading
+            assert heading["id"].startswith("para_")
 
             # Verify paragraph has element_id
             para = doc_structure[1]
             assert para["type"] == "paragraph"
-            assert "element_id" in para
-            assert para["element_id"].startswith("para_")
+            assert "id" in para
+            assert para["id"].startswith("para_")
 
             # Verify table has element_id
             table_elem = doc_structure[2]
             assert table_elem["type"] == "table"
-            assert "element_id" in table_elem
-            assert table_elem["element_id"].startswith("table_")
+            assert "id" in table_elem
+            assert table_elem["id"].startswith("table_")
         finally:
             teardown_active_session()
 
@@ -247,6 +248,7 @@ class TestToolsWithElementId:
         try:
             from docx_mcp_server.server import session_manager
             from docx_mcp_server.core.global_state import global_state
+            from tests.helpers import extract_json_from_markdown
             session = session_manager.get_session(global_state.active_session_id)
 
             # Add content
@@ -258,12 +260,12 @@ class TestToolsWithElementId:
                 cell.paragraphs[0].add_run("Header").bold = True
 
             # Get structure summary
-            result_json = docx_get_structure_summary(
+            result_markdown = docx_get_structure_summary(
                 max_headings=10,
                 max_tables=5,
                 max_paragraphs=5
             )
-            result = json.loads(result_json)
+            result = extract_json_from_markdown(result_markdown)
 
             # Verify headings have element_id
             assert len(result["headings"]) == 2
@@ -343,6 +345,7 @@ class TestElementIdReusability:
             from docx_mcp_server.tools.paragraph_tools import docx_update_paragraph_text
             from docx_mcp_server.server import session_manager
             from docx_mcp_server.core.global_state import global_state
+            from tests.helpers import extract_template_structure
 
             session = session_manager.get_session(global_state.active_session_id)
 
@@ -351,12 +354,12 @@ class TestElementIdReusability:
             session.document.add_paragraph("Original text")
 
             # Extract structure to get element_ids
-            result_json = docx_extract_template_structure()
-            result = json.loads(result_json)
+            result_markdown = docx_extract_template_structure()
+            result = extract_template_structure(result_markdown)
 
-            # Get paragraph element_id
+            # Get paragraph element_id (now 'id' in Markdown format)
             para = result["document_structure"][1]
-            para_id = para["element_id"]
+            para_id = para["id"]
 
             # Use element_id to modify paragraph
             update_result = docx_update_paragraph_text(para_id, "Modified text")
@@ -377,6 +380,7 @@ class TestElementIdReusability:
             from docx_mcp_server.tools.table_tools import docx_get_table_structure
             from docx_mcp_server.server import session_manager
             from docx_mcp_server.core.global_state import global_state
+            from tests.helpers import extract_template_structure, extract_all_metadata
 
             session = session_manager.get_session(global_state.active_session_id)
 
@@ -386,21 +390,23 @@ class TestElementIdReusability:
                 cell.paragraphs[0].add_run("Header").bold = True
 
             # Extract structure to get table_id
-            result_json = docx_extract_template_structure()
-            result = json.loads(result_json)
+            result_markdown = docx_extract_template_structure()
+            result = extract_template_structure(result_markdown)
 
-            # Get table element_id
+            # Get table element_id (now 'id' in Markdown format)
             table_elem = result["document_structure"][0]
-            table_id = table_elem["element_id"]
+            table_id = table_elem["id"]
 
             # Use table_id with docx_get_table_structure
-            table_structure_json = docx_get_table_structure(table_id)
-            table_structure = json.loads(table_structure_json)
+            table_structure_markdown = docx_get_table_structure(table_id)
+
+            # Extract metadata from Markdown response
+            assert is_success(table_structure_markdown)
+            metadata = extract_all_metadata(table_structure_markdown)
 
             # Verify it worked
-            assert table_structure["status"] == "success"
-            assert table_structure["data"]["rows"] == 2
-            assert table_structure["data"]["cols"] == 2
+            assert metadata["rows"] == 2
+            assert metadata["cols"] == 2
         finally:
             teardown_active_session()
 
@@ -414,14 +420,15 @@ class TestBackwardCompatibility:
         try:
             from docx_mcp_server.server import session_manager
             from docx_mcp_server.core.global_state import global_state
+            from tests.helpers import extract_template_structure
             session = session_manager.get_session(global_state.active_session_id)
 
             # Old way of using tools (without relying on element_id)
             session.document.add_paragraph("Test paragraph")
 
             # Extract structure (old code doesn't check for element_id)
-            result_json = docx_extract_template_structure()
-            result = json.loads(result_json)
+            result_markdown = docx_extract_template_structure()
+            result = extract_template_structure(result_markdown)
 
             # Old code just checks structure exists
             assert "document_structure" in result
