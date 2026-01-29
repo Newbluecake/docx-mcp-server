@@ -40,12 +40,12 @@ def test_docx_copy_paragraph_tool():
         assert new_para_id.startswith("para_")
 
         # Verify metadata (Lineage tracking)
-        source_json = docx_get_element_source(new_para_id)
-        source_data = json.loads(source_json)
-
-        assert source_data["source_id"] == para_id
-        assert source_data["source_type"] == "paragraph"
-        assert "copied_at" in source_data
+        source_md = docx_get_element_source(new_para_id)
+        # docx_get_element_source now returns Markdown
+        assert "# Element Source Metadata" in source_md
+        assert para_id in source_md
+        assert "paragraph" in source_md.lower()
+        assert "Copied At" in source_md or "copied_at" in source_md.lower()
     finally:
         teardown_active_session()
 
@@ -62,9 +62,10 @@ def test_docx_copy_heading_tool():
         new_h_id = extract_element_id(new_h_response)
 
         # Verify metadata
-        source_json = docx_get_element_source(new_h_id)
-        source_data = json.loads(source_json)
-        assert source_data["source_id"] == h_id
+        source_md = docx_get_element_source(new_h_id)
+        # docx_get_element_source now returns Markdown
+        assert "# Element Source Metadata" in source_md
+        assert h_id in source_md
     finally:
         teardown_active_session()
 

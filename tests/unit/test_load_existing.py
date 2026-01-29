@@ -89,22 +89,20 @@ class TestLoadExisting:
         doc.save(str(file_path))
 
         session_id = create_session_with_file(str(file_path))
-        # Test find
-        result_json = docx_find_paragraphs("Target")
-        matches = json.loads(result_json)
+        # Test find - docx_find_paragraphs now returns Markdown
+        result_md = docx_find_paragraphs("Target")
 
-        assert len(matches) == 1
-        assert matches[0]["text"] == "Target paragraph here"
-        assert matches[0]["id"].startswith("para_")
+        # Parse Markdown response
+        assert "# Found 1 matching paragraph(s)" in result_md
+        assert "Target paragraph here" in result_md
+        assert "para_" in result_md
 
         # Test find - no match
-        result_json = docx_find_paragraphs("Nonexistent")
-        matches = json.loads(result_json)
-        assert len(matches) == 0
+        result_md = docx_find_paragraphs("Nonexistent")
+        assert "No matching paragraphs found" in result_md
 
         # Test case insensitivity
-        result_json = docx_find_paragraphs("target")
-        matches = json.loads(result_json)
-        assert len(matches) == 1
+        result_md = docx_find_paragraphs("target")
+        assert "# Found 1 matching paragraph(s)" in result_md
 
         teardown_active_session()
